@@ -10,7 +10,8 @@ const SettingsView: React.FC = () => {
   const [borgPassphrase, setBorgPassphrase] = useState('');
   const [disableHostCheck, setDisableHostCheck] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
-  const [startWithWindows, setStartWithWindows] = useState(false); // New state for autostart
+  const [startWithWindows, setStartWithWindows] = useState(false);
+  const [startMinimized, setStartMinimized] = useState(false);
   const [limitBandwidth, setLimitBandwidth] = useState(false);
   const [bandwidthLimit, setBandwidthLimit] = useState(1000);
   
@@ -51,7 +52,8 @@ const SettingsView: React.FC = () => {
                 setBorgPassphrase(db.settings.borgPassphrase || '');
                 setDisableHostCheck(db.settings.disableHostCheck || false);
                 setCloseToTray(db.settings.closeToTray || false);
-                setStartWithWindows(db.settings.startWithWindows || false); // Load autostart setting
+                setStartWithWindows(db.settings.startWithWindows || false);
+                setStartMinimized(db.settings.startMinimized || false);
                 setLimitBandwidth(db.settings.limitBandwidth || false);
                 setBandwidthLimit(db.settings.bandwidthLimit || 1000);
             }
@@ -80,6 +82,7 @@ const SettingsView: React.FC = () => {
                 disableHostCheck,
                 closeToTray,
                 startWithWindows,
+                startMinimized,
                 limitBandwidth,
                 bandwidthLimit
             }
@@ -176,37 +179,62 @@ const SettingsView: React.FC = () => {
                </div>
 
                {/* Start with Windows */}
-               <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                   <div className="flex items-center gap-3">
-                       <div className={`p-2 rounded-full ${startWithWindows ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
-                          {startWithWindows ? <Check className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+               <div className="p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                   <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3">
+                           <div className={`p-2 rounded-full ${startWithWindows ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                              {startWithWindows ? <Check className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                           </div>
+                           <div>
+                               <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="autostart-toggle">Start with Windows</label>
+                               <p className="text-xs text-slate-500 dark:text-slate-400">
+                                   {startWithWindows 
+                                    ? "WinBorg Manager will start automatically." 
+                                    : "WinBorg Manager will not start automatically."}
+                               </p>
+                           </div>
                        </div>
-                       <div>
-                           <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="autostart-toggle">Start with Windows</label>
-                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                               {startWithWindows 
-                                ? "WinBorg Manager will start automatically when Windows launches." 
-                                : "WinBorg Manager will not start automatically."}
-                           </p>
-                       </div>
+                       <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                            <input 
+                                type="checkbox" 
+                                id="autostart-toggle" 
+                                className="peer sr-only"
+                                checked={startWithWindows}
+                                onChange={(e) => {
+                                    setStartWithWindows(e.target.checked);
+                                    // Also disable start minimized if autostart is turned off
+                                    if (!e.target.checked) {
+                                        setStartMinimized(false);
+                                    }
+                                    const ipc = getElectron()?.ipcRenderer;
+                                    if (ipc) {
+                                        ipc.send('settings:toggleAutoStart', e.target.checked);
+                                    }
+                                }}
+                            />
+                            <label htmlFor="autostart-toggle" className="block w-12 h-6 bg-gray-200 dark:bg-slate-600 rounded-full cursor-pointer peer-checked:bg-blue-600 transition-colors"></label>
+                            <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-6 pointer-events-none"></span>
+                        </div>
                    </div>
-                   <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
-                        <input 
-                            type="checkbox" 
-                            id="autostart-toggle" 
-                            className="peer sr-only"
-                            checked={startWithWindows}
-                            onChange={(e) => {
-                                setStartWithWindows(e.target.checked);
-                                const ipc = getElectron()?.ipcRenderer;
-                                if (ipc) {
-                                    ipc.send('settings:toggleAutoStart', e.target.checked);
-                                }
-                            }}
-                        />
-                        <label htmlFor="autostart-toggle" className="block w-12 h-6 bg-gray-200 dark:bg-slate-600 rounded-full cursor-pointer peer-checked:bg-blue-600 transition-colors"></label>
-                        <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-6 pointer-events-none"></span>
-                    </div>
+                   {/* Start Minimized Sub-option */}
+                   <div className={`mt-3 ml-8 pl-5 border-l-2 border-slate-200 dark:border-slate-700 transition-opacity ${startWithWindows ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+                        <div className="flex items-center gap-3">
+                            <input 
+                                type="checkbox" 
+                                id="start-minimized-check" 
+                                className="h-4 w-4 rounded border-gray-300 dark:bg-slate-800 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+                                checked={startMinimized}
+                                onChange={(e) => setStartMinimized(e.target.checked)}
+                                disabled={!startWithWindows}
+                            />
+                            <div>
+                                <label htmlFor="start-minimized-check" className="text-sm font-medium text-slate-800 dark:text-slate-200">Start minimized to tray</label>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    If enabled, the app will not show its window on startup.
+                                </p>
+                            </div>
+                        </div>
+                   </div>
                </div>
 
                {/* Updates */}
