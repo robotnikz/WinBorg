@@ -23,6 +23,10 @@ if (!gotTheLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
+      new Notification({
+        title: 'WinBorg Manager',
+        body: 'WinBorg Manager is already running. Focusing the existing window.'
+      }).show();
     }
   });
 }
