@@ -16,6 +16,7 @@
   "build": {
     "appId": "com.winborg.manager",
     "productName": "WinBorg Manager",
+    "artifactName": "${productName} Setup ${version}.${ext}",
     "directories": {
       "output": "dist-electron"
     },
