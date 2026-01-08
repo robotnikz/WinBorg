@@ -1,0 +1,5 @@
+{
+  "name": "WinBorg Manager",
+  "description": "A Windows 11-styled interface for managing BorgBackup repositories, SSH connections, and mounting remote archives to the local filesystem.",
+  "requestFramePermissions": []
+}
