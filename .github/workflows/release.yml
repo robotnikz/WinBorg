@@ -7,7 +7,8 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Change runner to Windows to build the .exe
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
@@ -18,15 +19,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          # Update Node.js version to be compatible with semantic-release
+          node-version: '20'
 
       - name: Install dependencies
         run: npm install
 
       - name: Build application
-        run: npm run dist
+        # Add "-- --publish never" to prevent electron-builder from publishing
+        run: npm run dist -- --publish never
 
       - name: Release
         env:
+          # The GITHUB_TOKEN is automatically provided by GitHub
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
