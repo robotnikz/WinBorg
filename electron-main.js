@@ -18,7 +18,7 @@ try {
 }
 
 // --- CONFIGURATION ---
-const GITHUB_REPO = "robotnikz/WinBorgManager"; 
+const GITHUB_REPO = "robotnikz/WinBorg"; 
 
 // Fix for Windows Notifications Title / Grouping
 if (process.platform === 'win32') {

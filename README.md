@@ -65,7 +65,7 @@ Note: Although this started as a private project, it may still be useful to othe
 
 ### Installation
 
-1.  Download the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorgManager/releases).
+1.  Download the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  Run the installer.
 3.  *Note:* Since this is an open-source tool without a paid certificate, Windows SmartScreen may warn you. Click **"More Info" -> "Run Anyway"**.
 
@@ -114,7 +114,7 @@ Contributions are welcome!
 
 ```bash
 # Clone the repo
-git clone https://github.com/robotnikz/WinBorgManager.git
+git clone https://github.com/robotnikz/WinBorg.git
 
 # Install dependencies
 npm install

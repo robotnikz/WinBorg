@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart } from 'lucide-react';
 import { View } from '../types';
 import AppLogo from './AppLogo';
@@ -22,8 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
   const devProfile = {
       name: "robotnikz",
       role: "Developer",
-      repo: "robotnikz/WinBorgManager",
-      version: "v0.1.0"
+      repo: "robotnikz/WinBorg",
+      version: "v" + process.env.APP_VERSION
   };
 
   const handleOpenRepo = (e: React.MouseEvent) => {
