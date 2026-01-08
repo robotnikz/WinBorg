@@ -79,7 +79,9 @@ let dbCache = {
         borgPath: 'borg',
         disableHostCheck: false,
         closeToTray: false,
-        startWithWindows: false // New autostart setting
+        startWithWindows: false,
+        limitBandwidth: false,
+        bandwidthLimit: 1000
     }
 };
 
@@ -653,6 +655,38 @@ ipcMain.handle('select-directory', async () => {
 });
 
 ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executablePath, envVars, forceBinary, repoId, cwd, wslUser }) => {
+    // WINBORG: Inject bandwidth limit if necessary
+    if (dbCache.settings.limitBandwidth && dbCache.settings.bandwidthLimit > 0) {
+        let repoArg = '';
+        // Find the argument that specifies the repository
+        for (const arg of args) {
+            if (arg.includes('::') || arg.includes('@') || arg.startsWith('ssh://')) {
+                repoArg = arg;
+                break;
+            }
+        }
+        // Fallback for commands like 'prune' where the repo is the last arg
+        if (!repoArg && args.length > 0) {
+            const lastArg = args[args.length - 1];
+            if (!lastArg.startsWith('-')) { // Simple check to avoid flags
+                repoArg = lastArg;
+            }
+        }
+
+        // Check if the repo path is remote
+        const isRemote = repoArg.includes('@') || repoArg.startsWith('ssh://');
+        if (isRemote) {
+            const limit = dbCache.settings.bandwidthLimit.toString();
+            // Inject the flag. Right after the subcommand is usually safe.
+            if (args.length > 1) {
+                args.splice(1, 0, '--remote-ratelimit', limit);
+            } else {
+                args.push('--remote-ratelimit', limit);
+            }
+            console.log(`[WinBorg] Bandwidth limit of ${limit} KB/s applied for remote operation.`);
+        }
+    }
+
     return new Promise((resolve) => {
         let bin = forceBinary || executablePath || 'borg';
         let finalArgs = args;

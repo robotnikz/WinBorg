@@ -11,6 +11,8 @@ const SettingsView: React.FC = () => {
   const [disableHostCheck, setDisableHostCheck] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
   const [startWithWindows, setStartWithWindows] = useState(false); // New state for autostart
+  const [limitBandwidth, setLimitBandwidth] = useState(false);
+  const [bandwidthLimit, setBandwidthLimit] = useState(1000);
   
   const [saved, setSaved] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -50,6 +52,8 @@ const SettingsView: React.FC = () => {
                 setDisableHostCheck(db.settings.disableHostCheck || false);
                 setCloseToTray(db.settings.closeToTray || false);
                 setStartWithWindows(db.settings.startWithWindows || false); // Load autostart setting
+                setLimitBandwidth(db.settings.limitBandwidth || false);
+                setBandwidthLimit(db.settings.bandwidthLimit || 1000);
             }
         });
 
@@ -75,7 +79,9 @@ const SettingsView: React.FC = () => {
                 borgPassphrase,
                 disableHostCheck,
                 closeToTray,
-                startWithWindows // Save autostart setting
+                startWithWindows,
+                limitBandwidth,
+                bandwidthLimit
             }
         });
         
@@ -498,6 +504,36 @@ const SettingsView: React.FC = () => {
                          <p className="text-xs text-slate-500 dark:text-slate-400">
                              Essential for automation. Automatically accepts new SSH host keys.
                          </p>
+                     </div>
+                 </div>
+
+                 {/* Bandwidth Limit */}
+                 <div className="flex items-center justify-between mt-3">
+                     <div className='flex items-center gap-3'>
+                        <input 
+                            type="checkbox" 
+                            id="bw-limit-check" 
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={limitBandwidth}
+                            onChange={(e) => setLimitBandwidth(e.target.checked)}
+                        />
+                        <div>
+                            <label htmlFor="bw-limit-check" className="text-sm font-medium text-slate-800 dark:text-slate-200">Limit Remote Bandwidth</label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Set a maximum speed for all remote repository operations.
+                            </p>
+                        </div>
+                     </div>
+                     <div className={`flex items-center gap-2 ${!limitBandwidth ? 'opacity-50' : ''}`}>
+                         <input
+                             type="number"
+                             id="bw-limit-value"
+                             className="w-28 px-2 py-1 text-xs bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50 transition-colors"
+                             value={bandwidthLimit}
+                             onChange={(e) => setBandwidthLimit(parseInt(e.target.value) || 0)}
+                             disabled={!limitBandwidth}
+                         />
+                         <span className='text-xs text-slate-500 dark:text-slate-400'>KB/s</span>
                      </div>
                  </div>
              </div>
