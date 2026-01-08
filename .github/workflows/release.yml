@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           # Update Node.js version to be compatible with semantic-release
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
