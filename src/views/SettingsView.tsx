@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import Button from '../components/Button';
 import ToggleSwitch from '../components/ToggleSwitch';
@@ -12,6 +10,7 @@ const SettingsView: React.FC = () => {
   const [borgPassphrase, setBorgPassphrase] = useState('');
   const [disableHostCheck, setDisableHostCheck] = useState(false);
   const [closeToTray, setCloseToTray] = useState(false);
+  const [startWithWindows, setStartWithWindows] = useState(false); // New state for autostart
   
   const [saved, setSaved] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -50,6 +49,7 @@ const SettingsView: React.FC = () => {
                 setBorgPassphrase(db.settings.borgPassphrase || '');
                 setDisableHostCheck(db.settings.disableHostCheck || false);
                 setCloseToTray(db.settings.closeToTray || false);
+                setStartWithWindows(db.settings.startWithWindows || false); // Load autostart setting
             }
         });
 
@@ -74,7 +74,8 @@ const SettingsView: React.FC = () => {
                 borgPath,
                 borgPassphrase,
                 disableHostCheck,
-                closeToTray
+                closeToTray,
+                startWithWindows // Save autostart setting
             }
         });
         
@@ -168,8 +169,42 @@ const SettingsView: React.FC = () => {
                     </div>
                </div>
 
+               {/* Start with Windows */}
+               <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                   <div className="flex items-center gap-3">
+                       <div className={`p-2 rounded-full ${startWithWindows ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                          {startWithWindows ? <Check className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                       </div>
+                       <div>
+                           <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="autostart-toggle">Start with Windows</label>
+                           <p className="text-xs text-slate-500 dark:text-slate-400">
+                               {startWithWindows 
+                                ? "WinBorg Manager will start automatically when Windows launches." 
+                                : "WinBorg Manager will not start automatically."}
+                           </p>
+                       </div>
+                   </div>
+                   <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                        <input 
+                            type="checkbox" 
+                            id="autostart-toggle" 
+                            className="peer sr-only"
+                            checked={startWithWindows}
+                            onChange={(e) => {
+                                setStartWithWindows(e.target.checked);
+                                const ipc = getElectron()?.ipcRenderer;
+                                if (ipc) {
+                                    ipc.send('settings:toggleAutoStart', e.target.checked);
+                                }
+                            }}
+                        />
+                        <label htmlFor="autostart-toggle" className="block w-12 h-6 bg-gray-200 dark:bg-slate-600 rounded-full cursor-pointer peer-checked:bg-blue-600 transition-colors"></label>
+                        <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-6 pointer-events-none"></span>
+                    </div>
+               </div>
+
                {/* Updates */}
-               <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg">
+               <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                    <div className="flex items-center gap-3">
                         <div className="p-2 rounded-full bg-green-50 dark:bg-green-900/20 text-green-600">
                            <Download className="w-5 h-5" />

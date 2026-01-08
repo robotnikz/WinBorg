@@ -78,7 +78,8 @@ let dbCache = {
         useWsl: true,
         borgPath: 'borg',
         disableHostCheck: false,
-        closeToTray: false
+        closeToTray: false,
+        startWithWindows: false // New autostart setting
     }
 };
 
@@ -123,11 +124,23 @@ function loadData() {
             closeToTray = dbCache.settings.closeToTray || false;
             availableRepos = dbCache.repos || [];
             scheduledJobs = dbCache.jobs || [];
+            applyAutoStartSettings(); // Apply autostart setting on load
         }
     } catch (e) { console.error("Failed to load database", e); }
 }
 
 loadData();
+
+// --- AUTOSTART LOGIC ---
+function applyAutoStartSettings() {
+    if (process.platform === 'win32') {
+        app.setLoginItemSettings({
+            openAtLogin: dbCache.settings.startWithWindows,
+            path: app.getPath('exe'),
+            args: []
+        });
+    }
+}
 
 // --- PERSISTENCE HELPERS ---
 function persistSecrets() {
@@ -552,6 +565,17 @@ ipcMain.on('sync-scheduler-data', (event, { jobs, repos }) => {
     dbCache.repos = repos;
     persistDb();
     updateTrayMenu();
+});
+
+// --- IPC HANDLERS ---
+ipcMain.on('settings:toggleAutoStart', (event, enable) => {
+    dbCache.settings.startWithWindows = enable;
+    persistDb();
+    applyAutoStartSettings();
+});
+
+ipcMain.on('settings:getAutoStartStatus', (event) => {
+    event.returnValue = dbCache.settings.startWithWindows;
 });
 
 // ... [Existing IPCs for windows/updates/borg command] ...
