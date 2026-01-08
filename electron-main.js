@@ -1,4 +1,3 @@
-
 /**
  * REAL BACKEND FOR WINBORG
  */
@@ -8,6 +7,25 @@ const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+
+// --- SINGLE INSTANCE LOCK ---
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // If we don't get the lock, another instance is already running.
+  // We quit this new instance immediately.
+  app.quit();
+} else {
+  // This is the first instance.
+  // Set up a listener for any subsequent attempts to launch a second instance.
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance. We should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 // OPTIONAL: Nodemailer for Emails
 let nodemailer;
