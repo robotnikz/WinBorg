@@ -29,10 +29,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build application
-        # Add "-- --publish never" to prevent electron-builder from publishing
-        run: npm run dist -- --publish never
-
       - name: Release
         env:
           # The GITHUB_TOKEN is automatically provided by GitHub

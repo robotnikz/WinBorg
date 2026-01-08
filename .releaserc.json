@@ -5,11 +5,23 @@
     "@semantic-release/release-notes-generator",
     ["@semantic-release/npm", { "npmPublish": false }],
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "npm run dist"
+      }
+    ],
+    [
       "@semantic-release/github",
       {
         "assets": [
-          {"path": "dist-electron/*.exe", "label": "Windows Installer"},
-          {"path": "dist-electron/*.blockmap", "label": "Windows Installer Blockmap"}
+          {
+            "path": "dist-electron/* Setup *.exe",
+            "label": "Windows Installer"
+          },
+          {
+            "path": "dist-electron/* Portable *.exe",
+            "label": "Windows Portable"
+          }
         ]
       }
     ],

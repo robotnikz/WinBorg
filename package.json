@@ -11,12 +11,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "tsc && vite build && electron-builder --win --x64 --arm64"
+    "dist": "tsc && vite build && electron-builder"
   },
   "build": {
     "appId": "com.winborg.manager",
     "productName": "WinBorg Manager",
-    "artifactName": "${productName} Setup ${version}.${ext}",
     "directories": {
       "output": "dist-electron"
     },
@@ -33,15 +32,20 @@
       ]
     },
     "nsis": {
+      "artifactName": "${productName} Setup ${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
+    },
+    "portable": {
+      "artifactName": "${productName} Portable ${version}.${ext}"
     }
   },
   "dependencies": {
     "nodemailer": "^6.9.9"
   },
   "devDependencies": {
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.2",
     "@types/react": "^18.2.37",
