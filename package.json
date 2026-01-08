@@ -11,7 +11,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "tsc && vite build && electron-builder"
+    "dist": "tsc && vite build && electron-builder --win --x64 --arm64"
   },
   "build": {
     "appId": "com.winborg.manager",
