@@ -2,7 +2,7 @@
 
 ![WinBorg Manager Dashboard](public/dashboard.png)
 
-[![Release](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml)
+[![Release](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml) [![Screenshots](https://img.shields.io/badge/Screenshots-View-blue)](./public)
 
 **The modern, native Windows GUI for BorgBackup.**
 
