@@ -9,6 +9,10 @@ jobs:
   release:
     # Change runner to Windows to build the .exe
     runs-on: windows-latest
+    permissions:
+      contents: write # Allow to push code (like tags)
+      issues: write # Allow to comment on issues
+      pull-requests: write # Allow to comment on PRs
 
     steps:
       - name: Checkout code
