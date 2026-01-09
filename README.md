@@ -6,9 +6,9 @@
   # WinBorg Manager
   **The Ultimate Windows GUI for BorgBackup**
 
-  [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorgManager?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorgManager/releases)
+  [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorg?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorg/releases)
   [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://microsoft.com)
-  [![License](https://img.shields.io/github/license/robotnikz/WinBorgManager?style=for-the-badge)](LICENSE)
+  [![License](https://img.shields.io/github/license/robotnikz/WinBorg?style=for-the-badge)](LICENSE)
   [![Built With](https://img.shields.io/badge/Built%20With-Electron%20%2B%20React-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
 
   <p align="center">
@@ -16,7 +16,7 @@
     Leverages the power of WSL to run Borg natively, bridging the gap between Linux performance and Windows usability.
   </p>
 
-  [Download Latest Release](https://github.com/robotnikz/WinBorgManager/releases/latest) • [Report Bug](https://github.com/robotnikz/WinBorgManager/issues)
+  [Download Latest Release](https://github.com/robotnikz/WinBorg/releases/latest) • [Report Bug](https://github.com/robotnikz/WinBorg/issues)
 
 </div>
 
@@ -89,7 +89,7 @@ WinBorg relies on WSL to do the heavy lifting.
     *(Note: WinBorg has a built-in helper to run this command for you if you forget!)*
 
 ### 2. Installation
-Download the `.exe` installer from the [Releases Page](https://github.com/robotnikz/WinBorgManager/releases).
+Download the `.exe` installer from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 > **Note:** As this is an open-source project, the installer is not code-signed. Windows SmartScreen may warn you. Click "More Info" -> "Run Anyway".
 
 ### 3. Your First Backup
@@ -97,13 +97,6 @@ Download the `.exe` installer from the [Releases Page](https://github.com/robotn
 2.  **Create Job:** Go to the repo, click the Briefcase icon 💼, and set up a "Daily" job for your `Documents` folder.
 3.  **Run:** Click Play ▶️ and watch the logs stream in real-time!
 
----
-
-## 📸 Gallery
-
-| Repository Manager | Archive Browser | Dark Mode |
-|:---:|:---:|:---:|
-| *Manage encryption keys & connections* | *Explore snapshots without mounting* | *Easy on the eyes at night* |
 
 ---
 
@@ -111,7 +104,7 @@ Download the `.exe` installer from the [Releases Page](https://github.com/robotn
 
 Found a bug? Want to add a feature?
 
-1.  Clone the repo: `git clone https://github.com/robotnikz/WinBorgManager.git`
+1.  Clone the repo: `git clone https://github.com/robotnikz/WinBorg.git`
 2.  Install deps: `npm install`
 3.  Run dev mode: `npm run electron`
 
