@@ -7,6 +7,7 @@
   **The Ultimate Windows GUI for BorgBackup**
 
   [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorg?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorg/releases)
+  [![CI/CD Status](https://img.shields.io/github/actions/workflow/status/robotnikz/WinBorg/release.yml?style=for-the-badge)](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml)
   [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://microsoft.com)
   [![License](https://img.shields.io/github/license/robotnikz/WinBorg?style=for-the-badge)](LICENSE)
   [![Built With](https://img.shields.io/badge/Built%20With-Electron%20%2B%20React-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
