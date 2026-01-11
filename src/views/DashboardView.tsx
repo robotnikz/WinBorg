@@ -207,14 +207,28 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                    </div>
                </div>
 
-               {/* Stat 2: Savings */}
-               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+               {/* Stat 2: Savings - IMPROVED */}
+               <div className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4 cursor-help">
                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
                        <Zap className="w-6 h-6" />
                    </div>
                    <div>
-                       <div className="text-sm font-bold text-slate-500 dark:text-slate-400">Efficiency</div>
+                       <div className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                           Efficiency
+                           <HelpCircle className="w-3 h-3 text-slate-300 group-hover:text-slate-400" />
+                       </div>
                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{dashboardStats.savingsPercent}%</div>
+                   </div>
+                   
+                   {/* Tooltip */}
+                   <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 p-3 bg-slate-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none shadow-xl border border-slate-700">
+                       <p className="font-bold mb-1">Deduplication Savings</p>
+                       <p className="text-slate-300">
+                           WinBorg saved <span className="text-emerald-400 font-mono">{dashboardStats.savings}</span> of space compared to storing full raw backups.
+                       </p>
+                       <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-800 pt-1">
+                           Calculated from active repos
+                       </div>
                    </div>
                </div>
 
