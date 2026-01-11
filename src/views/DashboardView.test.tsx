@@ -32,7 +32,7 @@ const mockRepos: Repository[] = [
     encryption: 'none',
     status: 'connected',
     checkStatus: 'idle',
-    lastBackup: '2023-10-26T10:00:00Z',
+    lastBackup: new Date().toISOString(), // Healthy (Just now)
     size: '10.5 GB',
     fileCount: 1500,
   },
@@ -43,7 +43,7 @@ const mockRepos: Repository[] = [
     encryption: 'repokey',
     status: 'disconnected',
     checkStatus: 'error',
-    lastBackup: '2023-10-25T14:30:00Z',
+    lastBackup: new Date(Date.now() - 86400000 * 40).toISOString(), // Critical (>30 days)
     size: '500 MB',
     fileCount: 200,
   },
@@ -98,12 +98,8 @@ describe('DashboardView', () => {
     );
 
     // Total Repos
-    expect(screen.getByText('Repositories')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument(); // 2 repos in mock
-
-    // Active Mounts
-    expect(screen.getByText('Active Mounts')).toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument(); // 1 mount in mock
+    expect(screen.getByText('Healthy Repos')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument(); // Expecting count display
 
     // Check greeting existence (Time based, so just check for a greeting keyword or logic)
     // Since we can't easily mock Date directly without setup, we check for presence of Good Morning/Afternoon/Evening

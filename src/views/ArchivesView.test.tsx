@@ -112,7 +112,7 @@ describe('ArchivesView', () => {
         fireEvent.click(checkboxes[1]); // Second item
         
         // Now find the Compare button which should appear
-        const compareBtn = screen.getByText(/Diff \(\d+\)/i);
+        const compareBtn = screen.getByText('Diff');
         fireEvent.click(compareBtn);
         
         expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('ArchivesView', () => {
     it('requests info for archives with Unknown stats', async () => {
         render(<ArchivesView {...defaultProps} />);
         
-        const fetchBtn = screen.getByText('Get All Stats');
+        const fetchBtn = screen.getByTitle('Fetch size & duration for all archives');
         fireEvent.click(fetchBtn);
         
         expect(defaultProps.onGetInfo).toHaveBeenCalledWith('archive-old');
