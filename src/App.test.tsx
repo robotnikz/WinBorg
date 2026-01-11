@@ -20,7 +20,7 @@ vi.mock('./views/DashboardView', () => ({
     default: ({ toggleTheme }: any) => (
         <div data-testid="view-dashboard">
             Dashboard
-            <button onClick={toggleTheme}>Toggle Theme</button>
+            <button onClick={toggleTheme} title="Toggle Theme">Toggle Theme</button>
         </div>
     ) 
 }));
@@ -123,7 +123,7 @@ describe('App', () => {
         // Wait for effect to apply initial class
         await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
 
-        const toggleBtn = screen.getByText('Toggle Theme');
+        const toggleBtn = screen.getByRole('button', { name: /toggle theme/i });
         
         fireEvent.click(toggleBtn);
         // Wait for re-render

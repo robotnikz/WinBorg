@@ -505,6 +505,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 // autoUpdater.logger.transports.file.level = "info";
 
 let isManualCheck = false;
+let isDownloading = false;
 
 autoUpdater.on('update-available', (info) => {
     if (mainWindow) mainWindow.webContents.send('update-available', info);
@@ -523,8 +524,13 @@ autoUpdater.on('error', (err) => {
          dialog.showMessageBox(mainWindow, { type: 'error', title: 'Update Check Failed', message: err.message });
     }
     console.error("[AutoUpdater] Error:", err);
-    if (mainWindow) mainWindow.webContents.send('update-error', err.message);
+    
+    // Only show error on frontend if manually checked or downloading
+    if (mainWindow && (isManualCheck || isDownloading)) {
+        mainWindow.webContents.send('update-error', err.message);
+    }
     isManualCheck = false;
+    isDownloading = false; 
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
@@ -532,11 +538,14 @@ autoUpdater.on('download-progress', (progressObj) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+    isDownloading = false;
     if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
 });
 
+
 // Start update download when requested
 ipcMain.on('download-update', () => {
+    isDownloading = true;
     autoUpdater.downloadUpdate();
 });
 
@@ -890,12 +899,17 @@ ipcMain.handle('system-install-borg', async (event) => {
         // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
         // Assuming default Ubuntu/Debian distro.
         console.log("[Setup] Installing Borg via WSL (root)...");
-        const cmd = 'wsl -u root sh -c "apt-get update && apt-get upgrade -y && apt-get install -y borgbackup"';
+        // Removed apt-get upgrade to avoid timeouts and interactive prompts. Added DEBIAN_FRONTEND=noninteractive.
+        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y borgbackup"';
         
-        const child = exec(cmd);
-        
-        child.on('close', (code) => {
-            resolve({ success: code === 0 });
+        exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+                console.error("[Setup] Install failed:", stderr);
+                resolve({ success: false, error: stderr || error.message });
+            } else {
+                console.log("[Setup] Install success:", stdout);
+                resolve({ success: true });
+            }
         });
     });
 });

@@ -125,9 +125,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({
           else unknownCount++;
       });
 
-      const simulatedOriginal = totalBytes * 2.4; 
-      const savings = simulatedOriginal - totalBytes;
-      const savingsPercent = totalBytes > 0 ? Math.round((savings / simulatedOriginal) * 100) : 0;
+      // Efficiency is currently not reported by backend (Borg info requires passphrase unlock).
+      // Leaving as unknown/placeholder until implemented.
+      const savings = 0;
+      const savingsPercent = 0;
 
       return {
           totalSize: formatBytes(totalBytes),
@@ -169,7 +170,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             
             <div className="flex items-center gap-3">
-                 <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                 <button onClick={toggleTheme} title="Toggle Theme" className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
                      {isDarkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
                  </button>
             </div>

@@ -71,7 +71,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
               setTimeout(onComplete, 1500);
           } else {
               setStep('borg-missing');
-              setErrorDetails('Installation failed. Try running "sudo apt install borgbackup" in your WSL terminal manually.');
+              const msg = res.error ? `Error: ${res.error}` : 'Installation failed.';
+              setErrorDetails(`${msg} Try running "sudo apt install borgbackup" in your WSL terminal manually.`);
           }
       } catch (e: any) {
           setErrorDetails(e.message);

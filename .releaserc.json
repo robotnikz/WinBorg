@@ -21,6 +21,14 @@
           {
             "path": "dist-electron/* Portable *.exe",
             "label": "Windows Portable"
+          },
+          {
+            "path": "dist-electron/latest.yml",
+            "label": "AutoStats"
+          },
+          {
+            "path": "dist-electron/*.blockmap",
+            "label": "Blockmap"
           }
         ]
       }
