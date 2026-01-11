@@ -123,7 +123,7 @@ describe('App', () => {
         // Wait for effect to apply initial class
         await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
 
-        const toggleBtn = screen.getByText('Toggle Theme');
+        const toggleBtn = screen.getByTitle('Toggle Theme');
         
         fireEvent.click(toggleBtn);
         // Wait for re-render
