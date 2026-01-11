@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart } from 'lucide-react';
+import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart, ArrowUpCircle } from 'lucide-react';
 import { View } from '../types';
 import AppLogo from './AppLogo';
 
 interface SidebarProps {
   currentView: View;
   onChangeView: (view: View) => void;
+  updateAvailable?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvailable }) => {
   const navItems = [
     { view: View.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { view: View.REPOSITORIES, label: 'Repositories', icon: Server },
@@ -100,8 +101,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
                             <Github className="w-3 h-3 text-slate-400" />
                             <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">Source</span>
                          </div>
-                         <div className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-[10px] font-bold text-blue-600 dark:text-blue-400 shadow-sm">
+                         <div className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-[10px] font-bold text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-1">
                             {devProfile.version}
+                            {updateAvailable && <ArrowUpCircle className="w-3 h-3 text-white bg-green-500 rounded-full" />}
                          </div>
                     </div>
                 </div>

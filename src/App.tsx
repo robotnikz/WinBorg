@@ -18,6 +18,7 @@ import { ToastContainer } from './components/ToastContainer';
 import { toast } from './utils/eventBus';
 import { Loader2 } from 'lucide-react';
 import OnboardingModal from './components/OnboardingModal';
+import UpdateModal from './components/UpdateModal';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -43,12 +44,59 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  // --- AUTO UPDATE LISTENERS ---
+  useEffect(() => {
+    const { ipcRenderer } = (window as any).require('electron');
+
+    ipcRenderer.on('update-available', (event: any, info: any) => {
+        setUpdateAvailable(true);
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+    });
+
+    ipcRenderer.on('download-progress', (event: any, progressObj: any) => {
+        setIsDownloadingUpdate(true);
+        setUpdateProgress(progressObj.percent);
+    });
+
+    ipcRenderer.on('update-downloaded', () => {
+        setIsDownloadingUpdate(false);
+        setIsUpdateReady(true);
+        setUpdateProgress(100);
+        // Prompt user to restart now? The modal will likely handle this transition if it's open.
+        // If modal was closed, we might want to show a toast or notification.
+        // toast.success("Update downloaded. Restart to install.");
+    });
+
+    ipcRenderer.on('update-error', (event: any, message: string) => {
+        setIsDownloadingUpdate(false);
+        setUpdateProgress(0);
+        toast.error(`Updater Error: ${message}`);
+    });
+
+    return () => {
+       ipcRenderer.removeAllListeners('update-available');
+       ipcRenderer.removeAllListeners('download-progress');
+       ipcRenderer.removeAllListeners('update-downloaded');
+       ipcRenderer.removeAllListeners('update-error');
+    };
+  }, []);
+
   // --- MAIN STATE ---
   const [repos, setRepos] = useState<Repository[]>([]);
   const [jobs, setJobs] = useState<BackupJob[]>([]);
   const [archives, setArchives] = useState<Archive[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [mounts, setMounts] = useState<MountPoint[]>([]);
+  
+  // --- UPDATE STATE ---
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
+  const [isUpdateReady, setIsUpdateReady] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+
   const [preselectedRepoId, setPreselectedRepoId] = useState<string | null>(null);
   const [detailRepo, setDetailRepo] = useState<Repository | null>(null);
   
@@ -756,6 +804,23 @@ const App: React.FC = () => {
     <div className="h-screen w-screen relative">
         <ToastContainer />
         
+        <UpdateModal 
+            isOpen={showUpdateModal} 
+            onClose={() => setShowUpdateModal(false)}
+            onUpdate={() => {
+                const { ipcRenderer } = (window as any).require('electron');
+                if (isUpdateReady) {
+                    ipcRenderer.send('install-update'); 
+                } else {
+                    ipcRenderer.send('download-update');
+                }
+            }}
+            version={updateInfo?.version || ''}
+            downloading={isDownloadingUpdate}
+            progress={updateProgress}
+            readyToInstall={isUpdateReady}
+        />
+
         {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
 
         {backupRepo && (
@@ -772,7 +837,11 @@ const App: React.FC = () => {
         <div className="flex flex-col h-full w-full overflow-hidden bg-[#f3f3f3] dark:bg-[#0f172a] transition-colors duration-300">
           <TitleBar />
           <div className="flex flex-1 overflow-hidden pt-9">
-              <Sidebar currentView={currentView} onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); }} />
+              <Sidebar 
+                  currentView={currentView} 
+                  onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); }} 
+                  updateAvailable={updateAvailable}
+              />
               <TerminalModal isOpen={isTerminalOpen} title={terminalTitle} logs={terminalLogs} onClose={() => setIsTerminalOpen(false)} isProcessing={isProcessing} />
               <FuseSetupModal isOpen={showFuseHelp} onClose={() => setShowFuseHelp(false)} />
               <main className="flex-1 flex flex-col h-full overflow-hidden relative">

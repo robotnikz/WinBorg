@@ -4,6 +4,10 @@
   "version": "1.2.0",
   "description": "A Windows 11-styled interface for managing BorgBackup repositories via WSL.",
   "author": "robotnikz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robotnikz/WinBorg"
+  },
   "main": "electron-main.js",
   "private": true,
   "scripts": {
@@ -45,6 +49,7 @@
     }
   },
   "dependencies": {
+    "electron-updater": "^6.7.3",
     "nodemailer": "^7.0.12"
   },
   "devDependencies": {
