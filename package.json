@@ -39,13 +39,13 @@
       ]
     },
     "nsis": {
-      "artifactName": "${productName} Setup ${version}.${ext}",
+      "artifactName": "WinBorg.Manager.Setup.${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true
     },
     "portable": {
-      "artifactName": "${productName} Portable ${version}.${ext}"
+      "artifactName": "WinBorg.Manager.Portable.${version}.${ext}"
     }
   },
   "dependencies": {
