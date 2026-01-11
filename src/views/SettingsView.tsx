@@ -286,7 +286,7 @@ const SettingsView: React.FC = () => {
                        <div className="flex items-center justify-between p-1">
                            <div>
                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Check for Updates</div>
-                               <p className="text-xs text-slate-500 dark:text-slate-400">Current version: {getElectron() ? '0.1.0' : 'Web Dev'}</p>
+                               <p className="text-xs text-slate-500 dark:text-slate-400">Current version: {process.env.APP_VERSION || 'Web Dev'}</p>
                            </div>
                            <Button variant="secondary" onClick={handleCheckUpdate} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                                Check Now
