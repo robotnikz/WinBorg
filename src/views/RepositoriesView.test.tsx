@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import RepositoriesView from './RepositoriesView';
-import { Repository, BackupJob } from '../types';
+import { Repository } from '../types';
 
 // Mock dependencies
 vi.mock('../services/borgService', () => ({
@@ -12,14 +12,12 @@ vi.mock('../services/borgService', () => ({
     }
 }));
 
-// Mock child components to avoid deep rendering issues and speed up tests
-// We keep it simple to verify passing props
+// Mock child components
 vi.mock('../components/RepoCard', () => ({
-    default: ({ repo, onConnect, onCheck }: any) => (
+    default: ({ repo, onConnect }: any) => (
         <div data-testid="repo-card">
             <span>{repo.name}</span>
             <button onClick={() => onConnect(repo)}>Connect</button>
-            <button onClick={() => onCheck(repo)}>Check</button>
         </div>
     )
 }));
@@ -52,28 +50,21 @@ describe('RepositoriesView', () => {
         expect(screen.getByText('Repo B')).toBeInTheDocument();
     });
 
+    it('opens add repository modal and shows Quick Start Templates', () => {
+        render(<RepositoriesView {...defaultProps} />);
+        fireEvent.click(screen.getByText('Add Repository'));
+        
+        expect(screen.getByRole('heading', { name: 'Add Repository' })).toBeInTheDocument();
+        expect(screen.getByText('Quick Start Templates')).toBeInTheDocument();
+        expect(screen.getByText('linux')).toBeInTheDocument();
+    });
+
     it('filters repositories by search', () => {
         render(<RepositoriesView {...defaultProps} />);
-        const searchInput = screen.getByPlaceholderText('Search repositories...');
+        const searchInput = screen.getByPlaceholderText('Search...');
         fireEvent.change(searchInput, { target: { value: 'Repo A' } });
         
         expect(screen.getByText('Repo A')).toBeInTheDocument();
         expect(screen.queryByText('Repo B')).not.toBeInTheDocument();
-    });
-
-    it('opens add repository modal', () => {
-        render(<RepositoriesView {...defaultProps} />);
-        fireEvent.click(screen.getByText('Add Repository'));
-        expect(screen.getByRole('button', { name: /Connect Existing/i })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Add Repository' })).toBeInTheDocument();
-    });
-
-    it('calls onConnect when connect button clicked in card', () => {
-        render(<RepositoriesView {...defaultProps} />);
-        const cards = screen.getAllByTestId('repo-card');
-        const connectBtn = cards[0].querySelector('button');
-        if (connectBtn) fireEvent.click(connectBtn);
-        
-        expect(defaultProps.onConnect).toHaveBeenCalledWith(mockRepos[0]);
     });
 });

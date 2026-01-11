@@ -5,7 +5,6 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // @ts-ignore - Vitest types are properly loaded via reference but tsc might miss the merge
   test: {
     globals: true,
     environment: 'jsdom',
@@ -14,7 +13,7 @@ export default defineConfig({
   },
   base: './', // IMPORTANT for Electron: makes paths relative so they work with file:// protocol
   server: {
-    port: 5173,
+    port: 5174,
     strictPort: true,
   },
   build: {
