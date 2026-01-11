@@ -43,6 +43,24 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
     }
   };
 
+  const handleInstallWSL = async () => {
+        setStep('checking'); // Show busy state
+        try {
+            const { ipcRenderer } = (window as any).require('electron');
+            const res = await ipcRenderer.invoke('system-install-wsl');
+            if (res.success) {
+                // Since enabling WSL usually requires a reboot, we should inform the user heavily.
+                alert("WSL Installation started! Please accept the Admin prompt.\n\nIMPORTANT: Once finished, you MUST restart your computer!");
+            } else {
+               setErrorDetails("Failed to launch WSL installer: " + res.error);
+               setStep('wsl-missing');
+            }
+        } catch(e: any) {
+            setErrorDetails(e.message);
+            setStep('wsl-missing');
+        }
+  };
+
   const handleInstallBorg = async () => {
       setStep('installing');
       try {
@@ -93,14 +111,14 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                         </div>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Please open PowerShell as Administrator and run:
+                        WinBorg can install WSL automatically. You will need to accept the <b>administrator prompt</b>.
                     </p>
-                    <code className="block w-full p-3 bg-gray-100 dark:bg-[#2d2d2d] rounded border border-gray-200 dark:border-[#444] text-sm font-mono select-all">
-                        wsl --install
-                    </code>
-                    <p className="text-sm text-gray-500">After installation, please restart your computer.</p>
+                    <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded border border-amber-100 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs">
+                        ⚠️ A computer restart will be required after installation.
+                    </div>
                     <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="primary" onClick={checkPrerequisites}>Retry Check</Button>
+                        <Button variant="secondary" onClick={checkPrerequisites}>Retry Check</Button>
+                        <Button variant="primary" onClick={handleInstallWSL}>Install WSL (Admin)</Button>
                     </div>
                 </div>
             )}

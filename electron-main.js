@@ -804,6 +804,26 @@ ipcMain.handle('system-check-wsl', async () => {
     });
 });
 
+ipcMain.handle('system-install-wsl', async () => {
+    return new Promise((resolve) => {
+        // Runs `wsl --install` via PowerShell with Admin privileges
+        // This will pop up a UAC prompt for the user
+        const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install" -Wait';
+        const child = spawn('powershell.exe', ['-Command', cmd]);
+        
+        child.on('close', (code) => {
+            // We can't easily valid exit code of the elevated process from here due to Start-Process decoupling,
+            // but if the powershell wrapper exits cleanly (code 0), we assume the prompt was launched.
+            // The user will need to restart their PC afterwards.
+            resolve({ success: code === 0 });
+        });
+        
+        child.on('error', (err) => {
+             resolve({ success: false, error: err.message });
+        });
+    });
+});
+
 ipcMain.handle('system-check-borg', async () => {
      return new Promise((resolve) => {
         exec('wsl --exec borg --version', (error, stdout, stderr) => {
