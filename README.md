@@ -41,6 +41,7 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 *   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files) with a visual diff tool.
 
 ### 🤖 Automation & Monitoring
+*   **Auto-Updater:** Built-in update system that checks for new releases on startup. Supports silent background downloading and "Update Later" workflow functionality.
 *   **Background Jobs:** Schedule backups to run automatically (Hourly/Daily/Weekly).
 *   **Notifications:** Get native Windows toasts, **Discord Webhook** alerts, or **Email Notifications** (SMTP) when backups finish or fail.
 *   **Pruning:** Automated retention policies (e.g., "Keep 7 daily, 4 weekly").
