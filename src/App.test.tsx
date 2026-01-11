@@ -20,7 +20,7 @@ vi.mock('./views/DashboardView', () => ({
     default: ({ toggleTheme }: any) => (
         <div data-testid="view-dashboard">
             Dashboard
-            <button onClick={toggleTheme}>Toggle Theme</button>
+            <button onClick={toggleTheme} title="Toggle Theme">Toggle Theme</button>
         </div>
     ) 
 }));
