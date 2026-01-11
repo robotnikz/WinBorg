@@ -54,10 +54,12 @@ WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a ro
 ### 1. Installation & Setup
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  **Install & Launch:** Run the setup.
-3.  **Automatic Onboarding:** On first run, WinBorg performs a system health check:
-    *   **WSL:** Verifies if the Windows Subsystem for Linux is active. **If missing, WinBorg installs it automatically (requires restart).**
-    *   **Borg:** Checks for the backup engine. **If missing, WinBorg installs it for you automatically.**
-    *   *WinBorg guides you through the entire process, minimizing/eliminating the need for manual terminal commands.*
+3.  **Automatic Onboarding:** On first run, WinBorg performs a system health check. If components are missing, follow these steps:
+    *   **Install WSL:** If prompted, click "Install WSL" and accept the admin prompt.
+    *   **Restart:** **You MUST restart your computer** after the WSL installation finishes.
+    *   **Re-Open WinBorg:** After restarting, launch WinBorg again. It will detect that WSL is ready.
+    *   **Install Borg:** WinBorg will then automatically install the Borg backup engine for you.
+    *   *WinBorg guides you through the entire process, minimizing the need for manual terminal commands.*
 
 ### 2. Your First Backup
 1.  Go to the **Repositories** tab and click `+ Add Repository`.
