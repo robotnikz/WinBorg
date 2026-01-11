@@ -114,7 +114,7 @@ const App: React.FC = () => {
               // --- SYSTEM CHECK ---
               const wsl = await ipcRenderer.invoke('system-check-wsl');
               const borg = await ipcRenderer.invoke('system-check-borg');
-              if (!wsl.isInstalled || !borg.isInstalled) {
+              if (!wsl.installed || !borg.installed) {
                   setShowOnboarding(true);
               }
               setHasCheckedSystem(true);
