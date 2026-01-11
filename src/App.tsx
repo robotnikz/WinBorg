@@ -16,10 +16,15 @@ import { formatDate } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
 import { toast } from './utils/eventBus';
 import { Loader2 } from 'lucide-react';
+import OnboardingModal from './components/OnboardingModal';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   
+  // --- ONBOARDING STATE ---
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [hasCheckedSystem, setHasCheckedSystem] = useState(false);
+
   // --- THEME STATE (Keep simple in localstorage for UI pref only) ---
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
       const saved = localStorage.getItem('winborg_theme');
@@ -105,6 +110,14 @@ const App: React.FC = () => {
                       activityLogs: initialLogs 
                   });
               }
+
+              // --- SYSTEM CHECK ---
+              const wsl = await ipcRenderer.invoke('system-check-wsl');
+              const borg = await ipcRenderer.invoke('system-check-borg');
+              if (!wsl.isInstalled || !borg.isInstalled) {
+                  setShowOnboarding(true);
+              }
+              setHasCheckedSystem(true);
 
           } catch (e) {
               console.warn("Could not load backend data (Browser Mode?)", e);
@@ -728,6 +741,8 @@ const App: React.FC = () => {
     <div className="h-screen w-screen relative">
         <ToastContainer />
         
+        {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
+
         {backupRepo && (
           <CreateBackupModal 
               initialRepo={backupRepo}

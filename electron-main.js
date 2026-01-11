@@ -786,3 +786,47 @@ ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, execu
     if (useWsl) { bin = 'wsl'; args = ['--exec', 'borg', 'umount', localPath]; }
     return new Promise(resolve => { const p = spawn(bin, args); p.on('close', (code) => resolve({ success: code === 0 })); });
 });
+
+// --- ONBOARDING & SYSTEM CHECKS ---
+
+ipcMain.handle('system-check-wsl', async () => {
+    return new Promise((resolve) => {
+        exec('wsl --status', { encoding: 'utf16le' }, (error, stdout, stderr) => {
+            // Windows typically returns WSL status in UTF-16 sometimes, or just UTF-8. 
+            // 'wsl --status' returns 0 even if no distro defaults set sometimes, but usually reliable to check presence.
+            if (error) {
+                console.error("WSL Check Failed:", error);
+                resolve({ installed: false, error: error.message });
+            } else {
+                resolve({ installed: true });
+            }
+        });
+    });
+});
+
+ipcMain.handle('system-check-borg', async () => {
+     return new Promise((resolve) => {
+        exec('wsl --exec borg --version', (error, stdout, stderr) => {
+            if (error) {
+                resolve({ installed: false });
+            } else {
+                resolve({ installed: true, version: stdout.trim() });
+            }
+        });
+    });
+});
+
+ipcMain.handle('system-install-borg', async (event) => {
+    return new Promise((resolve) => {
+        // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
+        // Assuming default Ubuntu/Debian distro.
+        console.log("[Setup] Installing Borg via WSL (root)...");
+        const cmd = 'wsl -u root sh -c "apt-get update && apt-get upgrade -y && apt-get install -y borgbackup"';
+        
+        const child = exec(cmd);
+        
+        child.on('close', (code) => {
+            resolve({ success: code === 0 });
+        });
+    });
+});
