@@ -2,7 +2,7 @@
  * REAL BACKEND FOR WINBORG
  */
 
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, safeStorage, nativeImage, dialog, Notification, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, safeStorage, nativeImage, dialog, Notification, powerSaveBlocker, powerMonitor, net } = require('electron');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -82,7 +82,9 @@ let dbCache = {
         startWithWindows: false,
         startMinimized: false,
         limitBandwidth: false,
-        bandwidthLimit: 1000
+        bandwidthLimit: 1000,
+        stopOnBattery: true,
+        stopOnLowSignal: false
     }
 };
 
@@ -347,6 +349,32 @@ function startScheduler() {
 
 async function executeBackgroundJob(job) {
     console.log(`[Scheduler] Triggering Job: ${job.name}`);
+
+    // --- SMART CHECKS ---
+    const settings = dbCache.settings || {};
+    
+    // 1. Power Source Check
+    if (settings.stopOnBattery !== false) {
+        if (powerMonitor.isOnBatteryPower()) {
+            console.log(`[Scheduler] Skipped job ${job.name} because device is on battery.`);
+            new Notification({ 
+                title: 'Backup Skipped', 
+                body: `Job '${job.name}' put on hold (On Battery).`,
+                silent: true 
+            }).show();
+            return;
+        }
+    }
+
+    // 2. Connectivity Check
+    if (settings.stopOnLowSignal === true) {
+        if (!net.online) {
+             console.log(`[Scheduler] Skipped job ${job.name} because device is offline.`);
+             // Silent skip, no notification needed for offline usually
+             return;
+        }
+    }
+
     const repo = availableRepos.find(r => r.id === job.repoId);
     if (!repo) return;
     new Notification({ 

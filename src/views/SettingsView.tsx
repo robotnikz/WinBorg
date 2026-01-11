@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Button from '../components/Button';
 import ToggleSwitch from '../components/ToggleSwitch';
-import { Save, Terminal, Key, Check, Network, Info, Download, Monitor, XCircle, Layout, Bell, Mail, Hash, AlertTriangle, Loader2 } from 'lucide-react';
+import { Save, Terminal, Key, Check, Network, Info, Download, Monitor, XCircle, Layout, Bell, Mail, Hash, AlertTriangle, Loader2, Battery, WifiOff, Zap } from 'lucide-react';
 import { borgService } from '../services/borgService';
 
 const SettingsView: React.FC = () => {
@@ -14,6 +14,10 @@ const SettingsView: React.FC = () => {
   const [startMinimized, setStartMinimized] = useState(false);
   const [limitBandwidth, setLimitBandwidth] = useState(false);
   const [bandwidthLimit, setBandwidthLimit] = useState(1000);
+  
+  // SMART SETTINGS
+  const [stopOnBattery, setStopOnBattery] = useState(true);
+  const [stopOnLowSignal, setStopOnLowSignal] = useState(false);
   
   const [saved, setSaved] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -54,6 +58,8 @@ const SettingsView: React.FC = () => {
                 setCloseToTray(db.settings.closeToTray || false);
                 setStartWithWindows(db.settings.startWithWindows || false);
                 setStartMinimized(db.settings.startMinimized || false);
+                setStopOnBattery(db.settings.stopOnBattery !== undefined ? db.settings.stopOnBattery : true);
+                setStopOnLowSignal(db.settings.stopOnLowSignal !== undefined ? db.settings.stopOnLowSignal : false);
                 setLimitBandwidth(db.settings.limitBandwidth || false);
                 setBandwidthLimit(db.settings.bandwidthLimit || 1000);
             }
@@ -83,6 +89,8 @@ const SettingsView: React.FC = () => {
                 closeToTray,
                 startWithWindows,
                 startMinimized,
+                stopOnBattery,
+                stopOnLowSignal,
                 limitBandwidth,
                 bandwidthLimit
             }
@@ -251,6 +259,71 @@ const SettingsView: React.FC = () => {
                    <Button variant="secondary" onClick={handleCheckUpdate} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                        Check Now
                    </Button>
+               </div>
+           </div>
+       </div>
+
+       {/* Smart Auto-Pilot Section */}
+       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+               <Zap className="w-5 h-5 text-slate-600 dark:text-slate-400" /> Smart Auto-Pilot
+           </h2>
+           
+           <div className="space-y-4">
+                {/* Battery Check */}
+                <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                   <div className="flex items-center gap-3">
+                       <div className={`p-2 rounded-full ${stopOnBattery ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                          {stopOnBattery ? <Battery className="w-5 h-5" /> : <Battery className="w-5 h-5 opacity-50" />}
+                       </div>
+                       <div>
+                           <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="battery-toggle">Power Saving Mode</label>
+                           <p className="text-xs text-slate-500 dark:text-slate-400">
+                               {stopOnBattery 
+                                ? "Jobs will be skipped if the device is running on battery." 
+                                : "Jobs will run even on battery power."}
+                           </p>
+                       </div>
+                   </div>
+                   <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                        <input 
+                            type="checkbox" 
+                            id="battery-toggle" 
+                            className="peer sr-only"
+                            checked={stopOnBattery}
+                            onChange={(e) => setStopOnBattery(e.target.checked)}
+                        />
+                        <label htmlFor="battery-toggle" className="block w-12 h-6 bg-gray-200 dark:bg-slate-600 rounded-full cursor-pointer peer-checked:bg-orange-600 transition-colors"></label>
+                        <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-6 pointer-events-none"></span>
+                    </div>
+               </div>
+
+                {/* Offline Check */}
+                <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                   <div className="flex items-center gap-3">
+                       <div className={`p-2 rounded-full ${stopOnLowSignal ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                          {stopOnLowSignal ? <WifiOff className="w-5 h-5" /> : <Network className="w-5 h-5" />}
+                       </div>
+                       <div>
+                           <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="offline-toggle">Offline Protection</label>
+                           <p className="text-xs text-slate-500 dark:text-slate-400">
+                               {stopOnLowSignal 
+                                ? "Strictly skip jobs if no internet connection is detected." 
+                                : "Attempt to run jobs regardless of connectivity status."}
+                           </p>
+                       </div>
+                   </div>
+                   <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                        <input 
+                            type="checkbox" 
+                            id="offline-toggle" 
+                            className="peer sr-only"
+                            checked={stopOnLowSignal}
+                            onChange={(e) => setStopOnLowSignal(e.target.checked)}
+                        />
+                        <label htmlFor="offline-toggle" className="block w-12 h-6 bg-gray-200 dark:bg-slate-600 rounded-full cursor-pointer peer-checked:bg-red-600 transition-colors"></label>
+                        <span className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-6 pointer-events-none"></span>
+                    </div>
                </div>
            </div>
        </div>
