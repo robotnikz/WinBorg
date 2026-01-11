@@ -1,12 +1,19 @@
-import { defineConfig } from 'vite';
+/// <reference types="vitest" />
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react() as any],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+  },
   base: './', // IMPORTANT for Electron: makes paths relative so they work with file:// protocol
   server: {
-    port: 5173,
+    port: 5174,
     strictPort: true,
   },
   build: {

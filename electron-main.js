@@ -2,7 +2,8 @@
  * REAL BACKEND FOR WINBORG
  */
 
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, safeStorage, nativeImage, dialog, Notification, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, safeStorage, nativeImage, dialog, Notification, powerSaveBlocker, powerMonitor, net } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -82,7 +83,9 @@ let dbCache = {
         startWithWindows: false,
         startMinimized: false,
         limitBandwidth: false,
-        bandwidthLimit: 1000
+        bandwidthLimit: 1000,
+        stopOnBattery: true,
+        stopOnLowSignal: false
     }
 };
 
@@ -202,7 +205,7 @@ function createWindow(shouldStartMinimized = false) {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5174');
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
@@ -347,6 +350,32 @@ function startScheduler() {
 
 async function executeBackgroundJob(job) {
     console.log(`[Scheduler] Triggering Job: ${job.name}`);
+
+    // --- SMART CHECKS ---
+    const settings = dbCache.settings || {};
+    
+    // 1. Power Source Check
+    if (settings.stopOnBattery !== false) {
+        if (powerMonitor.isOnBatteryPower()) {
+            console.log(`[Scheduler] Skipped job ${job.name} because device is on battery.`);
+            new Notification({ 
+                title: 'Backup Skipped', 
+                body: `Job '${job.name}' put on hold (On Battery).`,
+                silent: true 
+            }).show();
+            return;
+        }
+    }
+
+    // 2. Connectivity Check
+    if (settings.stopOnLowSignal === true) {
+        if (!net.online) {
+             console.log(`[Scheduler] Skipped job ${job.name} because device is offline.`);
+             // Silent skip, no notification needed for offline usually
+             return;
+        }
+    }
+
     const repo = availableRepos.find(r => r.id === job.repoId);
     if (!repo) return;
     new Notification({ 
@@ -469,41 +498,61 @@ function runBorgInternal(args, repoId, useWsl, jobName) {
     });
 }
 
+// --- UPDATER LOGIC ---
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+// autoUpdater.logger = require("electron-log");
+// autoUpdater.logger.transports.file.level = "info";
+
+let isManualCheck = false;
+
+autoUpdater.on('update-available', (info) => {
+    if (mainWindow) mainWindow.webContents.send('update-available', info);
+    isManualCheck = false; 
+});
+
+autoUpdater.on('update-not-available', (info) => {
+    if (mainWindow && isManualCheck) {
+        dialog.showMessageBox(mainWindow, { type: 'info', title: 'No Updates', message: 'You are using the latest version.', detail: `Version: ${info.version}` });
+    }
+    isManualCheck = false;
+});
+
+autoUpdater.on('error', (err) => {
+    if (mainWindow && isManualCheck) {
+         dialog.showMessageBox(mainWindow, { type: 'error', title: 'Update Check Failed', message: err.message });
+    }
+    console.error("[AutoUpdater] Error:", err);
+    if (mainWindow) mainWindow.webContents.send('update-error', err.message);
+    isManualCheck = false;
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+    if (mainWindow) mainWindow.webContents.send('download-progress', progressObj);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+    if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
+});
+
+// Start update download when requested
+ipcMain.on('download-update', () => {
+    autoUpdater.downloadUpdate();
+});
+
+// Install update when requested (this will quit the app)
+ipcMain.on('install-update', () => {
+    autoUpdater.quitAndInstall();
+});
+
 async function checkForUpdates(manual = false) {
+    isManualCheck = manual;
     try {
-        const pkg = require('./package.json');
-        const currentVersion = pkg.version;
-        const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, { headers: { 'User-Agent': 'WinBorg-Updater' } });
-        if (response.status === 404) { if (manual) dialog.showMessageBoxSync(mainWindow, { type: 'info', title: 'No Releases', message: 'No releases found.' }); return; }
-        if (!response.ok) throw new Error(`GitHub API Error: ${response.status}`);
-        const data = await response.json();
-        const latestVersion = data.tag_name.replace(/^v/, ''); 
-        const isNewer = (v1, v2) => {
-            const p1 = v1.split('.').map(Number);
-            const p2 = v2.split('.').map(Number);
-            for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
-                const n1 = p1[i] || 0;
-                const n2 = p2[i] || 0;
-                if (n1 > n2) return true;
-                if (n2 > n1) return false;
-            }
-            return false;
-        };
-        if (isNewer(latestVersion, currentVersion)) {
-            const choice = dialog.showMessageBoxSync(mainWindow, {
-                type: 'info',
-                buttons: ['Download', 'Later'],
-                defaultId: 0,
-                cancelId: 1, 
-                title: 'Update Available',
-                message: `Version ${latestVersion} is available.`,
-                detail: `Current: ${currentVersion}\n\n${data.body || ''}`
-            });
-            if (choice === 0) shell.openExternal(data.html_url);
-        } else if (manual) {
-            dialog.showMessageBoxSync(mainWindow, { type: 'info', title: 'No Updates', message: 'You are using the latest version.', detail: `Version: ${currentVersion}` });
-        }
-    } catch (e) { if(manual) dialog.showMessageBoxSync(mainWindow, { type: 'error', title: 'Update Check Failed', message: e.message }); }
+        await autoUpdater.checkForUpdates();
+    } catch (e) {
+        // Errors usually handled by 'error' event, but just in case sync throw.
+        console.error("Check for updates threw:", e);
+    }
 }
 
 // Function that handles cleanup before app quit
@@ -785,4 +834,68 @@ ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, execu
     let args = ['umount', localPath];
     if (useWsl) { bin = 'wsl'; args = ['--exec', 'borg', 'umount', localPath]; }
     return new Promise(resolve => { const p = spawn(bin, args); p.on('close', (code) => resolve({ success: code === 0 })); });
+});
+
+// --- ONBOARDING & SYSTEM CHECKS ---
+
+ipcMain.handle('system-check-wsl', async () => {
+    return new Promise((resolve) => {
+        exec('wsl --status', { encoding: 'utf16le' }, (error, stdout, stderr) => {
+            // Windows typically returns WSL status in UTF-16 sometimes, or just UTF-8. 
+            // 'wsl --status' returns 0 even if no distro defaults set sometimes, but usually reliable to check presence.
+            if (error) {
+                console.error("WSL Check Failed:", error);
+                resolve({ installed: false, error: error.message });
+            } else {
+                resolve({ installed: true });
+            }
+        });
+    });
+});
+
+ipcMain.handle('system-install-wsl', async () => {
+    return new Promise((resolve) => {
+        // Runs `wsl --install` via PowerShell with Admin privileges
+        // This will pop up a UAC prompt for the user
+        const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install" -Wait';
+        const child = spawn('powershell.exe', ['-Command', cmd]);
+        
+        child.on('close', (code) => {
+            // We can't easily valid exit code of the elevated process from here due to Start-Process decoupling,
+            // but if the powershell wrapper exits cleanly (code 0), we assume the prompt was launched.
+            // The user will need to restart their PC afterwards.
+            resolve({ success: code === 0 });
+        });
+        
+        child.on('error', (err) => {
+             resolve({ success: false, error: err.message });
+        });
+    });
+});
+
+ipcMain.handle('system-check-borg', async () => {
+     return new Promise((resolve) => {
+        exec('wsl --exec borg --version', (error, stdout, stderr) => {
+            if (error) {
+                resolve({ installed: false });
+            } else {
+                resolve({ installed: true, version: stdout.trim() });
+            }
+        });
+    });
+});
+
+ipcMain.handle('system-install-borg', async (event) => {
+    return new Promise((resolve) => {
+        // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
+        // Assuming default Ubuntu/Debian distro.
+        console.log("[Setup] Installing Borg via WSL (root)...");
+        const cmd = 'wsl -u root sh -c "apt-get update && apt-get upgrade -y && apt-get install -y borgbackup"';
+        
+        const child = exec(cmd);
+        
+        child.on('close', (code) => {
+            resolve({ success: code === 0 });
+        });
+    });
 });

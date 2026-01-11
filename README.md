@@ -1,112 +1,115 @@
-
 <div align="center">
 
   <img src="public/icon.png" alt="WinBorg Logo" width="128" height="128" />
 
   # WinBorg Manager
-  **The Ultimate Windows GUI for BorgBackup**
+  
+  **The native Windows GUI for BorgBackup.**
+  
+  Stop wrestling with CLI commands. Start backing up reliably.
+  Enterprise-grade security meets Windows 11 elegance.
 
+  <!-- Badges -->
   [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorg?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorg/releases)
-  [![CI/CD Status](https://img.shields.io/github/actions/workflow/status/robotnikz/WinBorg/release.yml?style=for-the-badge)](https://github.com/robotnikz/WinBorg/actions/workflows/release.yml)
-  [![Platform](https://img.shields.io/badge/Platform-Windows%2011%20%7C%2010-0078D6?style=for-the-badge&logo=windows)](https://microsoft.com)
   [![License](https://img.shields.io/github/license/robotnikz/WinBorg?style=for-the-badge)](LICENSE)
-  [![Built With](https://img.shields.io/badge/Built%20With-Electron%20%2B%20React-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
-
-  <p align="center">
-    <b>Enterprise-grade backups with the comfort of a modern Windows UI.</b><br />
-    Leverages the power of WSL to run Borg natively, bridging the gap between Linux performance and Windows usability.
-  </p>
-
-  [Download Latest Release](https://github.com/robotnikz/WinBorg/releases/latest) • [Report Bug](https://github.com/robotnikz/WinBorg/issues)
-
+  [![Tech Stack](https://img.shields.io/badge/Stack-Electron%20%7C%20React%20%7C%20TS-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
+  
 </div>
 
 ---
 
-![Dashboard Screenshot](public/dashboard.png)
+## ⚡ What is WinBorg?
 
-## ⚡ Why WinBorg?
+WinBorg Manager is a modern GUI that brings the power of **BorgBackup** to Windows without the complexity. 
 
-BorgBackup is amazing, but using it on Windows via command line can be a hassle. **WinBorg Manager** changes that. It acts as a native bridge to **WSL (Windows Subsystem for Linux)**, giving you the raw speed and reliability of Linux-native Borg, wrapped in a beautiful **Windows 11 Mica-style** interface.
+By leveraging **WSL2 (Windows Subsystem for Linux)**, it runs the official, unmodified Linux binaries of BorgBackup for maximum stability and performance, while presenting you with a completely native, polished Windows 11-style interface.
 
-### ✨ Key Features
+Whether you're backing up your local Documents to a NAS, or your entire dev environment to BorgBase or Hetzner StorageBox, WinBorg makes it simple.
 
-<table>
-  <tr>
-    <td width="50%">
-      <h3>📂 Seamless Mounting</h3>
-      <p>Mount your backup archives as virtual drives (e.g., <code>Z:</code>) and browse your history directly in <b>Windows Explorer</b>. Drag, drop, and restore single files effortlessly.</p>
-    </td>
-    <td width="50%">
-      <h3>📅 Set & Forget Scheduling</h3>
-      <p>Configure persistent backup jobs with custom schedules (Hourly/Daily). The app minimizes to the <b>System Tray</b> and keeps your data safe in the background.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <h3>🔍 Visual Diff Viewer</h3>
-      <p>Wondering what changed between yesterday and today? The built-in <b>Diff Viewer</b> shows you exactly which files were added, modified, or removed.</p>
-    </td>
-    <td width="50%">
-      <h3>🔔 Smart Notifications</h3>
-      <p>Get native Windows notifications, or configure <b>Discord Webhooks</b> and <b>SMTP Email</b> alerts to know immediately when a backup succeeds or fails.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <h3>🛡️ Security & Pruning</h3>
-      <p>Full support for <b>Repokey & Keyfile</b> encryption. Automated retention policies (Keep 7 dailies, 4 weeklies, etc.) keep your storage usage efficient.</p>
-    </td>
-    <td width="50%">
-      <h3>📊 Storage Efficiency</h3>
-      <p>See exactly how much space Borg's deduplication is saving you with a live dashboard tracking compressed vs. original size.</p>
-    </td>
-  </tr>
-</table>
+## ✨ Key Features
 
-## 🛠️ Tech Stack
+### 🛡️ Core Reliability
+*   **WSL Native:** Runs *inside* your WSL distribution for 100% Borg compatibility. No experimental Windows binaries or Cygwin hacks.
+*   **Encryption First:** Full support for `repokey` (password protected) and `keyfile` encryption.
+*   **Auto-Healing:** Automatically runs checks on your repositories to ensure data integrity.
 
-*   **Frontend:** React 18, TypeScript, Tailwind CSS (Dark/Light Mode)
-*   **Backend:** Electron, Node.js
-*   **Core:** BorgBackup running inside WSL (Ubuntu/Debian)
+### 📂 Full Management Suite
+*   **Repositories:** Add and manage multiple remote (SSH) or local repositories.
+*   **Archives:** Browse all your snapshots with detailed metadata (size, time, duration).
+*   **File Browser:** Explore the contents of *any* old archive and download/restore specific files effortlessly.
+*   **Mounting:** Mount archives as a FUSE filesystem (requires configured FUSE inside WSL).
+*   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files) with a visual diff tool.
+
+### 🤖 Automation & Monitoring
+*   **Auto-Updater:** Built-in update system that checks for new releases on startup. Supports silent background downloading and "Update Later" workflow functionality.
+*   **Background Jobs:** Schedule backups to run automatically (Hourly/Daily/Weekly).
+*   **Notifications:** Get native Windows toasts, **Discord Webhook** alerts, or **Email Notifications** (SMTP) when backups finish or fail.
+*   **Pruning:** Automated retention policies (e.g., "Keep 7 daily, 4 weekly").
 
 ---
 
-## 🚀 Getting Started
+## � Gallery
 
-### 1. Prerequisites (One-time Setup)
-
-WinBorg relies on WSL to do the heavy lifting.
-1.  **Enable WSL:** Open PowerShell as Admin and run `wsl --install`. Restart your PC.
-2.  **Install Borg in WSL:** Open your Ubuntu terminal and run:
-    ```bash
-    sudo apt update && sudo apt install borgbackup fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y
-    ```
-3.  **Enable FUSE (For Mounting):**
-    ```bash
-    echo "user_allow_other" | sudo tee -a /etc/fuse.conf
-    sudo chmod 666 /dev/fuse
-    ```
-    *(Note: WinBorg has a built-in helper to run this command for you if you forget!)*
-
-### 2. Installation
-Download the `.exe` installer from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
-> **Note:** As this is an open-source project, the installer is not code-signed. Windows SmartScreen may warn you. Click "More Info" -> "Run Anyway".
-
-### 3. Your First Backup
-1.  **Add Repo:** Click `+` and paste your SSH URL (e.g., Hetzner StorageBox, BorgBase, or local NAS).
-2.  **Create Job:** Go to the repo, click the Briefcase icon 💼, and set up a "Daily" job for your `Documents` folder.
-3.  **Run:** Click Play ▶️ and watch the logs stream in real-time!
-
+<div align="center">
+  <img src="public/dashboard.png" alt="Dashboard" width="45%" />
+  &nbsp;
+  <img src="public/repos.png" alt="Repositories" width="45%" />
+  <br/>
+  <br/>
+  <img src="public/archives.png" alt="Archives" width="45%" />
+  &nbsp;
+  <img src="public/mounts.png" alt="Mounts" width="45%" />
+</div>
 
 ---
 
-## ❤️ Contributing
+## �🚀 Getting Started
 
-Found a bug? Want to add a feature?
+WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a robust background engine, but handles the complexity for you.
 
-1.  Clone the repo: `git clone https://github.com/robotnikz/WinBorg.git`
-2.  Install deps: `npm install`
-3.  Run dev mode: `npm run electron`
+### 1. Installation & Setup
+1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
+2.  **Install & Launch:** Run the setup.
+3.  **Automatic Onboarding:** On first run, WinBorg performs a system health check. If components are missing, follow these steps:
+    *   **Install WSL:** If prompted, click "Install WSL" and accept the admin prompt.
+    *   **Restart:** **You MUST restart your computer** after the WSL installation finishes.
+    *   **Re-Open WinBorg:** After restarting, launch WinBorg again. It will detect that WSL is ready.
+    *   **Install Borg:** WinBorg will then automatically install the Borg backup engine for you.
+    *   *WinBorg guides you through the entire process, minimizing the need for manual terminal commands.*
 
-**License:** MIT
+### 2. Your First Backup
+1.  Go to the **Repositories** tab and click `+ Add Repository`.
+2.  Enter your SSH URL (e.g., `ssh://u123@your-provider.com/./backups`) or a local path.
+3.  Once connected, go to **Dashboard**, create a Job ("Backup Documents"), and hit Run ▶️.
+
+---
+
+## 🛠 Project Structure
+
+WinBorg is built with:
+*   **Frontend:** React 18, TypeScript, Tailwind CSS (Custom Dark/Light Theme).
+*   **Backend:** Electron (Main Process handles Node-pty & WSL interactions).
+*   **Testing:** Vitest (Unit) & Playwright (E2E).
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow the `dev` branch workflow:
+
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/NewThing`).
+3.  Commit your changes (we use **Semantic Release**, so please use conventional commits like `feat:`, `fix:`, `docs:`).
+4.  Push and open a Pull Request to `dev`.
+
+### Running Locally
+```bash
+# Install deps
+npm install
+
+# Run dev mode (Vite + Electron)
+npm run electron
+
+# Run tests
+npm run test
+```
+
+---

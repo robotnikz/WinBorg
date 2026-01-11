@@ -7,6 +7,7 @@ import SettingsView from './views/SettingsView';
 import DashboardView from './views/DashboardView';
 import ActivityView from './views/ActivityView';
 import ArchivesView from './views/ArchivesView';
+import RepoDetailsView from './views/RepoDetailsView';
 import TerminalModal from './components/TerminalModal';
 import FuseSetupModal from './components/FuseSetupModal';
 import CreateBackupModal from './components/CreateBackupModal';
@@ -16,10 +17,16 @@ import { formatDate } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
 import { toast } from './utils/eventBus';
 import { Loader2 } from 'lucide-react';
+import OnboardingModal from './components/OnboardingModal';
+import UpdateModal from './components/UpdateModal';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   
+  // --- ONBOARDING STATE ---
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [hasCheckedSystem, setHasCheckedSystem] = useState(false);
+
   // --- THEME STATE (Keep simple in localstorage for UI pref only) ---
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
       const saved = localStorage.getItem('winborg_theme');
@@ -37,13 +44,61 @@ const App: React.FC = () => {
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
+  // --- AUTO UPDATE LISTENERS ---
+  useEffect(() => {
+    const { ipcRenderer } = (window as any).require('electron');
+
+    ipcRenderer.on('update-available', (event: any, info: any) => {
+        setUpdateAvailable(true);
+        setUpdateInfo(info);
+        setShowUpdateModal(true);
+    });
+
+    ipcRenderer.on('download-progress', (event: any, progressObj: any) => {
+        setIsDownloadingUpdate(true);
+        setUpdateProgress(progressObj.percent);
+    });
+
+    ipcRenderer.on('update-downloaded', () => {
+        setIsDownloadingUpdate(false);
+        setIsUpdateReady(true);
+        setUpdateProgress(100);
+        // Prompt user to restart now? The modal will likely handle this transition if it's open.
+        // If modal was closed, we might want to show a toast or notification.
+        // toast.success("Update downloaded. Restart to install.");
+    });
+
+    ipcRenderer.on('update-error', (event: any, message: string) => {
+        setIsDownloadingUpdate(false);
+        setUpdateProgress(0);
+        toast.error(`Updater Error: ${message}`);
+    });
+
+    return () => {
+       ipcRenderer.removeAllListeners('update-available');
+       ipcRenderer.removeAllListeners('download-progress');
+       ipcRenderer.removeAllListeners('update-downloaded');
+       ipcRenderer.removeAllListeners('update-error');
+    };
+  }, []);
+
   // --- MAIN STATE ---
   const [repos, setRepos] = useState<Repository[]>([]);
   const [jobs, setJobs] = useState<BackupJob[]>([]);
   const [archives, setArchives] = useState<Archive[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [mounts, setMounts] = useState<MountPoint[]>([]);
+  
+  // --- UPDATE STATE ---
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [isDownloadingUpdate, setIsDownloadingUpdate] = useState(false);
+  const [isUpdateReady, setIsUpdateReady] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+
   const [preselectedRepoId, setPreselectedRepoId] = useState<string | null>(null);
+  const [detailRepo, setDetailRepo] = useState<Repository | null>(null);
   
   const [isLoaded, setIsLoaded] = useState(false);
   const dataLoadedRef = useRef(false);
@@ -105,6 +160,14 @@ const App: React.FC = () => {
                       activityLogs: initialLogs 
                   });
               }
+
+              // --- SYSTEM CHECK ---
+              const wsl = await ipcRenderer.invoke('system-check-wsl');
+              const borg = await ipcRenderer.invoke('system-check-borg');
+              if (!wsl.installed || !borg.installed) {
+                  setShowOnboarding(true);
+              }
+              setHasCheckedSystem(true);
 
           } catch (e) {
               console.warn("Could not load backend data (Browser Mode?)", e);
@@ -382,7 +445,12 @@ const App: React.FC = () => {
             try {
                 const jsonString = extractJson(rawOutput);
                 const data = JSON.parse(jsonString);
-                const newArchives: Archive[] = data.archives.map((a: any) => ({
+                
+                // Get the raw ISO time of the latest archive (Borg usually lists oldest to newest, but we check)
+                const archivesRaw = data.archives || [];
+                const latestArchiveRawTime = archivesRaw.length > 0 ? archivesRaw[archivesRaw.length - 1].time : null;
+
+                const newArchives: Archive[] = archivesRaw.map((a: any) => ({
                     id: a.id || a.name,
                     name: a.name,
                     time: formatDate(a.time),
@@ -402,7 +470,7 @@ const App: React.FC = () => {
                     r.id === repo.id ? { 
                         ...r, 
                         status: 'connected', 
-                        lastBackup: newArchives[0]?.time || 'Never',
+                        lastBackup: latestArchiveRawTime || 'Never',
                         fileCount: newArchives.length,
                         checkStatus: (r.checkStatus === 'error' || r.checkStatus === 'aborted') ? 'idle' : r.checkStatus
                     } : { ...r, status: 'disconnected' }
@@ -701,6 +769,12 @@ const App: React.FC = () => {
                 }}
             />
         );
+      case View.REPO_DETAILS:
+        return detailRepo ? (
+           <RepoDetailsView repo={detailRepo} onBack={() => setCurrentView(View.DASHBOARD)} /> 
+        ) : (
+           <div className="flex h-full items-center justify-center">Select a repository</div>
+        );
       case View.SETTINGS: return <SettingsView />;
       case View.ACTIVITY: return <ActivityView logs={activityLogs} onClearLogs={() => setActivityLogs([])} />;
       case View.DASHBOARD:
@@ -715,10 +789,12 @@ const App: React.FC = () => {
               onConnect={handleConnect}
               onCheck={handleCheckIntegrity}
               onChangeView={setCurrentView}
+              onViewDetails={(repo) => { setDetailRepo(repo); setCurrentView(View.REPO_DETAILS); }}
               onAbortCheck={handleAbortCheck}
               onOneOffBackup={(r) => setBackupRepo(r)}
               isDarkMode={isDarkMode}
               toggleTheme={toggleTheme}
+              isLoading={!isLoaded}
            />
         );
     }
@@ -728,6 +804,25 @@ const App: React.FC = () => {
     <div className="h-screen w-screen relative">
         <ToastContainer />
         
+        <UpdateModal 
+            isOpen={showUpdateModal} 
+            onClose={() => setShowUpdateModal(false)}
+            onUpdate={() => {
+                const { ipcRenderer } = (window as any).require('electron');
+                if (isUpdateReady) {
+                    ipcRenderer.send('install-update'); 
+                } else {
+                    ipcRenderer.send('download-update');
+                }
+            }}
+            version={updateInfo?.version || ''}
+            downloading={isDownloadingUpdate}
+            progress={updateProgress}
+            readyToInstall={isUpdateReady}
+        />
+
+        {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
+
         {backupRepo && (
           <CreateBackupModal 
               initialRepo={backupRepo}
@@ -742,7 +837,11 @@ const App: React.FC = () => {
         <div className="flex flex-col h-full w-full overflow-hidden bg-[#f3f3f3] dark:bg-[#0f172a] transition-colors duration-300">
           <TitleBar />
           <div className="flex flex-1 overflow-hidden pt-9">
-              <Sidebar currentView={currentView} onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); }} />
+              <Sidebar 
+                  currentView={currentView} 
+                  onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); }} 
+                  updateAvailable={updateAvailable}
+              />
               <TerminalModal isOpen={isTerminalOpen} title={terminalTitle} logs={terminalLogs} onClose={() => setIsTerminalOpen(false)} isProcessing={isProcessing} />
               <FuseSetupModal isOpen={showFuseHelp} onClose={() => setShowFuseHelp(false)} />
               <main className="flex-1 flex flex-col h-full overflow-hidden relative">

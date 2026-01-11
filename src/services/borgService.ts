@@ -3,6 +3,7 @@
 // This service communicates with the Electron Main process
 
 import { formatBytes, formatDuration } from '../utils/formatters';
+import { ArchiveStats } from '../types';
 
 // Helper to safely get ipcRenderer without crashing in Browser mode
 const getIpcRenderer = () => {
@@ -386,6 +387,28 @@ export const borgService = {
       }
   },
 
+  /**
+   * Returns generic list of archives (fast)
+   */
+  listArchives: async (repoUrl: string, overrides?: { repoId?: string, disableHostCheck?: boolean }): Promise<{id: string, name: string, time: string}[]> => {
+    let listOutput = "";
+    const success = await borgService.runCommand(
+        ['list', '--json', repoUrl],
+        (chunk) => listOutput += chunk,
+        overrides
+    );
+    if (!success) return [];
+    try {
+        const json = extractJson(listOutput);
+        const data = JSON.parse(json);
+        return (data.archives || []).map((a: any) => ({
+             id: a.id || a.name,
+             name: a.name,
+             time: a.time
+        }));
+    } catch(e) { return []; }
+  },
+
   getArchiveInfo: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
       let outputBuffer = "";
       const success = await borgService.runCommand(
@@ -404,7 +427,10 @@ export const borgService = {
                   if (stats) {
                       return {
                           size: formatBytes(stats.deduplicated_size || stats.compressed_size),
-                          duration: formatDuration(duration)
+                          duration: formatDuration(duration),
+                          originalSize: stats.original_size,
+                          compressedSize: stats.compressed_size,
+                          deduplicatedSize: stats.deduplicated_size
                       };
                   }
               } catch (e) {
@@ -423,6 +449,70 @@ export const borgService = {
   
   createDirectory: async (path: string): Promise<boolean> => {
       return await ipcRenderer.invoke('create-directory', path);
+  },
+
+  getArchiveHistory: async (repoUrl: string, options?: { repoId?: string, disableHostCheck?: boolean }): Promise<ArchiveStats[]> => {
+    let listOutput = "";
+    const success = await borgService.runCommand(
+        ['list', '--json', repoUrl],
+        (chunk) => listOutput += chunk,
+        { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck }
+    );
+    
+    if (!success) return [];
+
+    try {
+        const start = listOutput.indexOf('{');
+        const end = listOutput.lastIndexOf('}');
+        if (start === -1 || end === -1) return [];
+        const cleanJson = listOutput.substring(start, end + 1);
+        
+        const listJson = JSON.parse(cleanJson);
+        const archives = listJson.archives || [];
+        
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const recent = archives.filter((a: any) => new Date(a.time) >= thirtyDaysAgo);
+        
+        // Sort by time ascending
+        recent.sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+        const history: ArchiveStats[] = [];
+        
+        for (const arch of recent) {
+            let infoOutput = "";
+             await borgService.runCommand(
+                ['info', '--json', `${repoUrl}::${arch.name}`],
+                (c) => infoOutput += c,
+                { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck }
+            );
+            try {
+                const iStart = infoOutput.indexOf('{');
+                const iEnd = infoOutput.lastIndexOf('}');
+                if (iStart > -1 && iEnd > iStart) {
+                    const infoJson = infoOutput.substring(iStart, iEnd + 1);
+                    const info = JSON.parse(infoJson);
+                    const stats = info.archives?.[0]?.stats || info.archive?.stats;
+                    if (stats) {
+                        history.push({
+                            archiveName: arch.name,
+                            time: arch.time,
+                            originalSize: stats.original_size,
+                            compressedSize: stats.compressed_size,
+                            deduplicatedSize: stats.deduplicated_size
+                        });
+                    }
+                }
+            } catch(e) {}
+        }
+        
+        return history;
+        
+    } catch (e) {
+        console.error("Failed to fetch history", e);
+        return [];
+    }
   },
 
   listArchiveFiles: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean }): Promise<FileEntry[]> => {

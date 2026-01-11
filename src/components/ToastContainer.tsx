@@ -37,10 +37,10 @@ export const ToastContainer: React.FC = () => {
       {toasts.map(toast => (
         <div 
           key={toast.id}
-          className={`pointer-events-auto min-w-[300px] max-w-md p-4 rounded-lg shadow-lg border flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300 ${
-            toast.type === 'success' ? 'bg-white dark:bg-slate-800 border-green-500/20 text-slate-800 dark:text-slate-200' :
-            toast.type === 'error' ? 'bg-white dark:bg-slate-800 border-red-500/20 text-slate-800 dark:text-slate-200' :
-            'bg-white dark:bg-slate-800 border-blue-500/20 text-slate-800 dark:text-slate-200'
+          className={`pointer-events-auto min-w-[300px] max-w-md p-4 rounded-xl shadow-lg border backdrop-blur-md flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300 ${
+            toast.type === 'success' ? 'bg-white/90 dark:bg-slate-800/90 border-green-500/30 text-slate-800 dark:text-slate-100 shadow-green-500/10' :
+            toast.type === 'error' ? 'bg-white/90 dark:bg-slate-800/90 border-red-500/30 text-slate-800 dark:text-slate-100 shadow-red-500/10' :
+            'bg-white/90 dark:bg-slate-800/90 border-blue-500/30 text-slate-800 dark:text-slate-100 shadow-blue-500/10'
           }`}
         >
           <div className={`mt-0.5 ${

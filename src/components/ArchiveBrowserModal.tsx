@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Repository, Archive } from '../types';
 import Button from './Button';
 import { FileEntry, borgService } from '../services/borgService';
-import { X, Folder, File, Download, ChevronRight, ChevronDown, Loader2, ArrowLeft, Search, Home } from 'lucide-react';
+import { X, Folder, File, Download, ChevronRight, ChevronDown, Loader2, ArrowLeft, Search, Home, FolderInput } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
 
 interface ArchiveBrowserModalProps {
@@ -136,20 +136,15 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
       }
   };
 
-  const handleDownload = async () => {
-      if (selectedPaths.length === 0) return;
-
+  const performExtraction = async (targetPath: string) => {
       setExtracting(true);
       try {
-          const downloadPath = await borgService.getDownloadsPath();
-          const restoreFolder = `${downloadPath}\\WinBorg Restores\\${archive.name}_${Date.now()}`;
-          
           const logCollector: string[] = [];
 
-          // 1. Create directory first (Windows side)
-          const dirCreated = await borgService.createDirectory(restoreFolder);
+          // 1. Create directory first (Windows side) - ensures it exists
+          const dirCreated = await borgService.createDirectory(targetPath);
           if (!dirCreated) {
-              logCollector.push(`Error: Could not create local directory ${restoreFolder}`);
+              logCollector.push(`Error: Could not ensure local directory ${targetPath}`);
               onLog(`Extraction Error`, logCollector);
               setExtracting(false);
               return;
@@ -160,20 +155,20 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
               repo.url,
               archive.name,
               selectedPaths,
-              restoreFolder,
+              targetPath,
               (log) => logCollector.push(log),
               { repoId: repo.id, disableHostCheck: repo.trustHost }
           );
 
           if (success) {
               if (onExtractSuccess) {
-                  onExtractSuccess(restoreFolder);
+                  onExtractSuccess(targetPath);
               } else {
-                  // Fallback for when no success handler is provided (legacy)
-                  const msg = `Files extracted to: ${restoreFolder}`;
+                  // Fallback
+                  const msg = `Files extracted to: ${targetPath}`;
                   logCollector.push(msg);
                   onLog(`Extraction Complete`, logCollector);
-                  borgService.openPath(restoreFolder);
+                  borgService.openPath(targetPath);
               }
               onClose();
           } else {
@@ -183,6 +178,21 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
           console.error(e);
       } finally {
           setExtracting(false);
+      }
+  };
+
+  const handleDownload = async () => {
+      if (selectedPaths.length === 0) return;
+      const downloadPath = await borgService.getDownloadsPath();
+      const restoreFolder = `${downloadPath}\\WinBorg Restores\\${archive.name}_${Date.now()}`;
+      await performExtraction(restoreFolder);
+  };
+
+  const handleRestoreTo = async () => {
+      if (selectedPaths.length === 0) return;
+      const result = await borgService.selectDirectory();
+      if (result && result.length > 0) {
+          await performExtraction(result[0]);
       }
   };
 
@@ -332,6 +342,10 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                </div>
                <div className="flex gap-3">
                    <Button variant="secondary" onClick={onClose} disabled={extracting}>Cancel</Button>
+                   <Button variant="secondary" onClick={handleRestoreTo} disabled={selectedPaths.length === 0 || extracting} title="Restore to a specific folder">
+                       <FolderInput className="w-4 h-4 mr-2" />
+                       Restore To...
+                   </Button>
                    <Button onClick={handleDownload} disabled={selectedPaths.length === 0 || extracting} loading={extracting}>
                        <Download className="w-4 h-4 mr-2" />
                        Download Selection

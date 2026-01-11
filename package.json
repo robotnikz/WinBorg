@@ -4,14 +4,21 @@
   "version": "1.2.0",
   "description": "A Windows 11-styled interface for managing BorgBackup repositories via WSL.",
   "author": "robotnikz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robotnikz/WinBorg"
+  },
   "main": "electron-main.js",
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "tsc && vite build && electron-builder"
+    "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5174 && electron .\"",
+    "dist": "tsc && vite build && electron-builder",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "build": {
     "appId": "com.winborg.manager",
@@ -42,25 +49,33 @@
     }
   },
   "dependencies": {
+    "electron-updater": "^6.7.3",
     "nodemailer": "^7.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.1",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.2",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
+    "@types/testing-library__jest-dom": "^5.14.9",
     "@vitejs/plugin-react": "^4.2.0",
+    "@vitest/coverage-v8": "^1.6.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^39.2.7",
     "electron-builder": "^24.9.1",
+    "jsdom": "^23.0.1",
     "lucide-react": "^0.292.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "semantic-release": "^25.0.2",
     "typescript": "^5.2.2",
     "vite": "^7.3.1",
+    "vitest": "^1.0.4",
     "wait-on": "^7.2.0"
   }
 }

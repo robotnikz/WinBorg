@@ -34,6 +34,7 @@ export const formatBytes = (bytes: number, decimals = 2) => {
 export const formatDate = (isoString: string): string => {
     try {
         const date = new Date(isoString);
+        if (isNaN(date.getTime())) return isoString;
         // Returns format like: "Dec 28, 2025 04:00"
         return date.toLocaleDateString('de-DE', {
             year: 'numeric',

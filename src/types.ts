@@ -5,8 +5,18 @@ export enum View {
   MOUNTS = 'MOUNTS',
   ARCHIVES = 'ARCHIVES',
   SETTINGS = 'SETTINGS',
-  ACTIVITY = 'ACTIVITY'
+  ACTIVITY = 'ACTIVITY',
+  REPO_DETAILS = 'REPO_DETAILS'
 }
+
+export interface ArchiveStats {
+  archiveName: string;
+  time: string;
+  originalSize: number;
+  compressedSize: number;
+  deduplicatedSize: number;
+}
+
 
 export interface Repository {
   id: string;
