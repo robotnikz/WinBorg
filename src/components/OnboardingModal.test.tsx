@@ -1,100 +1,122 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import OnboardingModal from './OnboardingModal';
-import React from 'react';
 
-// Mock window.require for Electron IPC
+// Mock Electron IPC
 const mockInvoke = vi.fn();
 
-// Mock window.require
-(window as any).require = vi.fn(() => ({
-  ipcRenderer: {
-    invoke: mockInvoke
-  }
-}));
-
 describe('OnboardingModal', () => {
-  beforeEach(() => {
-    mockInvoke.mockReset();
-  });
+    beforeAll(() => {
+        // Mock global alert
+        window.alert = vi.fn();
 
-  it('shows checking state initially', async () => {
-    // Hang the promise to keep it in checking state
-    mockInvoke.mockImplementation(() => new Promise(() => {}));
-    
-    render(<OnboardingModal onComplete={() => {}} />);
-    
-    expect(screen.getByText('Checking prerequisites...')).toBeInTheDocument();
-  });
-
-  it('shows WSL missing error when update fails', async () => {
-    mockInvoke.mockResolvedValueOnce({ installed: false, error: 'WSL not found' });
-    
-    render(<OnboardingModal onComplete={() => {}} />);
-    
-    await waitFor(() => {
-        expect(screen.getByText('WSL Not Found')).toBeInTheDocument();
-    });
-    expect(screen.getByText('wsl --install')).toBeInTheDocument();
-  });
-
-  it('shows Borg missing error when WSL is present but Borg is not', async () => {
-    // First call: WSL check -> true
-    // Second call: Borg check -> false
-    mockInvoke
-      .mockResolvedValueOnce({ installed: true })
-      .mockResolvedValueOnce({ installed: false });
-
-    render(<OnboardingModal onComplete={() => {}} />);
-
-    await waitFor(() => {
-        expect(screen.getByText('BorgBackup Not Found')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Install Borg (Auto)')).toBeInTheDocument();
-  });
-
-  it('calls onComplete when everything is installed', async () => {
-    mockInvoke
-      .mockResolvedValueOnce({ installed: true }) // WSL
-      .mockResolvedValueOnce({ installed: true }); // Borg
-
-    const onComplete = vi.fn();
-    render(<OnboardingModal onComplete={onComplete} />);
-
-    await waitFor(() => {
-        expect(screen.getByText('System Ready!')).toBeInTheDocument();
-    });
-    
-    // Wait for the timeout in the component
-    await waitFor(() => {
-        expect(onComplete).toHaveBeenCalled();
-    }, { timeout: 2000 });
-  });
-
-  it('attempts to install borg when button clicked', async () => {
-    mockInvoke
-       .mockResolvedValueOnce({ installed: true }) // WSL Check
-       .mockResolvedValueOnce({ installed: false }) // Borg Check
-       .mockResolvedValueOnce({ success: true }); // Install call
-    
-    const onComplete = vi.fn();
-    render(<OnboardingModal onComplete={onComplete} />);
-
-    // Wait for button
-    await waitFor(() => {
-        expect(screen.getByText('Install Borg (Auto)')).toBeInTheDocument();
+        // Mock window.require
+        Object.defineProperty(window, 'require', {
+            value: (module: string) => {
+                if (module === 'electron') return { ipcRenderer: { invoke: mockInvoke } };
+                return {};
+            },
+            writable: true
+        });
     });
 
-    // Click install
-    fireEvent.click(screen.getByText('Install Borg (Auto)'));
-
-    // Check loading state
-    expect(screen.getByText('Installing BorgBackup...')).toBeInTheDocument();
-    expect(screen.getByText(/upgrade & install/)).toBeInTheDocument();
-
-    // Check completion
-    await waitFor(() => {
-        expect(screen.getByText('System Ready!')).toBeInTheDocument();
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
-  });
+
+    it('runs checks on mount and completes if all successful', async () => {
+        const onComplete = vi.fn();
+        
+        mockInvoke.mockImplementation((channel) => {
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
+            return Promise.resolve({});
+        });
+
+        render(<OnboardingModal onComplete={onComplete} />);
+
+        // Should start with checking
+        expect(screen.getByText('Checking prerequisites...')).toBeInTheDocument();
+
+        // Wait for success and timeout
+        await waitFor(() => {
+            expect(mockInvoke).toHaveBeenCalledWith('system-check-wsl');
+            expect(mockInvoke).toHaveBeenCalledWith('system-check-borg');
+        }, { timeout: 2000 });
+
+        // Check for visible success indication or completion
+        // The modal waits 1500ms before calling onComplete
+        await waitFor(() => expect(onComplete).toHaveBeenCalled(), { timeout: 3000 });
+    });
+
+    it('shows WSL missing step when WSL check fails', async () => {
+        const onComplete = vi.fn();
+        
+        mockInvoke.mockImplementation((channel) => {
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: false, error: 'Not found' });
+            return Promise.resolve({});
+        });
+
+        render(<OnboardingModal onComplete={onComplete} />);
+
+        await waitFor(() => {
+            expect(screen.getByText('WSL Not Found')).toBeInTheDocument();
+        });
+
+        expect(screen.getByText(/WinBorg requires Windows Subsystem for Linux/i)).toBeInTheDocument();
+        expect(screen.getByText('Install WSL (Admin)')).toBeInTheDocument();
+    });
+
+    it('handles WSL installation triggers', async () => {
+        const onComplete = vi.fn();
+        
+        mockInvoke.mockImplementation((channel) => {
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: false });
+            if (channel === 'system-install-wsl') return Promise.resolve({ success: true });
+            return Promise.resolve({});
+        });
+
+        render(<OnboardingModal onComplete={onComplete} />);
+
+        // Wait for the UI to be ready
+        await waitFor(() => expect(screen.getByText('Install WSL (Admin)')).toBeInTheDocument());
+
+        // Click install
+        fireEvent.click(screen.getByText('Install WSL (Admin)'));
+
+        await waitFor(() => {
+            expect(mockInvoke).toHaveBeenCalledWith('system-install-wsl');
+            expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('MUST restart your computer'));
+        });
+    });
+
+    it('shows Borg missing step and handles installation', async () => {
+        const onComplete = vi.fn();
+        
+        mockInvoke.mockImplementation((channel) => {
+            // WSL is installed, but Borg is not
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: false });
+            if (channel === 'system-install-borg') return Promise.resolve({ success: true });
+            return Promise.resolve({});
+        });
+
+        render(<OnboardingModal onComplete={onComplete} />);
+
+        await waitFor(() => {
+            expect(screen.getByText(/BorgBackup Not Found/i)).toBeInTheDocument();
+        });
+
+        // Find and click install
+        const installBtn = screen.getByRole('button', { name: /Install Borg/i });
+        fireEvent.click(installBtn);
+
+        // Expect installing state
+        await waitFor(() => {
+            expect(screen.getByText(/Installing/i)).toBeInTheDocument();
+        });
+
+        // Expect completion
+        await waitFor(() => expect(onComplete).toHaveBeenCalled(), { timeout: 3000 });
+    });
 });
