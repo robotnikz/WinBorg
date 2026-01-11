@@ -50,7 +50,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
             const res = await ipcRenderer.invoke('system-install-wsl');
             if (res.success) {
                 // Since enabling WSL usually requires a reboot, we should inform the user heavily.
-                alert("WSL Installation started! Please accept the Admin prompt.\n\nIMPORTANT: Once finished, you MUST restart your computer!");
+                alert("WSL Installation started! Please accept the Admin prompt.\n\nIMPORTANT: Once finished, you MUST restart your computer.\n\nAfter restarting, open WinBorg again to complete the setup.");
             } else {
                setErrorDetails("Failed to launch WSL installer: " + res.error);
                setStep('wsl-missing');
