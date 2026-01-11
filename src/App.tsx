@@ -7,6 +7,7 @@ import SettingsView from './views/SettingsView';
 import DashboardView from './views/DashboardView';
 import ActivityView from './views/ActivityView';
 import ArchivesView from './views/ArchivesView';
+import RepoDetailsView from './views/RepoDetailsView';
 import TerminalModal from './components/TerminalModal';
 import FuseSetupModal from './components/FuseSetupModal';
 import CreateBackupModal from './components/CreateBackupModal';
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [mounts, setMounts] = useState<MountPoint[]>([]);
   const [preselectedRepoId, setPreselectedRepoId] = useState<string | null>(null);
+  const [detailRepo, setDetailRepo] = useState<Repository | null>(null);
   
   const [isLoaded, setIsLoaded] = useState(false);
   const dataLoadedRef = useRef(false);
@@ -395,7 +397,12 @@ const App: React.FC = () => {
             try {
                 const jsonString = extractJson(rawOutput);
                 const data = JSON.parse(jsonString);
-                const newArchives: Archive[] = data.archives.map((a: any) => ({
+                
+                // Get the raw ISO time of the latest archive (Borg usually lists oldest to newest, but we check)
+                const archivesRaw = data.archives || [];
+                const latestArchiveRawTime = archivesRaw.length > 0 ? archivesRaw[archivesRaw.length - 1].time : null;
+
+                const newArchives: Archive[] = archivesRaw.map((a: any) => ({
                     id: a.id || a.name,
                     name: a.name,
                     time: formatDate(a.time),
@@ -415,7 +422,7 @@ const App: React.FC = () => {
                     r.id === repo.id ? { 
                         ...r, 
                         status: 'connected', 
-                        lastBackup: newArchives[0]?.time || 'Never',
+                        lastBackup: latestArchiveRawTime || 'Never',
                         fileCount: newArchives.length,
                         checkStatus: (r.checkStatus === 'error' || r.checkStatus === 'aborted') ? 'idle' : r.checkStatus
                     } : { ...r, status: 'disconnected' }
@@ -714,6 +721,12 @@ const App: React.FC = () => {
                 }}
             />
         );
+      case View.REPO_DETAILS:
+        return detailRepo ? (
+           <RepoDetailsView repo={detailRepo} onBack={() => setCurrentView(View.DASHBOARD)} /> 
+        ) : (
+           <div className="flex h-full items-center justify-center">Select a repository</div>
+        );
       case View.SETTINGS: return <SettingsView />;
       case View.ACTIVITY: return <ActivityView logs={activityLogs} onClearLogs={() => setActivityLogs([])} />;
       case View.DASHBOARD:
@@ -728,10 +741,12 @@ const App: React.FC = () => {
               onConnect={handleConnect}
               onCheck={handleCheckIntegrity}
               onChangeView={setCurrentView}
+              onViewDetails={(repo) => { setDetailRepo(repo); setCurrentView(View.REPO_DETAILS); }}
               onAbortCheck={handleAbortCheck}
               onOneOffBackup={(r) => setBackupRepo(r)}
               isDarkMode={isDarkMode}
               toggleTheme={toggleTheme}
+              isLoading={!isLoaded}
            />
         );
     }

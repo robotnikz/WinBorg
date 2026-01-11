@@ -2,7 +2,7 @@
 import React from 'react';
 import { Repository, BackupJob } from '../types';
 import { Server, Shield, Clock, HardDrive, Trash2, Loader2, Edit2, ShieldCheck, Unlock, Lock, Wrench, Key, UploadCloud, Briefcase, CalendarClock } from 'lucide-react';
-import { getNextRunForRepo } from '../utils/formatters';
+import { getNextRunForRepo, formatDate } from '../utils/formatters';
 
 interface RepoCardProps {
   repo: Repository;
@@ -119,7 +119,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
       <div className="grid grid-cols-2 gap-y-3 gap-x-4 mb-5 px-1 mt-auto">
         <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400" title="Date of last successful backup found in this repo">
           <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-          <span className="truncate">{repo.lastBackup}</span>
+          <span className="truncate">{repo.lastBackup === 'Never' ? 'Never' : formatDate(repo.lastBackup)}</span>
         </div>
         <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-400" title="Total deduplicated size of repository">
           <HardDrive className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />

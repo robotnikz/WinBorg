@@ -202,7 +202,7 @@ function createWindow(shouldStartMinimized = false) {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5174');
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
