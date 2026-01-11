@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Repository, BackupJob } from '../types';
 import RepoCard from '../components/RepoCard';
@@ -9,7 +8,7 @@ import DeleteRepoModal from '../components/DeleteRepoModal';
 import CreateBackupModal from '../components/CreateBackupModal';
 import JobsModal from '../components/JobsModal';
 import Button from '../components/Button';
-import { Plus, Search, X, Info, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle } from 'lucide-react';
 import { borgService } from '../services/borgService';
 
 interface RepositoriesViewProps {
@@ -35,7 +34,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRepoId, setEditingRepoId] = useState<string | null>(null);
-  const [useWsl, setUseWsl] = useState(true);
   
   // ADD MODAL STATE
   const [addMode, setAddMode] = useState<'connect' | 'init'>('connect');
@@ -61,7 +59,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   // Jobs Modal
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
 
-  // Terminal/Log Feedback for Maintenance/Delete
+  // Terminal/Log Feedback
   const [localLogData, setLocalLogData] = useState<{title: string, logs: string[]} | null>(null);
   
   const [repoForm, setRepoForm] = useState<{
@@ -78,13 +76,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
     trustHost: false
   });
 
-  useEffect(() => {
-    if (isModalOpen) {
-        const storedWsl = localStorage.getItem('winborg_use_wsl');
-        setUseWsl(storedWsl === null ? true : storedWsl === 'true');
-    }
-  }, [isModalOpen]);
-
   const handleOpenAdd = () => {
       setRepoForm({ name: '', url: '', encryption: 'repokey', passphrase: '', trustHost: false });
       setConfirmPassphrase('');
@@ -97,7 +88,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       setTestLog('');
   };
 
-  const handleOpenEdit = async (repo: Repository) => {
+  const handleOpenEdit = (repo: Repository) => {
       setRepoForm({
           name: repo.name,
           url: repo.url,
@@ -107,7 +98,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       });
       setConfirmPassphrase('');
       setEditingRepoId(repo.id);
-      setAddMode('connect'); // Edit implies connection settings
+      setAddMode('connect'); 
       setIsModalOpen(true);
       setTestResult(null);
       setTestLog('');
@@ -131,19 +122,19 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const handleApplyTemplate = (provider: 'hetzner' | 'rsync' | 'nas' | 'borgbase' | 'linux') => {
       switch (provider) {
           case 'hetzner':
-              setRepoForm({ ...repoForm, name: 'Hetzner StorageBox', url: 'ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/repo1', trustHost: true });
+              setRepoForm(prev => ({ ...prev, name: 'Hetzner StorageBox', url: 'ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/repo1', trustHost: true }));
               break;
           case 'rsync':
-              setRepoForm({ ...repoForm, name: 'Rsync.net', url: 'ssh://user@host.rsync.net:22/./repo1', trustHost: true });
+              setRepoForm(prev => ({ ...prev, name: 'Rsync.net', url: 'ssh://user@host.rsync.net:22/./repo1', trustHost: true }));
               break;
           case 'borgbase':
-              setRepoForm({ ...repoForm, name: 'BorgBase', url: 'ssh://user@repo.borgbase.com:22/./repo', trustHost: true });
+              setRepoForm(prev => ({ ...prev, name: 'BorgBase', url: 'ssh://user@repo.borgbase.com:22/./repo', trustHost: true }));
               break;
           case 'nas':
-              setRepoForm({ ...repoForm, name: 'Local NAS', url: 'ssh://admin@192.168.1.50:22/volume1/backups/repo1', trustHost: true });
+              setRepoForm(prev => ({ ...prev, name: 'Local NAS', url: 'ssh://admin@192.168.1.50:22/volume1/backups/repo1', trustHost: true }));
               break;
           case 'linux':
-              setRepoForm({ ...repoForm, name: 'Linux Server / VPS', url: 'ssh://user@your-server.com:22/path/to/repo', trustHost: true });
+              setRepoForm(prev => ({ ...prev, name: 'Linux Server / VPS', url: 'ssh://user@your-server.com:22/path/to/repo', trustHost: true }));
               break;
       }
   };
@@ -207,24 +198,15 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
     }
   };
 
-  const handleOpenMaintenance = (repo: Repository) => {
-      setMaintenanceRepo(repo);
-      setIsMaintenanceOpen(true);
-  };
-  
-  const handleExportKey = (repo: Repository) => {
-      setExportKeyRepo(repo);
-  };
-
   const filteredRepos = repos.filter(r => 
     r.name.toLowerCase().includes(search.toLowerCase()) || 
     r.url.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-12">
       
-      {/* Maintenance Modal */}
+      {/* --- MODALS --- */}
       {maintenanceRepo && (
           <MaintenanceModal 
               repo={maintenanceRepo}
@@ -235,7 +217,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
       
-      {/* Key Export Modal */}
       {exportKeyRepo && (
           <KeyExportModal 
               repo={exportKeyRepo}
@@ -244,7 +225,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
       
-      {/* Delete Repo Modal */}
       {deleteRepo && (
           <DeleteRepoModal 
             repo={deleteRepo}
@@ -255,7 +235,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
       
-      {/* Create Backup Modal (One-off) */}
       {backupRepo && (
           <CreateBackupModal 
               initialRepo={backupRepo}
@@ -266,7 +245,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
       
-      {/* Jobs Modal */}
       {jobsRepo && (
           <JobsModal
              repo={jobsRepo}
@@ -279,21 +257,24 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
 
-      {/* Local Log Modal (Simple) */}
+      {/* Log Detail Modal */}
       {localLogData && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-              <div className="bg-[#1e1e1e] w-full max-w-2xl rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                  <div className="px-4 py-2 bg-[#2d2d2d] border-b border-black/20 flex justify-between items-center text-gray-300">
-                      <span className="font-mono text-sm">{localLogData.title}</span>
-                      <button onClick={() => setLocalLogData(null)}><X className="w-4 h-4" /></button>
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-[#1e1e1e] w-full max-w-3xl rounded-xl shadow-2xl border border-gray-700 flex flex-col max-h-[85vh]">
+                  <div className="px-5 py-3 bg-[#252526] border-b border-gray-700 flex justify-between items-center rounded-t-xl">
+                      <div className="flex items-center gap-2 text-gray-200">
+                          <Terminal className="w-4 h-4 text-blue-400" />
+                          <span className="font-mono text-sm font-semibold">{localLogData.title}</span>
+                      </div>
+                      <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
                   </div>
-                  <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1">
+                  <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1 bg-[#1e1e1e] text-gray-300">
                       {localLogData.logs.map((l, i) => (
-                          <div key={i} className="text-gray-300 break-all">{l}</div>
+                          <div key={i} className="break-all whitespace-pre-wrap">{l}</div>
                       ))}
                   </div>
-                  <div className="p-3 bg-[#2d2d2d] flex justify-end">
-                      <Button size="sm" onClick={() => setLocalLogData(null)}>Close</Button>
+                  <div className="p-3 bg-[#252526] border-t border-gray-700 flex justify-end rounded-b-xl">
+                      <Button size="sm" variant="secondary" onClick={() => setLocalLogData(null)}>Close Output</Button>
                   </div>
               </div>
           </div>
@@ -301,11 +282,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px] p-4 animate-in fade-in duration-200">
-           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-black/5 flex flex-col max-h-[90vh]">
-             <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/80 dark:bg-slate-900/50 shrink-0">
-               <h3 className="font-semibold text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
-               <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+             <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 shrink-0">
+               <h3 className="font-bold text-lg text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
+               <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
                  <X size={18} />
                </button>
              </div>
@@ -333,154 +314,146 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                  </div>
              )}
              
-             <div className="p-6 space-y-4 overflow-y-auto flex-1">
+             <div className="p-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
                
                {/* Quick Templates */}
                {!editingRepoId && !repoForm.url && (
-                   <div className="mb-4">
-                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Provider Templates</label>
-                       <div className="grid grid-cols-3 gap-2">
-                           <button onClick={() => handleApplyTemplate('hetzner')} className="p-2 border border-gray-200 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 text-center">
-                               <Cloud className="w-3 h-3 shrink-0" /> Hetzner
-                           </button>
-                           <button onClick={() => handleApplyTemplate('borgbase')} className="p-2 border border-gray-200 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 text-center">
-                               <Cloud className="w-3 h-3 shrink-0" /> BorgBase
-                           </button>
-                           <button onClick={() => handleApplyTemplate('linux')} className="p-2 border border-gray-200 dark:border-slate-700 rounded hover:bg-gray-50 dark:hover:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2 text-center">
-                               <Terminal className="w-3 h-3 shrink-0" /> Linux / VPS
-                           </button>
+                   <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                       <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Quick Start Templates</label>
+                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                           {['hetzner', 'borgbase', 'linux'].map((t) => (
+                                <button key={t} onClick={() => handleApplyTemplate(t as any)} className="px-3 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all text-xs font-medium text-slate-600 dark:text-slate-300 capitalize flex items-center justify-center gap-2">
+                                    {t === 'linux' ? <Terminal className="w-3 h-3" /> : <Cloud className="w-3 h-3" />} {t}
+                                </button>
+                           ))}
                        </div>
                    </div>
                )}
 
-               <div>
-                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Name</label>
-                 <input 
-                   type="text" 
-                   autoFocus
-                   disabled={isInitializing}
-                   className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-slate-900 dark:text-white transition-all shadow-sm"
-                   placeholder="My Remote Backup"
-                   value={repoForm.name}
-                   onChange={e => setRepoForm({...repoForm, name: e.target.value})}
-                 />
-               </div>
-               <div>
-                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">SSH Connection URL</label>
-                 <input 
-                   type="text" 
-                   disabled={isInitializing}
-                   className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-slate-900 dark:text-white font-mono transition-all shadow-sm"
-                   placeholder="ssh://user@example.com:22/path/to/repo"
-                   value={repoForm.url}
-                   onChange={e => setRepoForm({...repoForm, url: e.target.value})}
-                 />
-               </div>
-               
-               <div className="grid grid-cols-2 gap-4">
-                   <div>
-                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Encryption</label>
-                     <div className="relative">
-                        <select 
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-slate-900 dark:text-white appearance-none shadow-sm disabled:opacity-50"
-                          value={repoForm.encryption}
-                          onChange={e => setRepoForm({...repoForm, encryption: e.target.value as any})}
-                          disabled={isInitializing}
-                        >
-                          <option value="repokey">Repokey</option>
-                          <option value="keyfile">Keyfile</option>
-                          <option value="none">None</option>
-                        </select>
-                     </div>
-                   </div>
-                   
-                   <div>
-                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Passphrase</label>
-                     <div className="relative">
+               <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Display Name</label>
                         <input 
-                          type="password" 
-                          disabled={isInitializing}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm text-slate-900 dark:text-white shadow-sm"
-                          placeholder={editingRepoId ? "Change (Optional)" : "Required"}
-                          value={repoForm.passphrase}
-                          onChange={e => setRepoForm({...repoForm, passphrase: e.target.value})}
+                        type="text" 
+                        autoFocus
+                        disabled={isInitializing}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                        placeholder="e.g. Work Backups"
+                        value={repoForm.name}
+                        onChange={e => setRepoForm(prev => ({...prev, name: e.target.value}))}
                         />
-                     </div>
-                   </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">SSH URL</label>
+                        <input 
+                        type="text" 
+                        disabled={isInitializing}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-mono transition-all text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                        placeholder="ssh://user@example.com:22/./repo"
+                        value={repoForm.url}
+                        onChange={e => setRepoForm(prev => ({...prev, url: e.target.value}))}
+                        />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Encryption Mode</label>
+                            <select 
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all text-slate-900 dark:text-white"
+                                value={repoForm.encryption}
+                                onChange={e => setRepoForm(prev => ({...prev, encryption: e.target.value as any}))}
+                                disabled={isInitializing}
+                            >
+                                <option value="repokey" className="dark:bg-slate-900">Repokey</option>
+                                <option value="keyfile" className="dark:bg-slate-900">Keyfile</option>
+                                <option value="none" className="dark:bg-slate-900">None</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Passphrase</label>
+                            <input 
+                                type="password" 
+                                disabled={isInitializing}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                placeholder={editingRepoId ? "Keep Current" : "Required"}
+                                value={repoForm.passphrase}
+                                onChange={e => setRepoForm(prev => ({...prev, passphrase: e.target.value}))}
+                            />
+                        </div>
+                    </div>
                </div>
                
                {addMode === 'init' && repoForm.encryption !== 'none' && (
-                   <div>
-                     <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Confirm Passphrase</label>
+                   <div className="p-3 bg-indigo-50 dark:bg-indigo-900/10 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                     <label className="block text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider mb-1.5">Confirm Passphrase</label>
                      <input 
                        type="password" 
                        disabled={isInitializing}
-                       className={`w-full px-3 py-2 bg-white dark:bg-slate-900 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-slate-900 dark:text-white shadow-sm ${
-                           confirmPassphrase && confirmPassphrase !== repoForm.passphrase ? 'border-red-500 focus:border-red-500' : 'border-gray-300 dark:border-slate-600 focus:border-blue-500'
+                       className={`w-full px-3 py-2 bg-white dark:bg-slate-950 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm transition-all text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 ${
+                           confirmPassphrase && confirmPassphrase !== repoForm.passphrase ? 'border-red-500 focus:border-red-500' : 'border-gray-200 dark:border-slate-700 focus:border-indigo-500'
                        }`}
                        placeholder="Re-enter to confirm"
                        value={confirmPassphrase}
                        onChange={e => setConfirmPassphrase(e.target.value)}
                      />
                      {confirmPassphrase && confirmPassphrase !== repoForm.passphrase && (
-                         <p className="text-red-500 text-[10px] mt-1">Passphrases do not match</p>
+                         <p className="text-red-500 text-[10px] mt-1 font-bold">Passphrases do not match</p>
                      )}
                    </div>
                )}
 
-               <div className="pt-2">
-                 <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                     <div className="mt-0.5">
-                        <input 
-                            type="checkbox" 
-                            id="trust-host" 
-                            disabled={isInitializing}
-                            className="rounded border-gray-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 cursor-pointer bg-white dark:bg-slate-700"
-                            checked={repoForm.trustHost}
-                            onChange={(e) => setRepoForm({...repoForm, trustHost: e.target.checked})}
-                        />
-                     </div>
-                     <div>
-                         <label htmlFor="trust-host" className="text-sm font-semibold text-slate-800 dark:text-slate-200 cursor-pointer">Trust Unknown SSH Host</label>
-                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                             Fixes "Exit Code 1" on first connection.
-                         </p>
-                     </div>
-                 </div>
-               </div>
+               <label className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+                    <input 
+                        type="checkbox" 
+                        className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={repoForm.trustHost}
+                        onChange={(e) => setRepoForm(prev => ({...prev, trustHost: e.target.checked}))}
+                        disabled={isInitializing}
+                    />
+                    <div>
+                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Trust Unknown Host</div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Accept SSH fingerprint automatically (fixes "Host unknown" errors)</p>
+                    </div>
+               </label>
                
                {/* Test Connection Button */}
                {!editingRepoId && addMode === 'connect' && repoForm.url && (
-                   <div className="pt-2">
+                   <div>
                        <Button 
                             variant="secondary" 
                             size="sm"
-                            className="w-full border-blue-200 dark:border-slate-600" 
+                            className="w-full" 
                             onClick={handleTestConnection}
                             disabled={isTesting}
                        >
                            {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Terminal className="w-3 h-3 mr-2" />}
-                           {isTesting ? 'Testing...' : 'Test Connection'}
+                           {isTesting ? 'Testing Connection...' : 'Test Connection'}
                        </Button>
-                       {testResult === 'success' && <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><Check className="w-3 h-3" /> Connection successful!</p>}
+                       {testResult === 'success' && (
+                           <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
+                               <Check className="w-3 h-3" /> Connection successful
+                           </div>
+                       )}
                        {testResult === 'error' && (
-                           <div className="mt-1 text-xs text-red-600 bg-red-50 dark:bg-red-900/10 p-2 rounded">
-                               <p className="font-bold flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Connection failed</p>
-                               <div className="truncate text-[10px] mt-1 font-mono">{testLog.slice(0, 100)}...</div>
+                           <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded text-xs">
+                               <div className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3"/> Connection failed</div>
+                               <div className="font-mono opacity-80 break-all">{testLog.slice(-150)}...</div>
                            </div>
                        )}
                    </div>
                )}
 
                {initError && (
-                   <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs rounded-lg border border-red-200 dark:border-red-800">
-                       <strong>Error:</strong> {initError}
+                   <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-xs rounded-lg border border-red-100 dark:border-red-900/50 flex items-start gap-2">
+                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                       <div><strong>Error:</strong> {initError}</div>
                    </div>
                )}
                
                {isInitializing && (
-                   <div className="bg-slate-900 p-3 rounded-lg text-xs font-mono text-slate-300 max-h-32 overflow-y-auto">
-                        <div className="flex items-center gap-2 text-blue-400 mb-2">
+                   <div className="bg-slate-900 p-4 rounded-lg text-xs font-mono text-slate-300 max-h-32 overflow-y-auto border border-slate-700">
+                        <div className="flex items-center gap-2 text-blue-400 mb-2 font-bold uppercase tracking-wider">
                             <Loader2 className="w-3 h-3 animate-spin" /> Initializing...
                         </div>
                         <div className="whitespace-pre-wrap">{initLog}</div>
@@ -490,35 +463,39 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
              </div>
 
              <div className="px-6 py-4 bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-3 shrink-0">
-               <Button variant="secondary" onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600">Cancel</Button>
+               <Button variant="secondary" onClick={() => setIsModalOpen(false)} disabled={isInitializing}>Cancel</Button>
                <Button onClick={handleSave} disabled={!repoForm.name || !repoForm.url || isInitializing} loading={isInitializing}>
-                   {editingRepoId ? 'Save Changes' : (addMode === 'init' ? 'Initialize Repository' : 'Add Repository')}
+                   {editingRepoId ? 'Save Changes' : (addMode === 'init' ? 'Initialize' : 'Connect')}
                </Button>
              </div>
            </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center">
+      {/* HEADER SECTION */}
+      <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Repositories</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage your remote Borg repositories</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage remote storage locations.</p>
         </div>
-        <Button onClick={handleOpenAdd} title="Configure a new Borg repository">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Repository
-        </Button>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input 
-          type="text"
-          placeholder="Search repositories..."
-          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-slate-900 dark:text-white"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        
+        <div className="flex items-center gap-3">
+             <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                <input 
+                  type="text"
+                  placeholder="Search..."
+                  className="w-64 pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm text-slate-900 dark:text-white shadow-sm"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+             </div>
+             
+             <Button onClick={handleOpenAdd} className="shadow-sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Repository
+             </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -532,16 +509,24 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             onCheck={onCheck}
             onBreakLock={onBreakLock}
             onDelete={() => setDeleteRepo(repo)}
-            onEdit={handleOpenEdit}
-            onMaintenance={handleOpenMaintenance}
-            onExportKey={handleExportKey}
+            onEdit={() => handleOpenEdit(repo)} 
+            onMaintenance={() => { setMaintenanceRepo(repo); setIsMaintenanceOpen(true); }}
+            onExportKey={() => setExportKeyRepo(repo)}
             onBackup={(r) => setBackupRepo(r)}
             onManageJobs={(r) => setJobsRepo(r)}
           />
         ))}
         {filteredRepos.length === 0 && (
-            <div className="col-span-full text-center py-12 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl">
-                <p className="text-slate-400 dark:text-slate-500">No repositories found.</p>
+            <div className="col-span-full py-16 flex flex-col items-center justify-center text-center border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50/50 dark:bg-slate-800/50">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-full mb-3 shadow-sm">
+                    <Cloud className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-slate-900 dark:text-white font-semibold">No repositories found</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 mb-4 max-w-sm">Connect a remote SSH server, Local NAS, or Hetzner StorageBox to start backing up your data.</p>
+                <Button onClick={handleOpenAdd} variant="secondary">
+                   <Plus className="w-4 h-4 mr-2" />
+                   Add your first repository
+                </Button>
             </div>
         )}
       </div>

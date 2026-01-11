@@ -148,160 +148,110 @@ const DashboardView: React.FC<DashboardViewProps> = ({
           const days = Math.floor(hours / 24);
           if (days < 7) return `${days}d ago`;
           return formatDate(iso).split(',')[0]; // Just date
-      } catch { return iso; }
+      } catch (e) { return 'Unknown'; }
   };
-  
-  const getEta = (repo: Repository) => {
-      if (repo.checkStatus !== 'running' || !repo.checkStartTime || !repo.checkProgress || repo.checkProgress <= 0.5) return null;
-      const elapsedMs = now - repo.checkStartTime;
-      if (elapsedMs < 2000) return null;
-      const timePerPercent = elapsedMs / repo.checkProgress;
-      const remainingPercent = 100 - repo.checkProgress;
-      const remainingMs = timePerPercent * remainingPercent;
-      return formatDuration(remainingMs / 1000);
+
+  const getEta = (repo: Repository): string => {
+      if (repo.checkStatus !== 'running' || !repo.checkProgress) return '';
+      // Simple ETA based on progress (0-100)
+      if (repo.checkProgress < 2) return 'Calculating...';
+      return `${Math.round(repo.checkProgress)}%`; 
   };
 
   return (
-    <div className="flex flex-col h-full gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-2">
-      
-      {/* HEADER & INFRASTRUCTURE STATS */}
-      <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    {getGreeting()}
-                </h1>
-                <div 
-                    onClick={() => setIsSystemStatusOpen(true)}
-                    className="text-xs text-slate-500 hover:text-blue-500 cursor-pointer flex items-center gap-1 mt-1 transition-colors"
-                >
-                    <Activity className="w-3 h-3" /> System Operational
-                </div>
-              </div>
-              <div className="flex gap-2">
-                 {/* Quick Add Button */}
-                 <button 
-                    onClick={() => onChangeView(View.REPOSITORIES)}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors flex items-center gap-2"
-                 >
-                     <Plus className="w-4 h-4" /> Add Repository
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+        
+        {/* UNIFIED HEADER */}
+        <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{getGreeting()}. Here is your backup overview.</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+                 <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                     {isDarkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
                  </button>
-                 {toggleTheme && (
-                     <button onClick={toggleTheme} className="p-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-500 hover:text-blue-500 transition-colors">
-                         {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                     </button>
-                 )}
-              </div>
-          </div>
+            </div>
+        </div>
 
-          {/* Infrastructure Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-               {/* Stat 1: Managed Data */}
-               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-                   <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                       <Database className="w-6 h-6" />
-                   </div>
-                   <div>
-                       <div className="text-sm font-bold text-slate-500 dark:text-slate-400">Total Data</div>
-                       <div className="text-2xl font-bold text-slate-800 dark:text-white">{dashboardStats.totalSize}</div>
-                   </div>
-               </div>
+        {/* STATS GRID */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                 <div className="p-3 bg-blue-100 dark:bg-blue-900/40 text-blue-600 rounded-full">
+                     <HardDrive className="w-6 h-6" />
+                 </div>
+                 <div>
+                     <div className="text-2xl font-bold text-slate-800 dark:text-white">{dashboardStats.totalSize}</div>
+                     <div className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Total Stored</div>
+                 </div>
+            </div>
 
-               {/* Stat 2: Savings - IMPROVED */}
-               <div className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4 cursor-help">
-                   <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
-                       <Zap className="w-6 h-6" />
-                   </div>
-                   <div>
-                       <div className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                           Efficiency
-                           <HelpCircle className="w-3 h-3 text-slate-300 group-hover:text-slate-400" />
-                       </div>
-                       <div className="text-2xl font-bold text-slate-800 dark:text-white">{dashboardStats.savingsPercent}%</div>
-                   </div>
-                   
-                   {/* Tooltip */}
-                   <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 p-3 bg-slate-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none shadow-xl border border-slate-700">
-                       <p className="font-bold mb-1">Deduplication Savings</p>
-                       <p className="text-slate-300">
-                           WinBorg saved <span className="text-emerald-400 font-mono">{dashboardStats.savings}</span> of space compared to storing full raw backups.
-                       </p>
-                       <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-800 pt-1">
-                           Calculated from active repos
-                       </div>
-                   </div>
-               </div>
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4 group hover:border-green-200/50 transition-colors">
+                 <div className="p-3 bg-green-100 dark:bg-green-900/40 text-green-600 rounded-full">
+                     <Zap className="w-6 h-6" />
+                 </div>
+                 <div>
+                     <div className="text-2xl font-bold text-slate-800 dark:text-white">{dashboardStats.savingsPercent}%</div>
+                     <div className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Efficiency</div>
+                 </div>
+                 
+                 {/* Tooltip / Hint */}
+                 <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-xs p-2 rounded shadow-lg -top-12 left-1/2 -translate-x-1/2 w-48 pointer-events-none z-50">
+                    Deduplication saved approx {dashboardStats.savings} of space.
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
+                 </div>
+            </div>
 
-               {/* Stat 3: Repo Health Summary */}
-               <div className="md:col-span-2 bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
-                   <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-lg bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-300">
-                            <Server className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <div className="text-sm font-bold text-slate-500 dark:text-slate-400">Repositories</div>
-                            <div className="text-2xl font-bold text-slate-800 dark:text-white">{repos.length} Sources</div>
-                        </div>
-                   </div>
-                   {/* Health Pills */}
-                   <div className="flex gap-2">
-                       {dashboardStats.counts.critical > 0 && (
-                           <div className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-xs font-bold flex items-center gap-2">
-                               <AlertTriangle className="w-4 h-4" /> {dashboardStats.counts.critical} Critical
-                           </div>
-                       )}
-                       {dashboardStats.counts.warning > 0 && (
-                           <div className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-lg text-xs font-bold flex items-center gap-2">
-                               <AlertOctagon className="w-4 h-4" /> {dashboardStats.counts.warning} Warning
-                           </div>
-                       )}
-                       <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-bold flex items-center gap-2">
-                           <CheckCircle className="w-4 h-4" /> {dashboardStats.counts.healthy} Healthy
-                       </div>
-                   </div>
-               </div>
-          </div>
-      </div>
+            <div className={`bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4 ${dashboardStats.counts.critical > 0 ? 'border-red-500 dark:border-red-500' : ''}`}>
+                 <div className={`p-3 rounded-full ${dashboardStats.counts.critical > 0 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'}`}>
+                     <ShieldCheck className="w-6 h-6" />
+                 </div>
+                 <div>
+                     <div className="text-2xl font-bold text-slate-800 dark:text-white">
+                         {dashboardStats.counts.healthy} / {repos.length}
+                     </div>
+                     <div className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Healthy Repos</div>
+                 </div>
+            </div>
 
-      {/* MAIN CONTENT SPLIT */}
-      <div className="flex-1 min-h-0 flex gap-6">
+            <button onClick={() => setIsSystemStatusOpen(true)} className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-xl shadow-md text-white flex items-center justify-between hover:shadow-lg hover:scale-[1.02] transition-all">
+                <div>
+                     <div className="text-lg font-bold">System Status</div>
+                     <div className="text-xs opacity-90">Borg & Drivers</div>
+                </div>
+                <Activity className="w-8 h-8 opacity-80" />
+            </button>
+        </div>
+
+      {/* Main Content Area */}
+      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-280px)]"> 
           
-          {/* LEFT: REPO GRID (Grow) */}
-          <div className="flex-1 overflow-y-auto pr-2">
-              <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                      <LayoutGrid className="w-5 h-5 text-slate-400" /> Active Repositories
-                  </h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
+          {/* LEFT: REPO CARDS */}
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <h3 className="font-bold text-slate-800 dark:text-white text-sm mb-3 flex items-center gap-2">
+                  <Server className="w-4 h-4 text-slate-400" /> Active Repositories
+              </h3>
+
+               <div className="space-y-4">
                   {isLoading ? (
-                      Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-slate-700 h-[180px] animate-pulse">
-                              <div className="flex gap-4 mb-4">
-                                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-                                  <div className="flex-1 space-y-2 py-1">
-                                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-                                      <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
-                                  </div>
-                              </div>
-                              <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-1/3 mb-4"></div>
-                              <div className="flex gap-2 mt-auto pt-4 border-t border-gray-100 dark:border-slate-700">
-                                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded flex-1"></div>
-                                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded flex-1"></div>
-                              </div>
-                          </div>
-                      ))
+                      <div className="text-center py-20">
+                          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-2" />
+                          <p className="text-slate-400 text-sm">Loading repositories...</p>
+                      </div>
                   ) : repos.length === 0 ? (
-                      <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl">
-                          <Cloud className="w-12 h-12 mb-4 opacity-50" />
-                          <p>No repositories configured yet.</p>
-                          <Button variant="primary" className="mt-4" onClick={() => onChangeView(View.REPOSITORIES)}>Setup First Repo</Button>
+                      <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700">
+                           <Database className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                           <h3 className="font-semibold text-slate-700 dark:text-slate-200">No Repositories</h3>
+                           <p className="text-slate-500 text-sm mb-4">Add your first backup location to get started.</p>
+                           <Button onClick={() => onChangeView(View.REPOSITORIES)}>
+                               <Plus className="w-4 h-4 mr-2" />
+                               Add Repository
+                           </Button>
                       </div>
                   ) : (
                       repos.map(repo => {
                           const health = getRepoHealth(repo);
-                          const eta = getEta(repo);
                           const borderColor = 
                                 health === 'critical' ? 'border-red-500' :
                                 health === 'warning' ? 'border-yellow-500' :
@@ -331,7 +281,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                       )}
                                   </div>
 
-                                  {/* Last Backup Large Display */}
+                                  {/* Last Backup Display */}
                                   <div className="mb-6">
                                       <div className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1">Last Snapshot</div>
                                       <div className="flex items-baseline gap-2">
@@ -404,7 +354,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                       <Terminal className="w-4 h-4 text-slate-400" /> Live Activity
                   </h3>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                   {activityLogs.length === 0 ? (
                       <div className="text-center py-10 text-slate-400 text-xs italic">
                           System waiting for tasks...
@@ -422,7 +372,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                   <span className="text-[10px] text-slate-400">{getRelativeTime(log.time)}</span>
                               </div>
                               <div className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-tight mb-0.5">{log.title}</div>
-                              {log.message && <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate" title={log.message}>{log.message}</div>}
+                              {log.detail && <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate" title={log.detail}>{log.detail}</div>}
                           </div>
                       ))
                   )}
