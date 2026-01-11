@@ -542,13 +542,6 @@ autoUpdater.on('update-downloaded', (info) => {
     if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
 });
 
-// Start update download when requested
-ipcMain.on('download-update', () => {
-    isDownloading = true;
-autoUpdater.on('update-downloaded', (info) => {
-    isDownloading = false;
-    if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
-});
 
 // Start update download when requested
 ipcMain.on('download-update', () => {
