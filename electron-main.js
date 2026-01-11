@@ -505,6 +505,7 @@ autoUpdater.autoInstallOnAppQuit = true;
 // autoUpdater.logger.transports.file.level = "info";
 
 let isManualCheck = false;
+let isDownloading = false;
 
 autoUpdater.on('update-available', (info) => {
     if (mainWindow) mainWindow.webContents.send('update-available', info);
@@ -523,8 +524,13 @@ autoUpdater.on('error', (err) => {
          dialog.showMessageBox(mainWindow, { type: 'error', title: 'Update Check Failed', message: err.message });
     }
     console.error("[AutoUpdater] Error:", err);
-    if (mainWindow) mainWindow.webContents.send('update-error', err.message);
+    
+    // Only show error on frontend if manually checked or downloading
+    if (mainWindow && (isManualCheck || isDownloading)) {
+        mainWindow.webContents.send('update-error', err.message);
+    }
     isManualCheck = false;
+    isDownloading = false; 
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
@@ -532,11 +538,21 @@ autoUpdater.on('download-progress', (progressObj) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+    isDownloading = false;
     if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
 });
 
 // Start update download when requested
 ipcMain.on('download-update', () => {
+    isDownloading = true;
+autoUpdater.on('update-downloaded', (info) => {
+    isDownloading = false;
+    if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
+});
+
+// Start update download when requested
+ipcMain.on('download-update', () => {
+    isDownloading = true;
     autoUpdater.downloadUpdate();
 });
 
