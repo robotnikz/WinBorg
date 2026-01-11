@@ -7,11 +7,11 @@ test.describe('WinBorg App Launch', () => {
   test.beforeEach(async () => {
     // Launch Electron app.
     electronApp = await electron.launch({
-      args: [path.join(__dirname, '../electron-main.js')],
+      args: [path.join(__dirname, '../electron-main.js'), '--no-sandbox'],
       env: {
-          ...process.env,
-          NODE_ENV: 'test'
-      }
+        ...process.env,
+        NODE_ENV: 'test',
+      },
     });
   });
 

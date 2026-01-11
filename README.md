@@ -47,7 +47,22 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ---
 
-## 🚀 Getting Started
+## � Gallery
+
+<div align="center">
+  <img src="public/dashboard.png" alt="Dashboard" width="45%" />
+  &nbsp;
+  <img src="public/repos.png" alt="Repositories" width="45%" />
+  <br/>
+  <br/>
+  <img src="public/archives.png" alt="Archives" width="45%" />
+  &nbsp;
+  <img src="public/mounts.png" alt="Mounts" width="45%" />
+</div>
+
+---
+
+## �🚀 Getting Started
 
 WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a robust background engine, but handles the complexity for you.
 
