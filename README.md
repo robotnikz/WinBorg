@@ -66,7 +66,10 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 ## �🚀 Getting Started
 
 WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a robust background engine, but handles the complexity for you.
-
+### 📋 Prerequisites for Remote Backups
+If you plan to backup to a remote server (e.g. Storage Box, VPS, NAS), please ensure:
+1.  **BorgBackup is installed on the remote server:** The `borg` binary must be installed and executable on the target machine. WinBorg needs it to initiate the SSH tunnel and manage the repository.
+2.  **SSH Authentication:** WinBorg uses the SSH keys inside your WSL distribution. You should configure **key-based authentication** (e.g. `ssh-copy-id`) so WinBorg can connect without manual password prompts during background jobs.
 ### 1. Installation & Setup
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  **Install & Launch:** Run the setup.
