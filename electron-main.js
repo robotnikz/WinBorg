@@ -181,6 +181,14 @@ function getDecryptedPassword(id) {
 
 const isDev = !app.isPackaged && process.env.NODE_ENV !== 'test';
 
+function escapePythonSingleQuotedString(value) {
+    return String(value ?? '')
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, "\\r")
+        .replace(/\n/g, "\\n");
+}
+
 function getIconPath() {
     const p = isDev ? path.join(__dirname, 'public/icon.png') : path.join(__dirname, 'dist/icon.png');
     return fs.existsSync(p) ? p : null;
@@ -198,7 +206,7 @@ function createWindow(shouldStartMinimized = false) {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false, 
-      webSecurity: false 
+            webSecurity: true
     },
     backgroundColor: '#f3f3f3',
     icon: iconPath,
@@ -1211,10 +1219,13 @@ ipcMain.handle('ssh-key-install', async (event, { target, password, port }) => {
         }
     }
     
-    const safePort = finalPort ? finalPort.replace(/'/g, "\\'") : '';
+    const safePort = escapePythonSingleQuotedString(finalPort || '');
     // Extract user from target
     const parts = target.split('@');
     const remoteUser = parts.length > 1 ? parts[0] : '';
+    const safeTarget = escapePythonSingleQuotedString(target);
+    const safeRemoteUser = escapePythonSingleQuotedString(remoteUser);
+    const safePassFile = escapePythonSingleQuotedString(passFile);
     
     // We will read the password from the temp file effectively verifying it's raw content
     const pythonScript = `
@@ -1226,7 +1237,7 @@ import subprocess
 
 # Read password safely from file
 try:
-    with open('${passFile}', 'r') as f:
+    with open('${safePassFile}', 'r') as f:
         password = f.read()
         # Safety trim: usually we don't want trailing newlines in passwords unless explicit.
         # But if the user's password HAS a trailing newline, this breaks it.
@@ -1238,9 +1249,9 @@ except:
     print("Failed to read password file", flush=True)
     sys.exit(1)
 
-target_host = '${target}'
+target_host = '${safeTarget}'
 target_port = '${safePort}'
-remote_user = '${remoteUser}'
+remote_user = '${safeRemoteUser}'
 use_sftp = ${isHetzner ? 'True' : 'False'}
 
 def read(fd):
@@ -1415,7 +1426,9 @@ ipcMain.handle('ssh-install-borg', async (event, { target, password, port }) => 
     
     // Default port
     const finalPort = port || '22';
-    const safePort = finalPort.replace(/'/g, "\\'");
+    const safePort = escapePythonSingleQuotedString(finalPort);
+    const safeTarget = escapePythonSingleQuotedString(target);
+    const safePassFile = escapePythonSingleQuotedString(passFile);
     
     // Python script to handle the interactive session via PTY
     // This handles both SSH login (if needed) and sudo password (if needed)
@@ -1431,14 +1444,14 @@ import base64
 
 # Read password
 try:
-    with open('${passFile}', 'r') as f:
+    with open('${safePassFile}', 'r') as f:
         password = f.read()
         if password.endswith('\\n'):
             password = password[:-1]
 except:
     sys.exit(1)
 
-target_host = '${target}'
+target_host = '${safeTarget}'
 target_port = '${safePort}'
 
 def read(fd):
