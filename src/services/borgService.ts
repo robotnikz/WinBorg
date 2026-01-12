@@ -40,7 +40,7 @@ const getBorgConfig = () => {
     };
 };
 
-const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean }) => {
+const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean, remotePath?: string }) => {
     const finalDisableHostCheck = overrides?.disableHostCheck !== undefined ? overrides.disableHostCheck : config.disableHostCheck;
 
     const env: any = {
@@ -50,14 +50,35 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean }) => 
         BORG_DISPLAY_PASSPHRASE: 'no' 
     };
     
+    // Explicit Remote Path
+    if (overrides?.remotePath && overrides.remotePath !== 'borg') {
+        env.BORG_REMOTE_PATH = overrides.remotePath;
+    }
+    
     let sshCmd = 'ssh -o BatchMode=yes';
     if (finalDisableHostCheck) {
         sshCmd += ' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null';
     }
     env.BORG_RSH = sshCmd;
     
+    // When using WSL, we must explicitly tell WSL to import these variables from the Windows host process.
+    // The /u flag indicates "Unc" (Unix?) or just standard formatted variable from User env? 
+    // Actually /u = "Share this var from Win32 to WSL".
     if (config.useWsl) {
-        env.WSLENV = 'BORG_PASSPHRASE:BORG_DISPLAY_PASSPHRASE:BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK:BORG_RELOCATED_REPO_ACCESS_IS_OK:BORG_RSH';
+        // We do NOT include BORG_PASSPHRASE here, because it is injected and added to WSLENV 
+        // by the main process (electron-main.js) to keep the secret secure and managed in one place.
+        const varsToShare = [
+            'BORG_DISPLAY_PASSPHRASE/u',
+            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK/u',
+            'BORG_RELOCATED_REPO_ACCESS_IS_OK/u',
+            'BORG_RSH/u'
+        ];
+
+        if (env.BORG_REMOTE_PATH) {
+            varsToShare.push('BORG_REMOTE_PATH/u');
+        }
+
+        env.WSLENV = varsToShare.join(':');
     }
     
     return env;
@@ -124,7 +145,17 @@ export const borgService = {
   installSSHKey: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string}> => {
       return ipcRenderer.invoke('ssh-key-install', { target, password, port });
   },
-  
+
+  installBorg: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string, details?: string}> => {
+      return ipcRenderer.invoke('ssh-install-borg', { target, password, port });
+  },
+
+  testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string}> => {
+      return ipcRenderer.invoke('ssh-test-connection', { target, port });
+  },
+  checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string, path?: string, error?: string}> => {
+    return await ipcRenderer.invoke('ssh-check-borg', { target, port });
+  },  
   // --- SECRETS MANAGEMENT ---
   savePassphrase: async (repoId: string, passphrase: string) => {
       return await ipcRenderer.invoke('save-secret', { repoId, passphrase });
@@ -148,7 +179,7 @@ export const borgService = {
   runCommand: async (
     args: string[], 
     onLog: (text: string) => void,
-    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string> }
+    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string }
   ): Promise<boolean> => {
     const commandId = overrides?.commandId || Math.random().toString(36).substring(7);
     const config = getBorgConfig();
@@ -157,6 +188,15 @@ export const borgService = {
     let baseEnv = getEnvVars(config, overrides);
     const customEnv = overrides?.env || {};
     const finalEnv = { ...baseEnv, ...customEnv };
+
+    // Common Options Injection (like --remote-path)
+    // Borg Syntax: borg [common_options] command [args]
+    // We assume 'args' starts with the command (e.g. 'init', 'create')
+    let finalArgs = [...args];
+    if (overrides?.remotePath && overrides.remotePath !== 'borg') {
+        // Prepend common option
+        finalArgs = ['--remote-path', overrides.remotePath, ...args];
+    }
 
     // If using WSL, we must add custom keys to WSLENV so they are passed to the Linux instance
     if (config.useWsl && Object.keys(customEnv).length > 0) {
@@ -176,7 +216,7 @@ export const borgService = {
 
     try {
       const result = await ipcRenderer.invoke('borg-spawn', { 
-          args, 
+          args: finalArgs, 
           commandId, 
           useWsl: config.useWsl,
           executablePath: config.path,
@@ -195,7 +235,7 @@ export const borgService = {
       repoUrl: string, 
       encryption: 'repokey' | 'keyfile' | 'none', 
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ): Promise<boolean> => {
       // Argument Mapping: repokey -> repokey-blake2 (modern default), keyfile -> keyfile-blake2
       let encMode: string = encryption;
@@ -206,7 +246,7 @@ export const borgService = {
       return await borgService.runCommand(args, onLog, overrides);
   },
 
-  testConnection: async (repoUrl: string, onLog: (text: string) => void, overrides?: { disableHostCheck?: boolean }) => {
+  testConnection: async (repoUrl: string, onLog: (text: string) => void, overrides?: { disableHostCheck?: boolean, remotePath?: string }) => {
       onLog("Testing connection (Borg Version Check)...\n");
       const args = ['--version'];
       
@@ -215,12 +255,14 @@ export const borgService = {
           const userHost = `${parsed.user ? parsed.user + '@' : ''}${parsed.host}`;
           onLog(`Dialing ${userHost} on port ${parsed.port}...\n`);
           // Just try to execute 'borg --version' via SSH
+          // If remotePath is customized, we should try to use that binary instead of 'borg'
+          const customBinary = overrides?.remotePath && overrides.remotePath !== 'borg' ? overrides.remotePath : 'borg';
           const sshArgs = [
                '-p', parsed.port,
                ...(overrides?.disableHostCheck ? ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'] : []),
                '-o', 'BatchMode=yes',
                userHost,
-               'borg --version'
+               `${customBinary} --version`
           ];
           return await borgService.runCommand(sshArgs, onLog, { forceBinary: 'ssh' });
       } else {
@@ -230,7 +272,7 @@ export const borgService = {
       }
   },
 
-  deleteArchive: async (repoUrl: string, archiveName: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  deleteArchive: async (repoUrl: string, archiveName: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       const args = ['delete', '--progress', '--stats', `${repoUrl}::${archiveName}`];
       return await borgService.runCommand(args, onLog, overrides);
   },
@@ -239,7 +281,7 @@ export const borgService = {
    * Deletes all archives in the repo, but keeps the repo structure/keys.
    * Equivalent to: borg delete -a '*' repo
    */
-  emptyRepo: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  emptyRepo: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       // --force to avoid interactive confirmation
       const args = ['delete', '--force', '--progress', '--stats', '-a', '*', repoUrl];
       return await borgService.runCommand(args, onLog, overrides);
@@ -250,7 +292,7 @@ export const borgService = {
    * Equivalent to: borg delete repo
    * REQUIRES SPECIAL ENV VAR to avoid interactive prompt
    */
-  destroyRepo: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  destroyRepo: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       const args = ['delete', repoUrl];
       // FIX: BORG_DELETE_I_KNOW_WHAT_I_AM_DOING must be 'YES' (uppercase) for some Borg versions
       return await borgService.runCommand(args, onLog, { 
@@ -259,7 +301,7 @@ export const borgService = {
       });
   },
 
-  compact: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  compact: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       return await borgService.runCommand(['compact', '-v', repoUrl], onLog, overrides);
   },
 
@@ -267,7 +309,7 @@ export const borgService = {
       repoUrl: string,
       rules: { daily?: number, weekly?: number, monthly?: number, yearly?: number, keepWithin?: string },
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ): Promise<boolean> => {
       const args = ['prune', '-v', '--list', repoUrl];
       if (rules.keepWithin) args.push('--keep-within', rules.keepWithin);
@@ -278,12 +320,12 @@ export const borgService = {
       return await borgService.runCommand(args, onLog, overrides);
   },
 
-  diffArchives: async (repoUrl: string, archive1: string, archive2: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  diffArchives: async (repoUrl: string, archive1: string, archive2: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       const args = ['diff', `${repoUrl}::${archive1}`, `${archive2}`];
       return await borgService.runCommand(args, onLog, overrides);
   },
 
-  exportKey: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  exportKey: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       // export to stdout
       return await borgService.runCommand(['key', 'export', repoUrl], onLog, overrides);
   },
@@ -324,7 +366,7 @@ export const borgService = {
       }
   },
 
-  checkLockStatus: async (repoUrl: string, overrides?: { disableHostCheck?: boolean }) => {
+  checkLockStatus: async (repoUrl: string, overrides?: { disableHostCheck?: boolean, remotePath?: string }) => {
       const parsed = parseBorgUrl(repoUrl);
       if (!parsed) return false;
       
@@ -338,6 +380,15 @@ export const borgService = {
 
       if (parsed.isSsh) {
            const userHost = `${parsed.user ? parsed.user + '@' : ''}${parsed.host}`;
+           const customBinary = overrides?.remotePath && overrides.remotePath !== 'borg' ? overrides.remotePath : 'borg';
+           // If remote path is custom, we might assume the connection is set up to use it? 
+           // Usually 'checkLockStatus' just uses 'test', not 'borg'.
+           // BUT wait, overrides.remotePath is for --remote-path option of BORG command.
+           // Here we are running `test` command via SSH. It doesn't use `borg`. 
+           // So `remotePath` override is irrelevant for `checkLockStatus` on SSH unless we use `borg` command to check lock?
+           // No, we use `test -e Lockfile`. 
+           // However, for consistency, we update the type signature so we can pass the repo object blindly.
+           
            const args = [
               '-p', parsed.port!,
               ...(overrides?.disableHostCheck || config.disableHostCheck ? ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'] : []),
@@ -357,11 +408,11 @@ export const borgService = {
       return success;
   },
 
-  breakLock: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  breakLock: async (repoUrl: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       return await borgService.runCommand(['break-lock', repoUrl], onLog, overrides);
   },
   
-  forceDeleteLockFiles: async (repoUrl: string, onLog: (text: string) => void, overrides?: { disableHostCheck?: boolean }) => {
+  forceDeleteLockFiles: async (repoUrl: string, onLog: (text: string) => void, overrides?: { disableHostCheck?: boolean, remotePath?: string }) => {
       const parsed = parseBorgUrl(repoUrl);
       if (!parsed) return false;
       const config = getBorgConfig();
@@ -399,7 +450,7 @@ export const borgService = {
   /**
    * Returns generic list of archives (fast)
    */
-  listArchives: async (repoUrl: string, overrides?: { repoId?: string, disableHostCheck?: boolean }): Promise<{id: string, name: string, time: string}[]> => {
+  listArchives: async (repoUrl: string, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }): Promise<{id: string, name: string, time: string}[]> => {
     let listOutput = "";
     const success = await borgService.runCommand(
         ['list', '--json', repoUrl],
@@ -418,7 +469,7 @@ export const borgService = {
     } catch(e) { return []; }
   },
 
-  getArchiveInfo: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  getArchiveInfo: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
       let outputBuffer = "";
       const success = await borgService.runCommand(
           ['info', '--json', `${repoUrl}::${archiveName}`],
@@ -460,12 +511,12 @@ export const borgService = {
       return await ipcRenderer.invoke('create-directory', path);
   },
 
-  getArchiveHistory: async (repoUrl: string, options?: { repoId?: string, disableHostCheck?: boolean }): Promise<ArchiveStats[]> => {
+  getArchiveHistory: async (repoUrl: string, options?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }): Promise<ArchiveStats[]> => {
     let listOutput = "";
     const success = await borgService.runCommand(
         ['list', '--json', repoUrl],
         (chunk) => listOutput += chunk,
-        { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck }
+        { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck, remotePath: options?.remotePath }
     );
     
     if (!success) return [];
@@ -494,7 +545,7 @@ export const borgService = {
              await borgService.runCommand(
                 ['info', '--json', `${repoUrl}::${arch.name}`],
                 (c) => infoOutput += c,
-                { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck }
+                { repoId: options?.repoId, disableHostCheck: options?.disableHostCheck, remotePath: options?.remotePath }
             );
             try {
                 const iStart = infoOutput.indexOf('{');
@@ -524,7 +575,7 @@ export const borgService = {
     }
   },
 
-  listArchiveFiles: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean }): Promise<FileEntry[]> => {
+  listArchiveFiles: async (repoUrl: string, archiveName: string, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }): Promise<FileEntry[]> => {
       const entries: FileEntry[] = [];
       let buffer = "";
       
@@ -559,7 +610,7 @@ export const borgService = {
       paths: string[], // Paths INSIDE the archive
       destinationPath: string, // Local path (Windows format usually)
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ): Promise<boolean> => {
       // borg extract repo::archive path/to/file
       const args = ['extract', '--progress', `${repoUrl}::${archiveName}`, ...paths];
@@ -582,7 +633,7 @@ export const borgService = {
       return result.success;
   },
 
-  mount: async (repoUrl: string, archiveName: string, mountPoint: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean }) => {
+  mount: async (repoUrl: string, archiveName: string, mountPoint: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
     const mountId = `mount-${Date.now()}`;
     const config = getBorgConfig();
     const logListener = (_: any, msg: { id: string, text: string }) => {
@@ -645,7 +696,7 @@ export const borgService = {
       archiveName: string, 
       sourcePaths: string[], 
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ): Promise<boolean> => {
       const config = getBorgConfig();
       

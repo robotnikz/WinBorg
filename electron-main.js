@@ -773,8 +773,12 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
             if (secret) {
                 spawnEnv.BORG_PASSPHRASE = secret;
                 if (useWsl) {
-                    if (spawnEnv.WSLENV) spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE';
-                    else spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+                    if (spawnEnv.WSLENV) {
+                        // Ensure we append with the /u flag (Win32 -> WSL)
+                        spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE/u';
+                    } else {
+                        spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+                    }
                 }
             }
         }
@@ -1378,6 +1382,338 @@ else:
     } catch (e) {
         // Try cleanup on error
         spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('ssh-install-borg', async (event, { target, password, port }) => {
+    // Generate unique ID for temp files
+    const runId = Date.now().toString();
+    const passFile = `/tmp/winborg-pass-${runId}`;
+    const scriptFile = `/tmp/winborg-borg-${runId}.py`;
+    
+    // Default port
+    const finalPort = port || '22';
+    const safePort = finalPort.replace(/'/g, "\\'");
+    
+    // Python script to handle the interactive session via PTY
+    // This handles both SSH login (if needed) and sudo password (if needed)
+    // using the SAME password provided.
+    const pythonScript = `
+import pty
+import os
+import sys
+import time
+import subprocess
+import select
+import base64
+
+# Read password
+try:
+    with open('${passFile}', 'r') as f:
+        password = f.read()
+        if password.endswith('\\n'):
+            password = password[:-1]
+except:
+    sys.exit(1)
+
+target_host = '${target}'
+target_port = '${safePort}'
+
+def read(fd):
+    return os.read(fd, 1024)
+
+# The complex remote command to detect and install borg
+# We check for borg, then check for apt-get, then try install.
+remote_cmd = """
+export DEBIAN_FRONTEND=noninteractive
+if command -v borg >/dev/null 2>&1; then
+    echo "WINBORG_STATUS: BORG_ALREADY_INSTALLED"
+    exit 0
+fi
+
+if ! command -v apt-get >/dev/null 2>&1; then
+    echo "WINBORG_STATUS: UNSUPPORTED_DISTRO"
+    exit 1
+fi
+
+echo "WINBORG_STATUS: INSTALLING"
+if [ "$(id -u)" -eq 0 ]; then
+    apt-get update && apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" borgbackup
+else
+    # sudo will prompt for password, which our PTY handler will catch
+    sudo -p "sudo_password_prompt:" apt-get update && sudo -p "sudo_password_prompt:" apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" borgbackup
+fi
+"""
+
+# Base64 encode the script to avoid SSH/Shell escaping hell
+b64_script = base64.b64encode(remote_cmd.encode()).decode()
+
+# Robust execution strategy:
+# 1. Create temp file using mktemp (safe)
+# 2. Upload script to file
+# 3. Execute with bash
+# 4. Cleanup
+# We use 'set -e' to ensure we exit on errors
+final_cmd = f"fn=$(mktemp); echo {b64_script} | base64 -d > $fn; bash $fn; ret=$?; rm -f $fn; exit $ret"
+
+ssh_cmd = [
+    'ssh',
+    '-p', target_port,
+    '-o', 'StrictHostKeyChecking=no',
+    '-o', 'UserKnownHostsFile=/dev/null',
+    '-o', 'PreferredAuthentications=publickey,password,keyboard-interactive',
+    '-o', 'ConnectTimeout=15', # Fail fast if no connection
+    '-t', # Force pseudo-tty
+    target_host,
+    final_cmd
+]
+
+pid, fd = pty.fork()
+
+if pid == 0:
+    # Child
+    try:
+        os.execvp('ssh', ssh_cmd)
+    except Exception as e:
+        sys.exit(1)
+else:
+    # Parent
+    try:
+        output_buffer = b"" # Rolling buffer for pattern matching
+        password_sent_count = 0
+        last_pwd_time = 0
+        
+        while True:
+            r, _, _ = select.select([fd], [], [], 0.1)
+            if fd in r:
+                try:
+                    chunk = read(fd)
+                    if not chunk: break
+                except OSError:
+                    break
+                    
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+                
+                # Append to rolling buffer, keep last 200 chars to ensure we don't miss split patterns
+                output_buffer += chunk
+                if len(output_buffer) > 200:
+                    output_buffer = output_buffer[-200:]
+                
+                lower_buffer = output_buffer.lower()
+                
+                # Answer verify host
+                if b"continue connecting" in lower_buffer:
+                    print("\\n[PTY] Host check detected, sending yes...", flush=True)
+                    os.write(fd, b"yes\\n")
+                    # Clear buffer to avoid re-triggering? 
+                    # Actually better to just ensure we don't loop fast.
+                    time.sleep(1.0)
+                    output_buffer = b""
+
+                # Answer Password Prompts (SSH or explicit Sudo)
+                # Matches "password:" or our custom "sudo_password_prompt:"
+                if (b"password:" in lower_buffer or b"sudo_password_prompt:" in lower_buffer):
+                     now = time.time()
+                     # Simple debounce: wait at least 2 seconds between passwords
+                     if now - last_pwd_time > 2.0:
+                         print("\\n[PTY] Password prompt detected, sending password...", flush=True)
+                         time.sleep(0.5)
+                         os.write(fd, password.encode() + b'\\n')
+                         last_pwd_time = time.time()
+                         password_sent_count += 1
+                         output_buffer = b"" # Reset buffer after handling
+            else:
+                # Check if child exited
+                if os.waitpid(pid, os.WNOHANG) != (0, 0):
+                    break
+                    
+    except Exception as e:
+        print(f"Parent loop error: {e}", flush=True)
+
+
+    # Wait for child
+    try:
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+    except:
+        exit_code = 1
+        
+    print(f"Child exited with {exit_code}", flush=True)
+    sys.exit(exit_code)
+`;
+
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    // Helper to write file
+    const writeWslFile = async (filePath, content) => {
+        const hex = Buffer.from(content).toString('hex');
+        const cmd = `echo "${hex}" | python3 -c "import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))" > ${filePath}`;
+        const proc = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+        return new Promise(r => proc.on('close', r));
+    };
+    
+    try {
+        await writeWslFile(passFile, password);
+        await writeWslFile(scriptFile, pythonScript);
+        
+        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile]);
+        
+        let out = '';
+        let err = '';
+        runProc.stdout.on('data', d => out += d.toString());
+        runProc.stderr.on('data', d => err += d.toString());
+        
+        const code = await new Promise(resolve => runProc.on('close', resolve));
+        
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        
+        if (code === 0) {
+            return { success: true, output: out };
+        } else {
+            return { success: false, error: "Usage Error or Failed. Check Logs.", details: out + err };
+        }
+    } catch (e) {
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        return { success: false, error: e.message };
+    }
+});
+
+// TEST SSH CONNECTION (Key Based)
+ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
+    const finalPort = port || '22';
+    // 'ls -d .' is widely supported and proves we have a shell and filesystem access.
+    const remoteCmd = "ls -d .";
+    
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    const spawnArgs = [
+        ...wslBaseArgs,
+        '--',
+        'ssh',
+        '-p', finalPort,
+        '-o', 'BatchMode=yes',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        target,
+        remoteCmd
+    ];
+
+    console.log(`[SSH-Test] Spawning: wsl ${spawnArgs.join(' ')}`);
+    
+    try {
+        return new Promise((resolve) => {
+             const child = spawn('wsl', spawnArgs);
+             let out = '';
+             let err = '';
+             child.stdout.on('data', d => out += d.toString());
+             child.stderr.on('data', d => err += d.toString());
+             
+             child.on('close', code => {
+                 if (code === 0) {
+                     resolve({ success: true });
+                 } else {
+                     console.log("[SSH-Test] Failed:", out, err);
+                     resolve({ success: false, error: "Connection failed. Please ensure SSH Keys are deployed and host is reachable." });
+                 }
+             });
+             child.on('error', e => resolve({ success: false, error: e.message }));
+        });
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+// CHECK IF BORG INSTALLED ON REMOTE
+ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
+    const finalPort = port || '22';
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+
+    // Helper to run a command ROBUSTLY using direct args
+    const runRemote = (remoteCmd) => {
+        return new Promise((resolve) => {
+            const spawnArgs = [
+                ...wslBaseArgs,
+                '--',
+                'ssh',
+                '-p', finalPort,
+                '-o', 'BatchMode=yes',
+                '-o', 'StrictHostKeyChecking=no',
+                '-o', 'UserKnownHostsFile=/dev/null',
+                target,
+                remoteCmd
+            ];
+            
+            console.log(`[SSH-Check-Borg] Try: ${remoteCmd}`);
+            const child = spawn('wsl', spawnArgs);
+            let out = '';
+            let err = '';
+            child.stdout.on('data', d => out += d.toString());
+            child.stderr.on('data', d => err += d.toString());
+            
+            child.on('close', code => {
+                resolve({ code, out: out.trim(), err: err.trim(), full: (out + '\n' + err).trim() });
+            });
+        });
+    };
+
+    try {
+        // [Strategy: Direct Probe]
+        const candidates = [
+            'borg -V',              // Standard PATH
+            '/usr/bin/borg -V',     // Absolute standard
+            '/usr/local/bin/borg -V' // Local custom
+        ];
+
+        for (const cmd of candidates) {
+            const res = await runRemote(cmd);
+            console.log(`[SSH-Check-Borg] Result for '${cmd}': Code=${res.code}`);
+            
+            if (res.code === 0 && (res.full.includes('borg') || res.full.match(/\d+\.\d+\.\d+/))) {
+                console.log(`[SSH-Check-Borg] SUCCESS with '${cmd}'`);
+                const vMatch = res.full.match(/(\d+\.\d+\.\d+)/);
+                const usedPath = cmd.split(' ')[0];
+                return { success: true, path: usedPath, version: vMatch ? vMatch[1] : 'unknown' };
+            }
+        }
+
+        // [Strategy: Hetzner Storage Box Fallback]
+        // Hetzner Storage Boxes (and some others) return "Command not found" for 'borg' BUT list it in 'help'.
+        // See screenshot: "Available as server side backend: borg"
+        const helpRes = await runRemote('help');
+        if (helpRes.full.includes('Available as server side backend') && helpRes.full.includes('borg')) {
+             console.log(`[SSH-Check-Borg] SUCCESS via 'help' detection (Restricted Shell)`);
+             return { success: true, path: 'borg', version: 'restricted-shell' };
+        }
+
+        // [Strategy: Shell Script]
+        // Only run complex scripts if basic probes failed.
+        // This is safe for standard servers but will fail on Restricted Shells.
+        const checkScript = [
+            'if command -v borg >/dev/null 2>&1; then echo "FOUND:borg"; borg -V; exit 0;',
+            'elif command -v /usr/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/bin/borg"; /usr/bin/borg -V; exit 0;',
+            'elif command -v /usr/local/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/local/bin/borg"; /usr/local/bin/borg -V; exit 0;',
+            'else echo "NOT_FOUND"; exit 1; fi'
+        ].join(' ');
+        
+        // Pass script safe inside quotes is handled by SSH, 
+        // but 'bash -c' is often safer for complex scripts on the REMOTE side if shell is available.
+        // But for consistency let's use the direct spawn which passes validation.
+        const attemptScript = await runRemote(checkScript);
+        if (attemptScript.code === 0 && attemptScript.out.includes('FOUND:')) {
+             const match = attemptScript.out.match(/FOUND:(.*?)[\r\n]/);
+             const foundPath = match ? match[1].trim() : 'borg';
+             const vMatch = attemptScript.out.match(/(\d+\.\d+\.\d+)/);
+             return { success: true, path: foundPath, version: vMatch ? vMatch[1] : 'unknown' };
+        }
+
+        return { success: false, error: "Borg binary not found in standard paths." };
+
+    } catch (e) {
         return { success: false, error: e.message };
     }
 });

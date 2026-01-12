@@ -27,6 +27,7 @@ export interface Repository {
   status: 'connected' | 'disconnected' | 'error' | 'connecting';
   size: string;
   fileCount: number;
+  remotePath?: string; // Custom path to borg executable on remote
   // Security / Config Persistence
   passphrase?: string;
   trustHost?: boolean;
