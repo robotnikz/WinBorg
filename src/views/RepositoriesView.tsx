@@ -118,6 +118,10 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [installBorgPassword, setInstallBorgPassword] = useState('');
   const [isInstallingBorg, setIsInstallingBorg] = useState(false);
   const [connectionTestStatus, setConnectionTestStatus] = useState<'none' | 'loading' | 'success' | 'failure'>('none');
+  
+  // Add Repo Flow State
+  const [addRepoStep, setAddRepoStep] = useState<'none' | 'success' | 'ssh_fail' | 'borg_fail'>('none');
+
 
   // Helper to parse target
   const parseTargetFromUrl = () => {
@@ -238,15 +242,55 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       setIsTesting(true);
       setTestLog('Starting connection test...\n');
       setTestResult(null);
+      setAddRepoStep('none');
       
-      const success = await borgService.testConnection(
-          repoForm.url,
-          (log) => setTestLog(prev => prev + log),
-          { disableHostCheck: repoForm.trustHost }
-      );
+      const isSsh = repoForm.url.startsWith('ssh://');
       
-      setTestResult(success ? 'success' : 'error');
-      setIsTesting(false);
+      if (isSsh) {
+         setTestLog(prev => prev + "Detected SSH URL. Running connectivity checks...\n");
+         const { target, port } = parseTargetFromUrl();
+         
+         // Step 1: Connectivity
+         setTestLog(prev => prev + `1. Checking SSH connectivity to ${target}...\n`);
+         const sshRes = await borgService.testSshConnection(target, port || undefined);
+         
+         if (!sshRes.success) {
+             setTestLog(prev => prev + `❌ SSH Connection Failed: ${sshRes.error || 'Unknown error'}\n`);
+             // Determine if it's a key issue? Mostly likely yes if BatchMode failed.
+             setAddRepoStep('ssh_fail');
+             setTestResult('error');
+             setIsTesting(false);
+             return;
+         }
+         setTestLog(prev => prev + `✅ SSH Connection successful.\n`);
+
+         // Step 2: Borg Check
+         setTestLog(prev => prev + `2. Checking for BorgBackup installation...\n`);
+         const borgRes = await borgService.checkBorgInstalledRemote(target, port || undefined);
+         
+         if (!borgRes.success) {
+             setTestLog(prev => prev + `❌ BorgBackup not found: ${borgRes.error}\n`);
+             setAddRepoStep('borg_fail');
+             setTestResult('error'); 
+             setIsTesting(false);
+             return;
+         }
+         
+         setTestLog(prev => prev + `✅ BorgBackup found (Version: ${borgRes.version || 'unknown'}).\n`);
+         setAddRepoStep('success');
+         setTestResult('success');
+         setIsTesting(false);
+         
+      } else {
+        const success = await borgService.testConnection(
+            repoForm.url,
+            (log) => setTestLog(prev => prev + log),
+            { disableHostCheck: repoForm.trustHost }
+        );
+        
+        setTestResult(success ? 'success' : 'error');
+        setIsTesting(false);
+      }
   };
   
   const handleApplyTemplate = (provider: 'hetzner' | 'rsync' | 'nas' | 'borgbase' | 'linux') => {
@@ -618,95 +662,97 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                     </div>
                     
                     {/* SSH Key Management */}
-                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
-                        <div className="flex items-center justify-between">
-                           <button onClick={() => setSshShowDetails(!sshShowDetails)} className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2 hover:text-blue-500 w-full text-left">
-                               <Key className="w-3 h-3" /> SSH Authentication 
-                               <span className="text-[10px] font-normal text-slate-400 capitalize flex-1">
-                                   &mdash; {sshKeyStatus === 'found' ? 'Key Present' : sshKeyStatus === 'missing' ? 'No Key' : 'Manage Keys'}
-                               </span>
-                               {sshShowDetails ? <span className="text-[10px]">▼</span> : <span className="text-[10px]">▶</span>}
-                           </button>
-                        </div>
-                        
-                        {sshShowDetails && (
-                            <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                {sshKeyStatus === 'loading' && <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/> Checking keys...</div>}
-                                
-                                {sshKeyStatus === 'missing' && (
-                                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/10 p-2 rounded border border-amber-100 dark:border-amber-900/30 flex items-center justify-between">
-                                        <span>No SSH key found in WSL (~/.ssh/id_ed25519).</span>
-                                        <Button size="sm" variant="primary" onClick={handleGenerateKey} disabled={isSshAction}>
-                                            {isSshAction ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <RefreshCw className="w-3 h-3 mr-1"/>}
-                                            {isSshAction ? 'Gen...' : 'Generate '}
-                                        </Button>
-                                    </div>
-                                )}
-                                
-                                {sshKeyStatus === 'found' && sshPublicKey && (
-                                    <div className="space-y-2">
-                                        <div className="relative group">
-                                            <textarea 
-                                                readOnly 
-                                                value={sshPublicKey} 
-                                                className="w-full h-16 p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded resize-none focus:outline-none text-slate-700 dark:text-gray-300"
-                                            />
-                                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button 
-                                                    onClick={() => { navigator.clipboard.writeText(sshPublicKey); toast.show("SSH Public Key copied to clipboard", 'success'); }}
-                                                    className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded text-slate-500 hover:text-blue-500"
-                                                    title="Copy Public Key"
-                                                >
-                                                    <Copy className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={() => handleCheckKey()}
-                                                className="px-2 py-1.5 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
-                                                title="Refresh"
-                                            >
-                                                <RefreshCw className="w-3 h-3" />
-                                            </button>
-                                            <button 
-                                                onClick={() => {
-                                                    const { target, port } = parseTargetFromUrl();
-                                                    setInstallKeyTarget(target);
-                                                    setInstallKeyPort(port || null);
-                                                    setInstallKeyPassword('');
-                                                }}
-                                                className="flex-1 px-3 py-1.5 text-[10px] uppercase font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded flex items-center justify-center gap-1.5 transition-colors"
-                                            >
-                                                <Server className="w-3 h-3" /> Install SSH Key
-                                            </button>
-                                        </div>
-                                        
-                                        {/* Remote Server Setup */}
-                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Remote Server Tools</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => {
-                                                    const { target, port } = parseTargetFromUrl();
-                                                    setInstallBorgTarget(target);
-                                                    setInstallBorgPort(port || null);
-                                                    setInstallBorgPassword('');
-                                                    setConnectionTestStatus('none');
-                                                }}
-                                                className="w-full px-3 py-1.5 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded flex items-center justify-center gap-1.5 transition-colors"
-                                            >
-                                                <Cloud className="w-3 h-3" /> Install BorgBackup on Server
-                                            </button>
-                                            <p className="text-[9px] text-slate-400 mt-1.5 text-center px-1">
-                                                Installs <code>borgbackup</code> on compatible Debian/Ubuntu servers via apt-get.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
+                    <div className="space-y-3">
+                         {/* SSH Keys Panel */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                               <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                   <Key className="w-3 h-3" /> SSH Authentication 
+                                   <span className="text-[10px] font-normal text-slate-400 capitalize flex-1">
+                                       &mdash; {sshKeyStatus === 'found' ? 'Key Present' : sshKeyStatus === 'missing' ? 'No Key' : 'Manage Keys'}
+                                   </span>
+                               </div>
                             </div>
-                        )}
+                            
+                            {sshKeyStatus === 'loading' && <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/> Checking keys...</div>}
+                            
+                            {sshKeyStatus === 'missing' && (
+                                <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/10 p-2 rounded border border-amber-100 dark:border-amber-900/30 flex items-center justify-between">
+                                    <span>No SSH key found in WSL (~/.ssh/id_ed25519).</span>
+                                    <Button size="sm" variant="primary" onClick={handleGenerateKey} disabled={isSshAction}>
+                                        {isSshAction ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <RefreshCw className="w-3 h-3 mr-1"/>}
+                                        {isSshAction ? 'Gen...' : 'Generate '}
+                                    </Button>
+                                </div>
+                            )}
+                            
+                            {sshKeyStatus === 'found' && sshPublicKey && (
+                                <div className="space-y-2">
+                                    <div className="relative group">
+                                        <textarea 
+                                            readOnly 
+                                            value={sshPublicKey} 
+                                            className="w-full h-16 p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded resize-none focus:outline-none text-slate-700 dark:text-gray-300"
+                                        />
+                                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => { navigator.clipboard.writeText(sshPublicKey); toast.show("SSH Public Key copied to clipboard", 'success'); }}
+                                                className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded text-slate-500 hover:text-blue-500"
+                                                title="Copy Public Key"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => handleCheckKey()}
+                                            className="px-2 py-1.5 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
+                                            title="Refresh"
+                                        >
+                                            <RefreshCw className="w-3 h-3" />
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                const { target, port } = parseTargetFromUrl();
+                                                setInstallKeyTarget(target);
+                                                setInstallKeyPort(port || null);
+                                                setInstallKeyPassword('');
+                                            }}
+                                            disabled={addRepoStep !== 'ssh_fail'}
+                                            className={`flex-1 px-3 py-1.5 text-[10px] uppercase font-bold text-white bg-indigo-500 rounded flex items-center justify-center gap-1.5 transition-colors ${addRepoStep !== 'ssh_fail' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-600'}`}
+                                        >
+                                            <Server className="w-3 h-3" /> Install SSH Key
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Remote Server Setup */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                    <Cloud className="w-3 h-3"/> Remote Server Tools
+                                </span>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    const { target, port } = parseTargetFromUrl();
+                                    setInstallBorgTarget(target);
+                                    setInstallBorgPort(port || null);
+                                    setInstallBorgPassword('');
+                                    setConnectionTestStatus('none');
+                                }}
+                                disabled={addRepoStep !== 'borg_fail'}
+                                className={`w-full px-3 py-1.5 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center gap-1.5 transition-colors ${addRepoStep !== 'borg_fail' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                            >
+                                <Cloud className="w-3 h-3" /> Install BorgBackup on Server
+                            </button>
+                            <p className="text-[9px] text-slate-400 mt-1.5 text-center px-1">
+                                Installs <code>borgbackup</code> on compatible Debian/Ubuntu servers via apt-get.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -772,7 +818,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                </label>
                
                {/* Test Connection Button */}
-               {!editingRepoId && addMode === 'connect' && repoForm.url && (
+               {!editingRepoId && (addMode === 'connect' || (addMode === 'init' && repoForm.url.startsWith('ssh://'))) && repoForm.url && (
                    <div>
                        <Button 
                             variant="secondary" 
@@ -782,7 +828,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                             disabled={isTesting}
                        >
                            {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Terminal className="w-3 h-3 mr-2" />}
-                           {isTesting ? 'Testing Connection...' : 'Test Connection'}
+                           {isTesting ? 'Testing Connection...' : 'Test ' + (repoForm.url.startsWith('ssh://') ? 'SSH & Remote ' : '') + 'Connection'}
                        </Button>
                        {testResult === 'success' && (
                            <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
@@ -818,7 +864,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
              <div className="px-6 py-4 bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-3 shrink-0">
                <Button variant="secondary" onClick={() => setIsModalOpen(false)} disabled={isInitializing}>Cancel</Button>
-               <Button onClick={handleSave} disabled={!repoForm.name || !repoForm.url || isInitializing} loading={isInitializing}>
+               <Button 
+                    onClick={handleSave} 
+                    disabled={!repoForm.name || !repoForm.url || isInitializing || (repoForm.url.startsWith('ssh://') && addRepoStep !== 'success')} 
+                    loading={isInitializing}
+               >
                    {editingRepoId ? 'Save Changes' : (addMode === 'init' ? 'Initialize' : 'Connect')}
                </Button>
              </div>

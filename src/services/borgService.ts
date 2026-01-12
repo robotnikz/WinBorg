@@ -132,7 +132,9 @@ export const borgService = {
   testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string}> => {
       return ipcRenderer.invoke('ssh-test-connection', { target, port });
   },
-  
+  checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string}> => {
+    return await ipcRenderer.invoke('ssh-check-borg', { target, port });
+  },  
   // --- SECRETS MANAGEMENT ---
   savePassphrase: async (repoId: string, passphrase: string) => {
       return await ipcRenderer.invoke('save-secret', { repoId, passphrase });

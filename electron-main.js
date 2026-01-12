@@ -1611,3 +1611,41 @@ ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
         return { success: false, error: e.message };
     }
 });
+
+// CHECK IF BORG INSTALLED ON REMOTE
+ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
+    const finalPort = port || '22';
+    // Use the same flags as test-connection. 
+    // We just want to see if `borg -V` runs.
+    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} borg -V`;
+    
+    // Check if we need to run via WSL
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    console.log(`[SSH-Check-Borg] Command: ${cmd}`);
+
+    try {
+        return new Promise((resolve) => {
+             const child = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+             let out = '';
+             let err = '';
+             child.stdout.on('data', d => out += d.toString());
+             child.stderr.on('data', d => err += d.toString());
+             
+             child.on('close', code => {
+                 // Borg -V prints to stdout standardly.
+                 // Ensure valid exit and some expected output
+                 if (code === 0 && (out.toLowerCase().includes('borg') || out.includes('1.'))) {
+                     resolve({ success: true, version: out.trim() });
+                 } else {
+                     console.log("[SSH-Check-Borg] Failed:", out, err);
+                     resolve({ success: false, error: "Borg binary not found or not executable via non-interactive SSH." });
+                 }
+             });
+             child.on('error', e => resolve({ success: false, error: e.message }));
+        });
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
