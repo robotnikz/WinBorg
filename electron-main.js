@@ -1455,6 +1455,7 @@ ssh_cmd = [
     'ssh',
     '-p', target_port,
     '-o', 'StrictHostKeyChecking=no',
+    '-o', 'UserKnownHostsFile=/dev/null', # Prevent saving host key, prevents verification prompts for new/changed hosts
     '-o', 'PreferredAuthentications=publickey,password,keyboard-interactive',
     '-t', # Force pseudo-tty allocation so sudo detects a terminal
     target_host,
