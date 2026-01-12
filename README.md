@@ -77,6 +77,31 @@ WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a ro
     *   **Install Borg:** WinBorg will then automatically install the Borg backup engine for you.
     *   *WinBorg guides you through the entire process, minimizing the need for manual terminal commands.*
 
+### 🔧 Manual Setup (Advanced Users)
+If you prefer tight control over your system environment, you can install the dependencies manually before running WinBorg. This allows you to skip parts of the auto-onboarding flow.
+
+**1. Install WSL (Ubuntu/Debian)**
+WinBorg requires a Debian-based distribution (Ubuntu is recommended).
+```powershell
+# Open PowerShell as Administrator
+wsl --install -d Ubuntu
+# RESTART YOUR COMPUTER after this finishes!
+```
+
+**2. Install BorgBackup**
+After restarting, open your WSL terminal (search "Ubuntu" in Start menu) and run:
+```bash
+sudo apt update
+sudo apt install -y borgbackup
+```
+
+**3. Verify Installation**
+WinBorg automatically looks for the binary. Verify it exists:
+```bash
+which borg
+# Should return: /usr/bin/borg
+```
+
 ### 2. Your First Backup
 1.  Go to the **Repositories** tab and click `+ Add Repository`.
 2.  Enter your SSH URL (e.g., `ssh://u123@your-provider.com/./backups`) or a local path.
