@@ -138,3 +138,7 @@ dist-electron/
 
 # VSCode settings
 .vscode/
+
+# Playwright
+playwright-report/
+test-results/
