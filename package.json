@@ -69,7 +69,7 @@
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^39.2.7",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^26.4.0",
     "jsdom": "^27.4.0",
     "lucide-react": "^0.562.0",
     "react": "^18.2.0",
