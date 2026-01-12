@@ -115,6 +115,15 @@ export interface FileEntry {
 }
 
 export const borgService = {
+
+  // --- SSH KEY MANAGEMENT ---
+  manageSSHKey: async (action: 'check' | 'generate' | 'read', type: 'ed25519' | 'rsa' = 'ed25519'): Promise<{success: boolean, exists?: boolean, key?: string, path?: string, error?: string}> => {
+      return ipcRenderer.invoke('ssh-key-manage', { action, type });
+  },
+
+  installSSHKey: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string}> => {
+      return ipcRenderer.invoke('ssh-key-install', { target, password, port });
+  },
   
   // --- SECRETS MANAGEMENT ---
   savePassphrase: async (repoId: string, passphrase: string) => {

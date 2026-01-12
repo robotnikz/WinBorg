@@ -10,15 +10,20 @@ interface ToastEventDetail {
 
 export const toast = {
   show: (message: string, type: ToastType = 'info', duration = 4000) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const event = new CustomEvent<ToastEventDetail>('show-toast', {
       detail: {
-        id: Math.random().toString(36).substr(2, 9),
+        id,
         message,
         type,
         duration
       }
     });
     window.dispatchEvent(event);
+    return id;
+  },
+  dismiss: (id: string) => {
+    window.dispatchEvent(new CustomEvent('dismiss-toast', { detail: id }));
   },
   success: (msg: string) => toast.show(msg, 'success'),
   error: (msg: string) => toast.show(msg, 'error', 6000),

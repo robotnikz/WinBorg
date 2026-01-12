@@ -35,6 +35,7 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ### 📂 Full Management Suite
 *   **Repositories:** Add and manage multiple remote (SSH) or local repositories.
+*   **SSH Management:** Built-in tool to generate keys and deploy them to servers (includes native support for **Hetzner Storage Boxes**).
 *   **Archives:** Browse all your snapshots with detailed metadata (size, time, duration).
 *   **File Browser:** Explore the contents of *any* old archive and download/restore specific files effortlessly.
 *   **Mounting:** Mount archives as a FUSE filesystem (requires configured FUSE inside WSL).
@@ -69,7 +70,7 @@ WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a ro
 ### 📋 Prerequisites for Remote Backups
 If you plan to backup to a remote server (e.g. Storage Box, VPS, NAS), please ensure:
 1.  **BorgBackup is installed on the remote server:** The `borg` binary must be installed and executable on the target machine. WinBorg needs it to initiate the SSH tunnel and manage the repository.
-2.  **SSH Authentication:** WinBorg uses the SSH keys inside your WSL distribution. You should configure **key-based authentication** (e.g. `ssh-copy-id`) so WinBorg can connect without manual password prompts during background jobs.
+2.  **SSH Authentication:** WinBorg generally uses key-based authentication. You can use the built-in **"Install Key"** button in the repository dialog to easily deploy your keys to any server (or Hetzner Storage Box) without needing to use the command line.
 ### 1. Installation & Setup
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  **Install & Launch:** Run the setup.
