@@ -71,7 +71,7 @@
     "electron": "^39.2.7",
     "electron-builder": "^24.9.1",
     "jsdom": "^23.0.1",
-    "lucide-react": "^0.292.0",
+    "lucide-react": "^0.562.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "semantic-release": "^25.0.2",
