@@ -158,6 +158,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             setInstallBorgTarget(null);
             setInstallBorgPort(null);
             setInstallBorgPassword('');
+            
+            // Auto-enable main button
+            setAddRepoStep('success');
+            setTestResult('success');
+            setTestLog('Installation successful. BorgBackup found.\n');
         } else {
             toast.show("Installation failed", 'error');
             alert("Installation Failed:\n" + (res.details || res.error));
@@ -529,39 +534,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                         <p className="text-xs text-slate-400">This will run <code>apt-get install borgbackup</code>. A sudo password may be required.</p>
                     </div>
 
-                    {/* Connection Test Section */}
-                    <div className="p-3 bg-gray-50 dark:bg-slate-900 rounded-lg space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-slate-600 dark:text-slate-400">Step 1: Verify Connection</span>
-                            {connectionTestStatus === 'success' && <span className="text-green-500 font-bold flex items-center gap-1"><Check className="w-3 h-3"/> Connected</span>}
-                            {connectionTestStatus === 'failure' && <span className="text-red-500 font-bold flex items-center gap-1"><X className="w-3 h-3"/> Failed</span>}
-                        </div>
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={connectionTestStatus === 'loading' || connectionTestStatus === 'success'}
-                            onClick={async () => {
-                                setConnectionTestStatus('loading');
-                                if (!installBorgTarget) return;
-                                try {
-                                    const res = await borgService.testSshConnection(installBorgTarget, installBorgPort || undefined);
-                                    setConnectionTestStatus(res.success ? 'success' : 'failure');
-                                    if(res.success) toast.show("Connection verified!", 'success');
-                                    else toast.show("SSH Connection failed. Ensure keys are installed.", 'error');
-                                } catch {
-                                    setConnectionTestStatus('failure');
-                                    toast.show("Check failed.", 'error');
-                                }
-                            }}
-                            className="w-full text-xs h-8"
-                        >
-                            {connectionTestStatus === 'loading' ? <Loader2 className="w-3 h-3 animate-spin mr-2"/> : <Terminal className="w-3 h-3 mr-2"/>}
-                            Test SSH Connection
-                        </Button>
-                    </div>
-
                     <div>
-                        <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-400">Step 2: Install</div>
                         <input 
                             type="password" 
                             autoFocus
@@ -570,11 +543,10 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                             value={installBorgPassword}
                             onChange={e => setInstallBorgPassword(e.target.value)}
                             onKeyDown={e => {
-                                if(e.key === 'Enter' && installBorgPassword && !isInstallingBorg && connectionTestStatus === 'success') {
+                                if(e.key === 'Enter' && installBorgPassword && !isInstallingBorg) {
                                     handleInstallBorg();
                                 }
                             }}
-                            disabled={connectionTestStatus !== 'success'}
                         />
                     </div>
                 </div>
@@ -582,7 +554,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                     <Button variant="ghost" size="sm" onClick={() => setInstallBorgTarget(null)} disabled={isInstallingBorg}>Cancel</Button>
                     <Button 
                         size="sm" 
-                        disabled={!installBorgPassword || isInstallingBorg || connectionTestStatus !== 'success'} 
+                        disabled={!installBorgPassword || isInstallingBorg} 
                         onClick={handleInstallBorg}
                     >
                         {isInstallingBorg ? <Loader2 className="w-3 h-3 animate-spin mr-2"/> : <Cloud className="w-3 h-3 mr-2"/>}
