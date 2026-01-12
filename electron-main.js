@@ -899,8 +899,8 @@ ipcMain.handle('system-install-borg', async (event) => {
         // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
         // Assuming default Ubuntu/Debian distro.
         console.log("[Setup] Installing Borg via WSL (root)...");
-        // Removed apt-get upgrade to avoid timeouts and interactive prompts. Added DEBIAN_FRONTEND=noninteractive.
-        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y borgbackup"';
+        // Removed apt-get upgrade to avoid timeouts. Added --no-install-recommends to reduce download size.
+        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends borgbackup"';
         
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
