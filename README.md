@@ -66,7 +66,10 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 ## �🚀 Getting Started
 
 WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a robust background engine, but handles the complexity for you.
-
+### 📋 Prerequisites for Remote Backups
+If you plan to backup to a remote server (e.g. Storage Box, VPS, NAS), please ensure:
+1.  **BorgBackup is installed on the remote server:** The `borg` binary must be installed and executable on the target machine. WinBorg needs it to initiate the SSH tunnel and manage the repository.
+2.  **SSH Authentication:** WinBorg uses the SSH keys inside your WSL distribution. You should configure **key-based authentication** (e.g. `ssh-copy-id`) so WinBorg can connect without manual password prompts during background jobs.
 ### 1. Installation & Setup
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  **Install & Launch:** Run the setup.
@@ -76,6 +79,31 @@ WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a ro
     *   **Re-Open WinBorg:** After restarting, launch WinBorg again. It will detect that WSL is ready.
     *   **Install Borg:** WinBorg will then automatically install the Borg backup engine for you.
     *   *WinBorg guides you through the entire process, minimizing the need for manual terminal commands.*
+
+### 🔧 Manual Setup (Advanced Users)
+If you prefer tight control over your system environment, you can install the dependencies manually before running WinBorg. This allows you to skip parts of the auto-onboarding flow.
+
+**1. Install WSL (Ubuntu/Debian)**
+WinBorg requires a Debian-based distribution (Ubuntu is recommended).
+```powershell
+# Open PowerShell as Administrator
+wsl --install -d Ubuntu
+# RESTART YOUR COMPUTER after this finishes!
+```
+
+**2. Install BorgBackup**
+After restarting, open your WSL terminal (search "Ubuntu" in Start menu) and run:
+```bash
+sudo apt update
+sudo apt install -y borgbackup
+```
+
+**3. Verify Installation**
+WinBorg automatically looks for the binary. Verify it exists:
+```bash
+which borg
+# Should return: /usr/bin/borg
+```
 
 ### 2. Your First Backup
 1.  Go to the **Repositories** tab and click `+ Add Repository`.

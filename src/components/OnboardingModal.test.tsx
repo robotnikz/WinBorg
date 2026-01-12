@@ -86,7 +86,9 @@ describe('OnboardingModal', () => {
 
         await waitFor(() => {
             expect(mockInvoke).toHaveBeenCalledWith('system-install-wsl');
-            expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('MUST restart your computer'));
+            // Expect the UI to show the restart prompt instead of an alert
+            expect(screen.getByText(/Restart Required!/i)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /Restart Computer Now/i })).toBeInTheDocument();
         });
     });
 

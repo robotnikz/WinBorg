@@ -486,11 +486,20 @@ const App: React.FC = () => {
                                  const infoData = JSON.parse(infoJson);
                                  const stats = infoData.cache?.stats || infoData.repository?.stats;
                                  let sizeStr = 'Unknown';
+                                 let repoStats = undefined;
+
                                  if (stats && stats.unique_csize) {
+                                     // Format size string for display
                                      const gb = stats.unique_csize / 1024 / 1024 / 1024;
                                      sizeStr = gb.toFixed(2) + ' GB';
+                                     
+                                     // Store raw stats for efficiency calculation
+                                     repoStats = {
+                                         originalSize: stats.total_size || 0,
+                                         deduplicatedSize: stats.unique_csize || 0
+                                     };
                                  }
-                                 setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, size: sizeStr } : r));
+                                 setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, size: sizeStr, stats: repoStats } : r));
                              } catch(e) {}
                         },
                         { repoId: repo.id, disableHostCheck: repo.trustHost }
