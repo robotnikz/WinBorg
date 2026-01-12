@@ -119,20 +119,22 @@ const DashboardView: React.FC<DashboardViewProps> = ({
       let unknownCount = 0;
 
       repos.forEach(r => {
-          const repoBytes = parseSizeString(r.size);
-          totalBytes += repoBytes;
+          let currentRepoStoredBytes = 0;
+
+          // 1. Determine "Stored" size (Deduplicated/Compressed on Disk)
+          if (r.stats && r.stats.deduplicatedSize > 0) {
+              currentRepoStoredBytes = r.stats.deduplicatedSize;
+          } else {
+              currentRepoStoredBytes = parseSizeString(r.size);
+          }
+          totalBytes += currentRepoStoredBytes;
           
-          // Accumulate for efficiency if stats exist
+          // 2. Determine "Original" size (Logical size of all archives)
           if (r.stats && r.stats.originalSize > 0) {
               totalOriginalBytes += r.stats.originalSize;
-              // If stats.deduplicatedSize is present, prefer it, otherwise use parsed size
-              // However, since we sum totalBytes from r.size (which is string formatted), 
-              // we should probably imply the 'size' string IS the deduplicated size.
           } else {
-             // If no stats, assume efficiency is 0% (Original = Deduplicated) 
-             // avoiding division by zero or skewing 100% efficient.
-             // Usually we just ignore this repo for efficiency calcs or assume 1:1
-             totalOriginalBytes += repoBytes;
+             // If unavailable, assume 1:1 ratio (0% efficiency)
+             totalOriginalBytes += currentRepoStoredBytes;
           }
 
           const health = getRepoHealth(r);
