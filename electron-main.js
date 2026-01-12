@@ -1435,29 +1435,32 @@ fi
 
 echo "WINBORG_STATUS: INSTALLING"
 if [ "$(id -u)" -eq 0 ]; then
-    apt-get update && apt-get install -y borgbackup
+    apt-get update && apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" borgbackup
 else
     # sudo will prompt for password, which our PTY handler will catch
-    sudo -p "sudo_password_prompt:" apt-get update && sudo -p "sudo_password_prompt:" apt-get install -y borgbackup
+    sudo -p "sudo_password_prompt:" apt-get update && sudo -p "sudo_password_prompt:" apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" borgbackup
 fi
 """
 
 # Base64 encode the script to avoid SSH/Shell escaping hell
 b64_script = base64.b64encode(remote_cmd.encode()).decode()
 
-# Use a temporary file execution strategy.
-# Piping directly into 'bash' ("echo ... | base64 -d | bash") can consume the TTY stdin,
-# causing 'sudo' to hang when it tries to read the password.
-# By writing to a file first, we ensure 'bash script.sh' runs with a clean TTY.
-final_cmd = f"fn=/tmp/winborg_install_$(date +%s).sh; echo {b64_script} | base64 -d > $fn; bash $fn; ret=$?; rm -f $fn; exit $ret"
+# Robust execution strategy:
+# 1. Create temp file using mktemp (safe)
+# 2. Upload script to file
+# 3. Execute with bash
+# 4. Cleanup
+# We use 'set -e' to ensure we exit on errors
+final_cmd = f"fn=$(mktemp); echo {b64_script} | base64 -d > $fn; bash $fn; ret=$?; rm -f $fn; exit $ret"
 
 ssh_cmd = [
     'ssh',
     '-p', target_port,
     '-o', 'StrictHostKeyChecking=no',
-    '-o', 'UserKnownHostsFile=/dev/null', # Prevent saving host key, prevents verification prompts for new/changed hosts
+    '-o', 'UserKnownHostsFile=/dev/null',
     '-o', 'PreferredAuthentications=publickey,password,keyboard-interactive',
-    '-t', # Force pseudo-tty allocation so sudo detects a terminal
+    '-o', 'ConnectTimeout=15', # Fail fast if no connection
+    '-t', # Force pseudo-tty
     target_host,
     final_cmd
 ]
