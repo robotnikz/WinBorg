@@ -194,4 +194,34 @@ describe('borgService', () => {
             spy.mockRestore();
         });
     });
+
+    describe('SSH / Remote install helpers', () => {
+        it('manageSSHKey calls ssh-key-manage with correct args', async () => {
+            mockInvoke.mockResolvedValue({ success: true, exists: false });
+            const res = await borgService.manageSSHKey('check', 'ed25519');
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-key-manage', { action: 'check', type: 'ed25519' });
+            expect(res).toEqual({ success: true, exists: false });
+        });
+
+        it('installSSHKey calls ssh-key-install with correct args', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const res = await borgService.installSSHKey('user@host', 'pw', '23');
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-key-install', { target: 'user@host', password: 'pw', port: '23' });
+            expect(res).toEqual({ success: true });
+        });
+
+        it('installBorg calls ssh-install-borg with correct args', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const res = await borgService.installBorg('user@host', 'pw', '22');
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-install-borg', { target: 'user@host', password: 'pw', port: '22' });
+            expect(res).toEqual({ success: true });
+        });
+
+        it('testSshConnection calls ssh-test-connection with correct args', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const res = await borgService.testSshConnection('user@host', '2222');
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-test-connection', { target: 'user@host', port: '2222' });
+            expect(res).toEqual({ success: true });
+        });
+    });
 });

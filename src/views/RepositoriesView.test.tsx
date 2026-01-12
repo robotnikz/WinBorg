@@ -2,13 +2,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import RepositoriesView from './RepositoriesView';
 import { Repository } from '../types';
+import { borgService } from '../services/borgService';
 
 // Mock dependencies
 vi.mock('../services/borgService', () => ({
     borgService: {
         initRepo: vi.fn(),
         testConnection: vi.fn(),
-        runCommand: vi.fn()
+        runCommand: vi.fn(),
+        manageSSHKey: vi.fn(async (action: 'check' | 'generate' | 'read') => {
+            if (action === 'check') return { success: true, exists: false };
+            if (action === 'read') return { success: true, key: '' };
+            return { success: true };
+        })
     }
 }));
 
@@ -50,12 +56,20 @@ describe('RepositoriesView', () => {
         expect(screen.getByText('Repo B')).toBeInTheDocument();
     });
 
-    it('opens add repository modal and shows Quick Start Templates', () => {
+    it('opens add repository modal and shows Quick Start Templates', async () => {
         render(<RepositoriesView {...defaultProps} />);
         fireEvent.click(screen.getByText('Add Repository'));
-        
-        expect(screen.getByRole('heading', { name: 'Add Repository' })).toBeInTheDocument();
-        expect(screen.getByText('Quick Start Templates')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByRole('heading', { name: 'Add Repository' })).toBeInTheDocument();
+            expect(screen.getByText('Quick Start Templates')).toBeInTheDocument();
+        });
+
+        // The modal triggers async SSH key checks; await them so React state updates are flushed.
+        await waitFor(() => {
+            expect((borgService as any).manageSSHKey).toHaveBeenCalled();
+        });
+
         expect(screen.getByText('linux')).toBeInTheDocument();
     });
 
