@@ -1615,9 +1615,16 @@ ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
 // CHECK IF BORG INSTALLED ON REMOTE
 ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
     const finalPort = port || '22';
-    // Use the same flags as test-connection. 
-    // We just want to see if `borg -V` runs.
-    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} borg -V`;
+    
+    // Robust check script handles standard paths even if PATH is minimal
+    const checkScript = [
+        'if command -v borg >/dev/null 2>&1; then echo "FOUND:borg"; borg -V; exit 0;',
+        'elif command -v /usr/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/bin/borg"; /usr/bin/borg -V; exit 0;',
+        'elif command -v /usr/local/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/local/bin/borg"; /usr/local/bin/borg -V; exit 0;',
+        'else echo "NOT_FOUND"; exit 1; fi'
+    ].join(' ');
+
+    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} '${checkScript}'`;
     
     // Check if we need to run via WSL
     const targetDistro = await getPreferredWslDistro();
@@ -1634,13 +1641,18 @@ ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
              child.stderr.on('data', d => err += d.toString());
              
              child.on('close', code => {
-                 // Borg -V prints to stdout standardly.
-                 // Ensure valid exit and some expected output
-                 if (code === 0 && (out.toLowerCase().includes('borg') || out.includes('1.'))) {
-                     resolve({ success: true, version: out.trim() });
+                 if (code === 0 && out.includes('FOUND:')) {
+                     // Parse found path
+                     const match = out.match(/FOUND:(.*?)[\r\n]/);
+                     const foundPath = match ? match[1].trim() : 'borg';
+                     // Parse version
+                     const vMatch = out.match(/(\d+\.\d+\.\d+)/);
+                     const version = vMatch ? vMatch[1] : 'unknown';
+                     
+                     resolve({ success: true, version, path: foundPath });
                  } else {
                      console.log("[SSH-Check-Borg] Failed:", out, err);
-                     resolve({ success: false, error: "Borg binary not found or not executable via non-interactive SSH." });
+                     resolve({ success: false, error: "Borg binary not found. Standard paths checked (/usr/bin, /usr/local/bin)." });
                  }
              });
              child.on('error', e => resolve({ success: false, error: e.message }));

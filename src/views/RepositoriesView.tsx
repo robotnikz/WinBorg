@@ -121,6 +121,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   
   // Add Repo Flow State
   const [addRepoStep, setAddRepoStep] = useState<'none' | 'success' | 'ssh_fail' | 'borg_fail'>('none');
+  const [detectedRemotePath, setDetectedRemotePath] = useState<string | undefined>(undefined);
 
 
   // Helper to parse target
@@ -163,6 +164,8 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             setAddRepoStep('success');
             setTestResult('success');
             setTestLog('Installation successful. BorgBackup found.\n');
+            // Assume standard path for newly installed borg on Debian/Ubuntu
+            setDetectedRemotePath('/usr/bin/borg');
         } else {
             toast.show("Installation failed", 'error');
             alert("Installation Failed:\n" + (res.details || res.error));
@@ -288,6 +291,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
              return;
          }
          
+         if (borgRes.path) {
+             setDetectedRemotePath(borgRes.path);
+             setTestLog(prev => prev + `   (Detected Path: ${borgRes.path})\n`);
+         }
+
          setTestLog(prev => prev + `✅ BorgBackup found (Version: ${borgRes.version || 'unknown'}).\n`);
          setAddRepoStep('success');
          setTestResult('success');
@@ -368,7 +376,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                 repoForm.url,
                 repoForm.encryption,
                 (log) => setInitLog(prev => prev + log),
-                { repoId: newId, disableHostCheck: repoForm.trustHost }
+                { repoId: newId, disableHostCheck: repoForm.trustHost, remotePath: detectedRemotePath }
             );
 
             setIsInitializing(false);

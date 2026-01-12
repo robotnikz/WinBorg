@@ -40,7 +40,7 @@ const getBorgConfig = () => {
     };
 };
 
-const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean }) => {
+const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean, remotePath?: string }) => {
     const finalDisableHostCheck = overrides?.disableHostCheck !== undefined ? overrides.disableHostCheck : config.disableHostCheck;
 
     const env: any = {
@@ -50,6 +50,11 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean }) => 
         BORG_DISPLAY_PASSPHRASE: 'no' 
     };
     
+    // Explicit Remote Path
+    if (overrides?.remotePath && overrides.remotePath !== 'borg') {
+        env.BORG_REMOTE_PATH = overrides.remotePath;
+    }
+    
     let sshCmd = 'ssh -o BatchMode=yes';
     if (finalDisableHostCheck) {
         sshCmd += ' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null';
@@ -57,7 +62,7 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean }) => 
     env.BORG_RSH = sshCmd;
     
     if (config.useWsl) {
-        env.WSLENV = 'BORG_PASSPHRASE:BORG_DISPLAY_PASSPHRASE:BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK:BORG_RELOCATED_REPO_ACCESS_IS_OK:BORG_RSH';
+        env.WSLENV = 'BORG_PASSPHRASE:BORG_DISPLAY_PASSPHRASE:BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK:BORG_RELOCATED_REPO_ACCESS_IS_OK:BORG_RSH:BORG_REMOTE_PATH';
     }
     
     return env;
@@ -132,7 +137,7 @@ export const borgService = {
   testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string}> => {
       return ipcRenderer.invoke('ssh-test-connection', { target, port });
   },
-  checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string}> => {
+  checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string, path?: string}> => {
     return await ipcRenderer.invoke('ssh-check-borg', { target, port });
   },  
   // --- SECRETS MANAGEMENT ---
@@ -158,7 +163,7 @@ export const borgService = {
   runCommand: async (
     args: string[], 
     onLog: (text: string) => void,
-    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string> }
+    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string }
   ): Promise<boolean> => {
     const commandId = overrides?.commandId || Math.random().toString(36).substring(7);
     const config = getBorgConfig();
@@ -205,7 +210,7 @@ export const borgService = {
       repoUrl: string, 
       encryption: 'repokey' | 'keyfile' | 'none', 
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ): Promise<boolean> => {
       // Argument Mapping: repokey -> repokey-blake2 (modern default), keyfile -> keyfile-blake2
       let encMode: string = encryption;
