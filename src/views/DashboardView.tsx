@@ -111,13 +111,30 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
   const dashboardStats = useMemo(() => {
       let totalBytes = 0;
+      let totalOriginalBytes = 0; // For efficiency calc
+      
       let healthyCount = 0;
       let warningCount = 0;
       let criticalCount = 0;
       let unknownCount = 0;
 
       repos.forEach(r => {
-          totalBytes += parseSizeString(r.size);
+          const repoBytes = parseSizeString(r.size);
+          totalBytes += repoBytes;
+          
+          // Accumulate for efficiency if stats exist
+          if (r.stats && r.stats.originalSize > 0) {
+              totalOriginalBytes += r.stats.originalSize;
+              // If stats.deduplicatedSize is present, prefer it, otherwise use parsed size
+              // However, since we sum totalBytes from r.size (which is string formatted), 
+              // we should probably imply the 'size' string IS the deduplicated size.
+          } else {
+             // If no stats, assume efficiency is 0% (Original = Deduplicated) 
+             // avoiding division by zero or skewing 100% efficient.
+             // Usually we just ignore this repo for efficiency calcs or assume 1:1
+             totalOriginalBytes += repoBytes;
+          }
+
           const health = getRepoHealth(r);
           if (health === 'healthy') healthyCount++;
           else if (health === 'warning') warningCount++;
@@ -125,10 +142,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
           else unknownCount++;
       });
 
-      // Efficiency is currently not reported by backend (Borg info requires passphrase unlock).
-      // Leaving as unknown/placeholder until implemented.
-      const savings = 0;
-      const savingsPercent = 0;
+      // Calculate Efficiency
+      let savings = 0;
+      let savingsPercent = 0;
+      
+      if (totalOriginalBytes > 0 && totalOriginalBytes >= totalBytes) {
+          savings = totalOriginalBytes - totalBytes;
+          savingsPercent = Math.round((savings / totalOriginalBytes) * 100);
+      }
 
       return {
           totalSize: formatBytes(totalBytes),

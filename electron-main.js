@@ -849,12 +849,17 @@ ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, execu
 
 ipcMain.handle('system-check-wsl', async () => {
     return new Promise((resolve) => {
-        exec('wsl --status', { encoding: 'utf16le' }, (error, stdout, stderr) => {
-            // Windows typically returns WSL status in UTF-16 sometimes, or just UTF-8. 
-            // 'wsl --status' returns 0 even if no distro defaults set sometimes, but usually reliable to check presence.
-            if (error) {
-                console.error("WSL Check Failed:", error);
-                resolve({ installed: false, error: error.message });
+        // Robust check: try to execute a simple command in the default distro.
+        // This confirms WSL is enabled AND a valid distro is set as default.
+        exec('wsl --exec echo wsl_active', (error, stdout, stderr) => {
+            // Trim stdout to remove potential newlines
+            const cleanStdout = stdout ? stdout.toString().trim() : '';
+
+            if (error || cleanStdout !== 'wsl_active') {
+                console.warn("WSL Check Failed (No functional distro?):", error);
+                // "wsl --status" might return success even if no distro is installed.
+                // Failing here ensures the user is prompted to run the "Install WSL" setup which installs Ubuntu.
+                resolve({ installed: false, error: "WSL not active or no distro found" });
             } else {
                 resolve({ installed: true });
             }
@@ -864,9 +869,10 @@ ipcMain.handle('system-check-wsl', async () => {
 
 ipcMain.handle('system-install-wsl', async () => {
     return new Promise((resolve) => {
-        // Runs `wsl --install` via PowerShell with Admin privileges
-        // This will pop up a UAC prompt for the user
-        const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install" -Wait';
+        // Runs `wsl --install -d Ubuntu` via PowerShell with Admin privileges.
+        // Specifying `-d Ubuntu` ensures that if WSL is already enabled but no distro is present,
+        // it actively installs Ubuntu instead of just showing the help text.
+        const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install -d Ubuntu" -Wait';
         const child = spawn('powershell.exe', ['-Command', cmd]);
         
         child.on('close', (code) => {
@@ -899,13 +905,24 @@ ipcMain.handle('system-install-borg', async (event) => {
         // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
         // Assuming default Ubuntu/Debian distro.
         console.log("[Setup] Installing Borg via WSL (root)...");
-        // Removed apt-get upgrade to avoid timeouts. Added --no-install-recommends to reduce download size.
-        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends borgbackup"';
         
-        exec(cmd, (error, stdout, stderr) => {
+        // Improved command:
+        // 1. apt-get update with --allow-releaseinfo-change (fixes issues on some old images)
+        // 2. install with --fix-missing
+        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends --fix-missing borgbackup"';
+        
+        // Increase maxBuffer in case apt output is huge
+        exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
             if (error) {
                 console.error("[Setup] Install failed:", stderr);
-                resolve({ success: false, error: stderr || error.message });
+                
+                let errorMsg = stderr || error.message;
+                // Detect non-Debian distros
+                if (errorMsg.includes('apt-get: not found') || errorMsg.includes('Command not found')) {
+                    errorMsg = "Your WSL distro does not allow 'apt-get'. Please install Borg manually.";
+                }
+
+                resolve({ success: false, error: errorMsg });
             } else {
                 console.log("[Setup] Install success:", stdout);
                 resolve({ success: true });
