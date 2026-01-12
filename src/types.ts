@@ -27,10 +27,10 @@ export interface Repository {
   status: 'connected' | 'disconnected' | 'error' | 'connecting';
   size: string;
   fileCount: number;
+  remotePath?: string; // Custom path to borg executable on remote
   // Security / Config Persistence
   passphrase?: string;
   trustHost?: boolean;
-  remotePath?: string;
   
   // Integrity Check State
   checkStatus?: 'idle' | 'running' | 'ok' | 'error' | 'aborted';
