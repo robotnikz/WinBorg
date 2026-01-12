@@ -20,7 +20,7 @@ We use **Vitest** for unit testing and **Playwright** for End-to-End (E2E) testi
     ```
 
 ### CI/CD Pipeline
-Tests are automatically run via GitHub Actions on every push to `main` or `dev`. See `.github/workflows/test.yml`.
+Tests are automatically run via GitHub Actions on every push to `main` or `dev`. See `.github/workflows/cicd.yml`.
 
 ---
 
