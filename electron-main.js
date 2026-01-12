@@ -1438,7 +1438,7 @@ if [ "$(id -u)" -eq 0 ]; then
     apt-get update && apt-get install -y borgbackup
 else
     # sudo will prompt for password, which our PTY handler will catch
-    sudo -p "sudo password:" apt-get update && sudo -p "sudo password:" apt-get install -y borgbackup
+    sudo -p "sudo_password_prompt:" apt-get update && sudo -p "sudo_password_prompt:" apt-get install -y borgbackup
 fi
 """
 
@@ -1468,7 +1468,7 @@ if pid == 0:
 else:
     # Parent
     try:
-        output = b""
+        output_buffer = b"" # Rolling buffer for pattern matching
         password_sent_count = 0
         last_pwd_time = 0
         
@@ -1484,17 +1484,25 @@ else:
                 sys.stdout.buffer.write(chunk)
                 sys.stdout.buffer.flush()
                 
-                output += chunk
-                lower_chunk = chunk.lower()
+                # Append to rolling buffer, keep last 200 chars to ensure we don't miss split patterns
+                output_buffer += chunk
+                if len(output_buffer) > 200:
+                    output_buffer = output_buffer[-200:]
+                
+                lower_buffer = output_buffer.lower()
                 
                 # Answer verify host
-                if b"continue connecting" in lower_chunk:
+                if b"continue connecting" in lower_buffer:
+                    print("\\n[PTY] Host check detected, sending yes...", flush=True)
                     os.write(fd, b"yes\\n")
-                    time.sleep(0.5)
+                    # Clear buffer to avoid re-triggering? 
+                    # Actually better to just ensure we don't loop fast.
+                    time.sleep(1.0)
+                    output_buffer = b""
 
-                # Answer Password Prompts (SSH or Sudo)
-                # We throttle password sending to avoid loops
-                if b"password:" in lower_chunk:
+                # Answer Password Prompts (SSH or explicit Sudo)
+                # Matches "password:" or our custom "sudo_password_prompt:"
+                if (b"password:" in lower_buffer or b"sudo_password_prompt:" in lower_buffer):
                      now = time.time()
                      # Simple debounce: wait at least 2 seconds between passwords
                      if now - last_pwd_time > 2.0:
@@ -1503,6 +1511,7 @@ else:
                          os.write(fd, password.encode() + b'\\n')
                          last_pwd_time = time.time()
                          password_sent_count += 1
+                         output_buffer = b"" # Reset buffer after handling
             else:
                 # Check if child exited
                 if os.waitpid(pid, os.WNOHANG) != (0, 0):
@@ -1510,6 +1519,7 @@ else:
                     
     except Exception as e:
         print(f"Parent loop error: {e}", flush=True)
+
 
     # Wait for child
     try:
