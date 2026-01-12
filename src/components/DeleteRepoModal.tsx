@@ -4,6 +4,7 @@ import { Repository } from '../types';
 import Button from './Button';
 import { AlertTriangle, Trash2, Eraser, X, Loader2, Terminal } from 'lucide-react';
 import { borgService } from '../services/borgService';
+import { toast } from '../utils/eventBus';
 
 interface DeleteRepoModalProps {
   repo: Repository;
@@ -53,7 +54,7 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
                    { repoId: repo.id, disableHostCheck: repo.trustHost }
                );
                if (success) {
-                   onLog(`Emptied Repo: ${repo.name}`, logs);
+                   toast.show(`Emptied all archives from '${repo.name}'`, 'success');
                    onClose();
                }
           } else if (deleteMode === 'destroy') {
@@ -65,7 +66,7 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
                if (success) {
                    // If successfully destroyed, we also remove it from the app
                    onConfirmForget();
-                   onLog(`Destroyed Repo: ${repo.name}`, logs);
+                   toast.show(`Permanently destroyed repository '${repo.name}'`, 'success');
                    onClose();
                }
           }

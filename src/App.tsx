@@ -307,7 +307,7 @@ const App: React.FC = () => {
       title: string, 
       args: string[], 
       onSuccess?: (output: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
   ) => {
     setTerminalTitle(title);
     setTerminalLogs([]);
@@ -347,7 +347,8 @@ const App: React.FC = () => {
         }, 
         {
             repoId: repo.id, // Secure Injection
-            disableHostCheck: repo.trustHost
+            disableHostCheck: repo.trustHost,
+            remotePath: repo.remotePath
         }
     );
 
@@ -417,7 +418,8 @@ const App: React.FC = () => {
   const handleFetchArchiveStats = async (repo: Repository, archiveName: string) => {
      const stats = await borgService.getArchiveInfo(repo.url, archiveName, {
          repoId: repo.id,
-         disableHostCheck: repo.trustHost
+         disableHostCheck: repo.trustHost,
+         remotePath: repo.remotePath
      });
 
      if (stats) {
@@ -502,7 +504,7 @@ const App: React.FC = () => {
                                  setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, size: sizeStr, stats: repoStats } : r));
                              } catch(e) {}
                         },
-                        { repoId: repo.id, disableHostCheck: repo.trustHost }
+                        { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
                      );
                 }, 800);
 
@@ -512,7 +514,7 @@ const App: React.FC = () => {
                 setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, status: 'error' } : r));
             }
         },
-        { repoId: repo.id, disableHostCheck: repo.trustHost } // Secure Injection
+        { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath } // Secure Injection
     );
   };
 
@@ -547,7 +549,7 @@ const App: React.FC = () => {
       const success = await borgService.runCommand(
           ['check', '--progress', repo.url], 
           progressCallback,
-          { repoId: repo.id, disableHostCheck: repo.trustHost, commandId: commandId }
+          { repoId: repo.id, disableHostCheck: repo.trustHost, commandId: commandId, remotePath: repo.remotePath }
       );
 
       await checkRepoLock(repo);
@@ -595,13 +597,13 @@ const App: React.FC = () => {
       await borgService.breakLock(
           repo.url,
           (log) => setTerminalLogs(prev => [...prev, log.trim()]),
-          { repoId: repo.id, disableHostCheck: repo.trustHost }
+          { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
       );
       
       const deleteSuccess = await borgService.forceDeleteLockFiles(
           repo.url,
           (log) => setTerminalLogs(prev => [...prev, log.trim()]),
-          { disableHostCheck: repo.trustHost }
+          { disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
       );
 
       setIsProcessing(false);
@@ -634,6 +636,7 @@ const App: React.FC = () => {
        url: repoData.url,
        encryption: repoData.encryption,
        trustHost: repoData.trustHost,
+       remotePath: repoData.remotePath,
        lastBackup: 'Never',
        status: 'disconnected',
        size: 'Unknown',
@@ -696,7 +699,7 @@ const App: React.FC = () => {
               archiveName,
               [job.sourcePath],
               logCollector,
-              { repoId: repo.id, disableHostCheck: repo.trustHost }
+              { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
           );
 
           if (success) {
@@ -709,7 +712,7 @@ const App: React.FC = () => {
                       repo.url,
                       { daily: job.keepDaily, weekly: job.keepWeekly, monthly: job.keepMonthly, yearly: job.keepYearly },
                       logCollector,
-                      { repoId: repo.id, disableHostCheck: repo.trustHost }
+                      { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
                   );
                   if (pruneSuccess) {
                       addActivity('Auto Prune Success', `Repository pruned according to retention policy.`, 'success');

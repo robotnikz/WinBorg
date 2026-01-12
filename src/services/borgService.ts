@@ -61,8 +61,24 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean, remot
     }
     env.BORG_RSH = sshCmd;
     
+    // When using WSL, we must explicitly tell WSL to import these variables from the Windows host process.
+    // The /u flag indicates "Unc" (Unix?) or just standard formatted variable from User env? 
+    // Actually /u = "Share this var from Win32 to WSL".
     if (config.useWsl) {
-        env.WSLENV = 'BORG_PASSPHRASE:BORG_DISPLAY_PASSPHRASE:BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK:BORG_RELOCATED_REPO_ACCESS_IS_OK:BORG_RSH:BORG_REMOTE_PATH';
+        // We do NOT include BORG_PASSPHRASE here, because it is injected and added to WSLENV 
+        // by the main process (electron-main.js) to keep the secret secure and managed in one place.
+        const varsToShare = [
+            'BORG_DISPLAY_PASSPHRASE/u',
+            'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK/u',
+            'BORG_RELOCATED_REPO_ACCESS_IS_OK/u',
+            'BORG_RSH/u'
+        ];
+
+        if (env.BORG_REMOTE_PATH) {
+            varsToShare.push('BORG_REMOTE_PATH/u');
+        }
+
+        env.WSLENV = varsToShare.join(':');
     }
     
     return env;
@@ -173,6 +189,15 @@ export const borgService = {
     const customEnv = overrides?.env || {};
     const finalEnv = { ...baseEnv, ...customEnv };
 
+    // Common Options Injection (like --remote-path)
+    // Borg Syntax: borg [common_options] command [args]
+    // We assume 'args' starts with the command (e.g. 'init', 'create')
+    let finalArgs = [...args];
+    if (overrides?.remotePath && overrides.remotePath !== 'borg') {
+        // Prepend common option
+        finalArgs = ['--remote-path', overrides.remotePath, ...args];
+    }
+
     // If using WSL, we must add custom keys to WSLENV so they are passed to the Linux instance
     if (config.useWsl && Object.keys(customEnv).length > 0) {
         const extraKeys = Object.keys(customEnv).join(':');
@@ -191,7 +216,7 @@ export const borgService = {
 
     try {
       const result = await ipcRenderer.invoke('borg-spawn', { 
-          args, 
+          args: finalArgs, 
           commandId, 
           useWsl: config.useWsl,
           executablePath: config.path,

@@ -30,6 +30,7 @@ export interface Repository {
   // Security / Config Persistence
   passphrase?: string;
   trustHost?: boolean;
+  remotePath?: string;
   
   // Integrity Check State
   checkStatus?: 'idle' | 'running' | 'ok' | 'error' | 'aborted';

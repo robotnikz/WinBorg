@@ -773,8 +773,12 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
             if (secret) {
                 spawnEnv.BORG_PASSPHRASE = secret;
                 if (useWsl) {
-                    if (spawnEnv.WSLENV) spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE';
-                    else spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+                    if (spawnEnv.WSLENV) {
+                        // Ensure we append with the /u flag (Win32 -> WSL)
+                        spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE/u';
+                    } else {
+                        spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+                    }
                 }
             }
         }
@@ -1580,25 +1584,36 @@ else:
 // TEST SSH CONNECTION (Key Based)
 ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
     const finalPort = port || '22';
-    // BatchMode=yes ensures we fail if password prompt is needed.
-    // StrictHostKeyChecking=no + UserKnownHostsFile=/dev/null suppresses all host key prompts/errors.
-    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} echo "WINBORG_CONNECT_OK"`;
+    // 'ls -d .' is widely supported and proves we have a shell and filesystem access.
+    const remoteCmd = "ls -d .";
     
     const targetDistro = await getPreferredWslDistro();
     const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
     
-    console.log(`[SSH-Test] Command: wsl ${wslBaseArgs.join(' ')} --exec bash -c '${cmd}'`);
+    const spawnArgs = [
+        ...wslBaseArgs,
+        '--',
+        'ssh',
+        '-p', finalPort,
+        '-o', 'BatchMode=yes',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        target,
+        remoteCmd
+    ];
+
+    console.log(`[SSH-Test] Spawning: wsl ${spawnArgs.join(' ')}`);
     
     try {
         return new Promise((resolve) => {
-             const child = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+             const child = spawn('wsl', spawnArgs);
              let out = '';
              let err = '';
              child.stdout.on('data', d => out += d.toString());
              child.stderr.on('data', d => err += d.toString());
              
              child.on('close', code => {
-                 if (code === 0 && out.includes('WINBORG_CONNECT_OK')) {
+                 if (code === 0) {
                      resolve({ success: true });
                  } else {
                      console.log("[SSH-Test] Failed:", out, err);
@@ -1615,48 +1630,89 @@ ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
 // CHECK IF BORG INSTALLED ON REMOTE
 ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
     const finalPort = port || '22';
-    
-    // Robust check script handles standard paths even if PATH is minimal
-    const checkScript = [
-        'if command -v borg >/dev/null 2>&1; then echo "FOUND:borg"; borg -V; exit 0;',
-        'elif command -v /usr/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/bin/borg"; /usr/bin/borg -V; exit 0;',
-        'elif command -v /usr/local/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/local/bin/borg"; /usr/local/bin/borg -V; exit 0;',
-        'else echo "NOT_FOUND"; exit 1; fi'
-    ].join(' ');
-
-    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} '${checkScript}'`;
-    
-    // Check if we need to run via WSL
     const targetDistro = await getPreferredWslDistro();
     const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
-    
-    console.log(`[SSH-Check-Borg] Command: ${cmd}`);
+
+    // Helper to run a command ROBUSTLY using direct args
+    const runRemote = (remoteCmd) => {
+        return new Promise((resolve) => {
+            const spawnArgs = [
+                ...wslBaseArgs,
+                '--',
+                'ssh',
+                '-p', finalPort,
+                '-o', 'BatchMode=yes',
+                '-o', 'StrictHostKeyChecking=no',
+                '-o', 'UserKnownHostsFile=/dev/null',
+                target,
+                remoteCmd
+            ];
+            
+            console.log(`[SSH-Check-Borg] Try: ${remoteCmd}`);
+            const child = spawn('wsl', spawnArgs);
+            let out = '';
+            let err = '';
+            child.stdout.on('data', d => out += d.toString());
+            child.stderr.on('data', d => err += d.toString());
+            
+            child.on('close', code => {
+                resolve({ code, out: out.trim(), err: err.trim(), full: (out + '\n' + err).trim() });
+            });
+        });
+    };
 
     try {
-        return new Promise((resolve) => {
-             const child = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
-             let out = '';
-             let err = '';
-             child.stdout.on('data', d => out += d.toString());
-             child.stderr.on('data', d => err += d.toString());
-             
-             child.on('close', code => {
-                 if (code === 0 && out.includes('FOUND:')) {
-                     // Parse found path
-                     const match = out.match(/FOUND:(.*?)[\r\n]/);
-                     const foundPath = match ? match[1].trim() : 'borg';
-                     // Parse version
-                     const vMatch = out.match(/(\d+\.\d+\.\d+)/);
-                     const version = vMatch ? vMatch[1] : 'unknown';
-                     
-                     resolve({ success: true, version, path: foundPath });
-                 } else {
-                     console.log("[SSH-Check-Borg] Failed:", out, err);
-                     resolve({ success: false, error: "Borg binary not found. Standard paths checked (/usr/bin, /usr/local/bin)." });
-                 }
-             });
-             child.on('error', e => resolve({ success: false, error: e.message }));
-        });
+        // [Strategy: Direct Probe]
+        const candidates = [
+            'borg -V',              // Standard PATH
+            '/usr/bin/borg -V',     // Absolute standard
+            '/usr/local/bin/borg -V' // Local custom
+        ];
+
+        for (const cmd of candidates) {
+            const res = await runRemote(cmd);
+            console.log(`[SSH-Check-Borg] Result for '${cmd}': Code=${res.code}`);
+            
+            if (res.code === 0 && (res.full.includes('borg') || res.full.match(/\d+\.\d+\.\d+/))) {
+                console.log(`[SSH-Check-Borg] SUCCESS with '${cmd}'`);
+                const vMatch = res.full.match(/(\d+\.\d+\.\d+)/);
+                const usedPath = cmd.split(' ')[0];
+                return { success: true, path: usedPath, version: vMatch ? vMatch[1] : 'unknown' };
+            }
+        }
+
+        // [Strategy: Hetzner Storage Box Fallback]
+        // Hetzner Storage Boxes (and some others) return "Command not found" for 'borg' BUT list it in 'help'.
+        // See screenshot: "Available as server side backend: borg"
+        const helpRes = await runRemote('help');
+        if (helpRes.full.includes('Available as server side backend') && helpRes.full.includes('borg')) {
+             console.log(`[SSH-Check-Borg] SUCCESS via 'help' detection (Restricted Shell)`);
+             return { success: true, path: 'borg', version: 'restricted-shell' };
+        }
+
+        // [Strategy: Shell Script]
+        // Only run complex scripts if basic probes failed.
+        // This is safe for standard servers but will fail on Restricted Shells.
+        const checkScript = [
+            'if command -v borg >/dev/null 2>&1; then echo "FOUND:borg"; borg -V; exit 0;',
+            'elif command -v /usr/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/bin/borg"; /usr/bin/borg -V; exit 0;',
+            'elif command -v /usr/local/bin/borg >/dev/null 2>&1; then echo "FOUND:/usr/local/bin/borg"; /usr/local/bin/borg -V; exit 0;',
+            'else echo "NOT_FOUND"; exit 1; fi'
+        ].join(' ');
+        
+        // Pass script safe inside quotes is handled by SSH, 
+        // but 'bash -c' is often safer for complex scripts on the REMOTE side if shell is available.
+        // But for consistency let's use the direct spawn which passes validation.
+        const attemptScript = await runRemote(checkScript);
+        if (attemptScript.code === 0 && attemptScript.out.includes('FOUND:')) {
+             const match = attemptScript.out.match(/FOUND:(.*?)[\r\n]/);
+             const foundPath = match ? match[1].trim() : 'borg';
+             const vMatch = attemptScript.out.match(/(\d+\.\d+\.\d+)/);
+             return { success: true, path: foundPath, version: vMatch ? vMatch[1] : 'unknown' };
+        }
+
+        return { success: false, error: "Borg binary not found in standard paths." };
+
     } catch (e) {
         return { success: false, error: e.message };
     }

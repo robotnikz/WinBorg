@@ -28,22 +28,26 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ## ✨ Key Features
 
-### 🛡️ Core Reliability
-*   **WSL Native:** Runs *inside* your WSL distribution for 100% Borg compatibility. No experimental Windows binaries or Cygwin hacks.
-*   **Encryption First:** Full support for `repokey` (password protected) and `keyfile` encryption.
-*   **Auto-Healing:** Automatically runs checks on your repositories to ensure data integrity.
+### 🛡️ Smart & Secure Setup
+*   **Automatic SSH Key Management:** WinBorg handles the complex SSH setup for you. 
+    *   **Generate:** Integrated key generator creates secure `Ed25519` keys.
+    *   **Deploy:** One-click deployment of your public key to any remote server (Linux VPS, Hetzner StorageBox, etc.).
+*   **Remote Server Provisioning:** No need to SSH into your server manually. WinBorg can **automatically install BorgBackup** on your remote Debian/Ubuntu server directly from the GUI.
+*   **Strict Security:** Enforces safe practices like mandatory passphrases for encrypted repos and validates host keys.
 
 ### 📂 Full Management Suite
-*   **Repositories:** Add and manage multiple remote (SSH) or local repositories.
-*   **SSH Management:** Built-in tool to generate keys and deploy them to servers (includes native support for **Hetzner Storage Boxes**).
-*   **Remote Setup:** Easily install **BorgBackup** on remote Debian/Ubuntu servers directly from the GUI.
+*   **Easy Repository Wizard:** 
+    *   **Quick Start Templates:** One-click presets for popular providers like **Hetzner Storage Box**, **BorgBase**, **Rsync.net**, and local NAS.
+    *   **Smart Auto-Detection:** Automatically detects standard paths and ports (e.g., Port 23 for Hetzner) to prevent configuration errors.
+    *   **Connect:** Smart detection of existing repositories.
+    *   **Initialize:** Interactive guide to set up new encrypted repositories with secure presets.
 *   **Archives:** Browse all your snapshots with detailed metadata (size, time, duration).
 *   **File Browser:** Explore the contents of *any* old archive and download/restore specific files effortlessly.
 *   **Mounting:** Mount archives as a FUSE filesystem (requires configured FUSE inside WSL).
-*   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files) with a visual diff tool.
+*   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files).
 
 ### 🤖 Automation & Monitoring
-*   **Auto-Updater:** Built-in update system that checks for new releases on startup. Supports silent background downloading and "Update Later" workflow functionality.
+*   **Auto-Updater:** Built-in update system that checks for new releases on startup.
 *   **Background Jobs:** Schedule backups to run automatically (Hourly/Daily/Weekly).
 *   **Notifications:** Get native Windows toasts, **Discord Webhook** alerts, or **Email Notifications** (SMTP) when backups finish or fail.
 *   **Pruning:** Automated retention policies (e.g., "Keep 7 daily, 4 weekly").
@@ -65,24 +69,30 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ---
 
-## �🚀 Getting Started
+## 🚀 Installation & Getting Started
 
-WinBorg leverages the power of WSL (Windows Subsystem for Linux) to provide a robust background engine, but handles the complexity for you.
-### 📋 Prerequisites for Remote Backups
-If you plan to backup to a remote server (e.g. Storage Box, VPS, NAS), please ensure:
-1.  **BorgBackup is installed on the remote server:** The `borg` binary must be installed and executable on the target machine. WinBorg needs it to initiate the SSH tunnel and manage the repository.
-2.  **SSH Authentication:** WinBorg generally uses key-based authentication. You can use the built-in **"Install Key"** button in the repository dialog to easily deploy your keys to any server (or Hetzner Storage Box) without needing to use the command line.
-### 1. Installation & Setup
+WinBorg is designed to be usable by everyone, not just sysadmins. It automatically handles the installation of the underlying Linux database (Windows Subsystem for Linux) for you.
+### 1. Simple Installation
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
-2.  **Install & Launch:** Run the setup.
-3.  **Automatic Onboarding:** On first run, WinBorg performs a system health check. If components are missing, follow these steps:
-    *   **Install WSL:** If prompted, click "Install WSL" and accept the admin prompt.
-    *   **Restart:** **You MUST restart your computer** after the WSL installation finishes.
-    *   **Re-Open WinBorg:** After restarting, launch WinBorg again. It will detect that WSL is ready.
-    *   **Install Borg:** WinBorg will then automatically install the Borg backup engine for you.
-    *   *WinBorg guides you through the entire process, minimizing the need for manual terminal commands.*
+2.  **Run Installer:** Double-click the downloaded file. Windows might ask for permission; click "Yes".
+3.  **Launch:** Open "WinBorg Manager" from your desktop or Start Menu.
 
-### 🔧 Manual Setup (Advanced Users)
+### 2. Automatic Onboarding
+When you first open WinBorg, it will check your system health:
+1.  **WSL Check:** If you don't have the Linux subsystem installed, WinBorg will offer to install it with one click. 
+    *   *Note: You must restart your computer after this step if prompted!*
+2.  **Borg Installation:** After the restart, launch WinBorg again. It will automatically download and install the Borg engine effectively creating a "Backup Engine" in the background.
+
+### 3. Creating your First Backup
+1.  Click **"Add Repository"**.
+2.  **Remote Backup (Recommended):** Use a service like **Hetzner Storage Box** or **BorgBase**.
+    *   Enter the Server URL (e.g., `ssh://user@your-server.com`).
+    *   **SSH Key Missing?** WinBorg will detect this. Click **"Install SSH Key"**, enter your server password *once*, and WinBorg will secure the connection forever.
+    *   **Borg Missing on Server?** If the server doesn't have backup software, WinBorg offers to **"Install Borg on Server"** automatically.
+3.  **Initialize:** Give your repo a name and a secure password.
+4.  **Done!** You can now create your first backup.
+
+### 🔧 Manual Details (For Advanced Users)
 If you prefer tight control over your system environment, you can install the dependencies manually before running WinBorg. This allows you to skip parts of the auto-onboarding flow.
 
 **1. Install WSL (Ubuntu/Debian)**
