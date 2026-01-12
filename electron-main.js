@@ -68,6 +68,8 @@ const secretsPath = path.join(userDataPath, 'secrets.json');
 const notificationsPath = path.join(userDataPath, 'notifications.json');
 const databasePath = path.join(userDataPath, 'data.json'); // Main DB for Repos, Jobs, Settings
 
+const { getPreferredWslDistro } = require('./wsl-helper');
+
 // --- IN-MEMORY CACHE ---
 let secretsCache = {};
 let dbCache = {
@@ -176,7 +178,7 @@ function getDecryptedPassword(id) {
     return null;
 }
 
-const isDev = !app.isPackaged;
+const isDev = !app.isPackaged && process.env.NODE_ENV !== 'test';
 
 function getIconPath() {
     const p = isDev ? path.join(__dirname, 'public/icon.png') : path.join(__dirname, 'dist/icon.png');
@@ -756,6 +758,12 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
         }
     }
 
+    // Resolve distro outside of the Promise executor to allow await
+    let detectedDistro = null;
+    if (useWsl) {
+        detectedDistro = await getPreferredWslDistro();
+    }
+
     return new Promise((resolve) => {
         let bin = forceBinary || executablePath || 'borg';
         let finalArgs = args;
@@ -772,9 +780,16 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
         }
         if (useWsl) {
             bin = 'wsl';
-            const linuxCmd = forceBinary || 'borg';
+            
+            const linuxCmd = forceBinary || (executablePath === 'borg' ? '/usr/bin/borg' : executablePath) || '/usr/bin/borg';
             let execArgs = [];
-            if (wslUser) execArgs = ['-u', wslUser];
+            
+            // Target specific distro if we found one (Ubuntu/Debian) to avoid running in Docker/Default
+            if (detectedDistro) {
+                execArgs.push('-d', detectedDistro);
+            }
+
+            if (wslUser) execArgs = [...execArgs, '-u', wslUser];
             execArgs = [...execArgs, '--exec', linuxCmd, ...args];
             finalArgs = execArgs;
         }
@@ -847,22 +862,65 @@ ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, execu
 
 // --- ONBOARDING & SYSTEM CHECKS ---
 
+ipcMain.handle('system-reboot', async () => {
+    // Reboot Windows immediately
+    exec('shutdown /r /t 0', (err) => {
+        if (err) console.error("Reboot failed:", err);
+    });
+    return true;
+});
+
 ipcMain.handle('system-check-wsl', async () => {
     return new Promise((resolve) => {
-        // Robust check: try to execute a simple command in the default distro.
-        // This confirms WSL is enabled AND a valid distro is set as default.
-        exec('wsl --exec echo wsl_active', (error, stdout, stderr) => {
-            // Trim stdout to remove potential newlines
-            const cleanStdout = stdout ? stdout.toString().trim() : '';
-
-            if (error || cleanStdout !== 'wsl_active') {
-                console.warn("WSL Check Failed (No functional distro?):", error);
-                // "wsl --status" might return success even if no distro is installed.
-                // Failing here ensures the user is prompted to run the "Install WSL" setup which installs Ubuntu.
-                resolve({ installed: false, error: "WSL not active or no distro found" });
-            } else {
-                resolve({ installed: true });
+        // Step 1: Check if 'wsl' command exists and is functional at all
+        exec('wsl --status', { encoding: 'utf16le' }, (err) => {
+            if (err) {
+                 return resolve({ installed: false, error: "WSL is not enabled on this machine." });
             }
+
+            // Step 2: Check for a functional DEFAULT distribution
+            // Docker Desktop sometimes registers itself as default, which is bad for us.
+            exec('wsl --list --verbose', { encoding: 'utf16le' }, (error, stdout) => {
+                 let hasUbuntu = false;
+                 let defaultDistro = '';
+                 
+                 if (stdout) {
+                     // Parse output line by line (skip header)
+                     const lines = stdout.split('\n').slice(1);
+                     for (const line of lines) {
+                         const cleanLine = line.trim();
+                         if (!cleanLine) continue;
+                         // Format: [*] <Name> <State> <Version>
+                         // Example: * Ubuntu Running 2
+                         const parts = cleanLine.split(/\s+/);
+                         const isDefault = cleanLine.startsWith('*');
+                         const nameIndex = isDefault ? 1 : 0;
+                         const name = parts[nameIndex];
+                         
+                         if (isDefault) defaultDistro = name;
+                         if (name && (name.toLowerCase().includes('ubuntu') || name.toLowerCase().includes('debian'))) {
+                             hasUbuntu = true;
+                         }
+                     }
+                 }
+
+                 // If default is Docker-related and no Ubuntu is found, fail or warn
+                 if (defaultDistro.toLowerCase().includes('docker') && !hasUbuntu) {
+                     console.warn("WSL Default is Docker, no Ubuntu found.");
+                     // We force fail so user sees "WSL Missing" and trigger "Install WSL" which will install Ubuntu.
+                     return resolve({ installed: false, error: `Default distro is '${defaultDistro}'. We need Ubuntu/Debian.` });
+                 }
+
+                 // Step 3: Verify execution capability
+                 exec('wsl --exec echo wsl_active', (execErr, execOut) => {
+                    const cleanStdout = execOut ? execOut.toString().trim() : '';
+                    if (execErr || cleanStdout !== 'wsl_active') {
+                        resolve({ installed: false, error: "WSL installed but cannot execute commands (No distro?)" });
+                    } else {
+                        resolve({ installed: true, details: `Default: ${defaultDistro}` });
+                    }
+                 });
+            });
         });
     });
 });
@@ -889,44 +947,151 @@ ipcMain.handle('system-install-wsl', async () => {
 });
 
 ipcMain.handle('system-check-borg', async () => {
-     return new Promise((resolve) => {
-        exec('wsl --exec borg --version', (error, stdout, stderr) => {
-            if (error) {
-                resolve({ installed: false });
-            } else {
-                resolve({ installed: true, version: stdout.trim() });
+    const distro = await getPreferredWslDistro();
+    return new Promise((resolve) => {
+        // Use spawn instead of exec to avoid shell quoting issues with distro names
+        const runCheck = (checkArgs) => {
+            return new Promise(r => {
+                const wslArgs = distro ? ['-d', distro] : [];
+                const finalArgs = [...wslArgs, ...checkArgs];
+                const p = spawn('wsl', finalArgs);
+                let out = '';
+                p.stdout.on('data', d => out += d.toString());
+                p.on('close', code => r({ success: code === 0, out }));
+                p.on('error', () => r({ success: false, out: '' }));
+            });
+        };
+
+        (async () => {
+            // 1. Check generic PATH
+            let res = await runCheck(['--exec', 'borg', '--version']);
+            if (res.success && res.out.includes('borg')) {
+                 return resolve({ installed: true, version: res.out.trim(), distro: distro || 'Default' });
             }
-        });
+
+            // 2. Check explicit /usr/bin/borg
+            res = await runCheck(['--exec', '/usr/bin/borg', '--version']);
+            if (res.success && res.out.includes('borg')) {
+                 return resolve({ installed: true, version: res.out.trim(), distro: distro || 'Default', path: '/usr/bin/borg' });
+            }
+
+            console.log(`[Check] Borg check failed on distro '${distro || 'default'}'`);
+            resolve({ installed: false });
+        })();
     });
 });
 
 ipcMain.handle('system-install-borg', async (event) => {
+    const targetDistro = await getPreferredWslDistro();
+    
     return new Promise((resolve) => {
-        // We use root (-u root) to avoid password prompt. sudo typically requires interactive password.
-        // Assuming default Ubuntu/Debian distro.
         console.log("[Setup] Installing Borg via WSL (root)...");
         
-        // Improved command:
-        // 1. apt-get update with --allow-releaseinfo-change (fixes issues on some old images)
-        // 2. install with --fix-missing
-        const cmd = 'wsl -u root sh -c "export DEBIAN_FRONTEND=noninteractive && apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends --fix-missing borgbackup"';
+        if (targetDistro) console.log(`[Setup] Targeted distro: '${targetDistro}'`);
+
+        // Use full path /usr/bin/apt-get to avoid PATH issues in non-interactive sh
+        const script = 'export DEBIAN_FRONTEND=noninteractive && /usr/bin/apt-get update --allow-releaseinfo-change && /usr/bin/apt-get install -y --no-install-recommends --fix-missing borgbackup';
         
-        // Increase maxBuffer in case apt output is huge
-        exec(cmd, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-            if (error) {
-                console.error("[Setup] Install failed:", stderr);
+        // Construct args: if we found a distro, target it explicitly (-d).
+        const wslArgs = ['-u', 'root'];
+        if (targetDistro) {
+            wslArgs.push('-d', targetDistro);
+        }
+        wslArgs.push('-e', 'sh', '-c', script);
+
+        console.log(`[Setup] Spawning: wsl ${wslArgs.join(' ')}`);
+        const child = spawn('wsl', wslArgs);
+        
+        let output = '';
+        let errorOutput = '';
+
+        child.stdout.on('data', (d) => { output += d.toString(); });
+        child.stderr.on('data', (d) => { errorOutput += d.toString(); });
+
+        child.on('close', (code) => {
+            if (code === 0) {
+                console.log("[Setup] Install command finished with code 0. Verifying...");
                 
-                let errorMsg = stderr || error.message;
-                // Detect non-Debian distros
-                if (errorMsg.includes('apt-get: not found') || errorMsg.includes('Command not found')) {
-                    errorMsg = "Your WSL distro does not allow 'apt-get'. Please install Borg manually.";
+                // DOUBLE CHECK: Verify it actually works before claiming success
+                
+                // Helper to perform check using spawn (more reliable than exec on Windows)
+                const checkBorg = async (distro, args) => {
+                     return new Promise(resolve => {
+                         const wslArgs = distro ? ['-d', distro] : [];
+                         // Note: wsl args must be strictly ordered: wsl [options] [command]
+                         const finalArgs = [...wslArgs, ...args];
+                         
+                         const childArgsStr = `wsl ${finalArgs.join(' ')}`;
+                         console.log(`[Setup] Verifying with: ${childArgsStr}`);
+
+                         const p = spawn('wsl', finalArgs);
+                         let out = '', stderr = '';
+                         p.stdout.on('data', d => out += d.toString());
+                         p.stderr.on('data', d => stderr += d.toString());
+                         p.on('close', code => resolve({ err: code === 0 ? null : { code }, out, stderr }));
+                         p.on('error', e => resolve({ err: e, out, stderr }));
+                     });
+                };
+
+                (async () => {
+                    // 1. Try generic 'borg' in path (most likely)
+                    // equivalent to: wsl -d Distro --exec borg --version
+                    let res = await checkBorg(targetDistro, ['--exec', 'borg', '--version']);
+                    
+                    if (res.err || !res.out.includes('borg')) {
+                        console.log("[Setup] Generic 'borg' check failed. Trying explicit /usr/bin/borg...");
+                        // 2. Try explicit path
+                        res = await checkBorg(targetDistro, ['--exec', '/usr/bin/borg', '--version']);
+                    }
+
+                    if (!res.err && res.out.includes('borg')) {
+                         console.log("[Setup] Verified: Borg is installed and runnable.");
+                         resolve({ success: true });
+                    } else {
+                         console.warn("[Setup] Verification failed despite code 0!", res.err);
+                         
+                         // Try to find WHERE it is to help debug
+                         const whichCheck = await checkBorg(targetDistro, ['--exec', 'which', 'borg']);
+                         
+                         // Capture the last lines of the installer output to help debug
+                         const logSnippet = output.slice(-2000) + "\n" + errorOutput.slice(-2000); 
+                         const debugInfo = `\n\nDebug Info:\nTarget Distro: ${targetDistro || 'Default'}\nExit Code: ${res.err ? res.err.code : '0'}\nStdout: ${res.out}\nStderr: ${res.stderr}\n'which borg' output: ${whichCheck.out}\n'which' error: ${whichCheck.stderr}`;
+
+                         resolve({ 
+                             success: false, 
+                             error: `Installation appeared successful, but verification failed.\n\nCommand Output:\n${logSnippet}${debugInfo}` 
+                         });
+                    }
+                })();
+            } else {
+                console.error("[Setup] Install failed code:", code);
+                
+                // Construct a helpful error message
+                let friendlyError = `Installation failed (Code ${code}).`;
+                const lowerErr = errorOutput.toLowerCase();
+                
+                // Detect triggers
+                if (lowerErr.includes('apt-get: not found') || lowerErr.includes('command not found')) {
+                     friendlyError += " It seems 'apt-get' is missing. WinBorg requires a Debian-based WSL distro (likely Ubuntu).";
+                     // Debug hint:
+                     friendlyError += "\nTry running 'wsl --list --verbose' in PowerShell to see which distro is default.";
+                } else {
+                     // Include detailed error output for debugging
+                     const lines = errorOutput.split('\n').filter(l => l.trim().length > 0);
+                     const snippet = lines.slice(-10).join('\n'); // Last 10 lines
+                     friendlyError += `\n\nError Details:\n${snippet}`;
                 }
 
-                resolve({ success: false, error: errorMsg });
-            } else {
-                console.log("[Setup] Install success:", stdout);
-                resolve({ success: true });
+                // Append output of cat /etc/os-release if possible for debugging context
+                // (We can't easily run it here without complex chaining, so we rely on user report)
+                
+                resolve({ success: false, error: friendlyError });
             }
+        });
+
+        child.on('error', (err) => {
+            console.error("[Setup] Spawn error:", err);
+            resolve({ success: false, error: "Failed to start WSL process: " + err.message });
         });
     });
 });

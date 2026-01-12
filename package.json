@@ -29,6 +29,7 @@
     "files": [
       "dist/**/*",
       "electron-main.js",
+      "wsl-helper.js",
       "package.json"
     ],
     "win": {

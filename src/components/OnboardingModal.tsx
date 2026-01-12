@@ -7,7 +7,7 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
-  const [step, setStep] = useState<'checking' | 'wsl-missing' | 'borg-missing' | 'installing' | 'success'>('checking');
+  const [step, setStep] = useState<'checking' | 'wsl-missing' | 'wsl-installing' | 'restart-required' | 'borg-missing' | 'installing' | 'success'>('checking');
   const [errorDetails, setErrorDetails] = useState('');
 
   useEffect(() => {
@@ -44,13 +44,12 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   };
 
   const handleInstallWSL = async () => {
-        setStep('checking'); // Show busy state
+        setStep('wsl-installing'); // Show instructions state
         try {
             const { ipcRenderer } = (window as any).require('electron');
             const res = await ipcRenderer.invoke('system-install-wsl');
             if (res.success) {
-                // Since enabling WSL usually requires a reboot, we should inform the user heavily.
-                alert("WSL Installation started! Please accept the Admin prompt.\n\nIMPORTANT: Once finished, you MUST restart your computer.\n\nAfter restarting, open WinBorg again to complete the setup.");
+                setStep('restart-required');
             } else {
                setErrorDetails("Failed to launch WSL installer: " + res.error);
                setStep('wsl-missing');
@@ -78,6 +77,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
           setErrorDetails(e.message);
           setStep('borg-missing');
       }
+  };
+
+  const handleReboot = () => {
+      const { ipcRenderer } = (window as any).require('electron');
+      ipcRenderer.invoke('system-reboot');
   };
 
   return (
@@ -124,6 +128,52 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                 </div>
             )}
 
+            {step === 'wsl-installing' && (
+                 <div className="space-y-4">
+                     <div className="flex flex-col items-center justify-center py-4 space-y-4 text-blue-600 dark:text-blue-400">
+                        <Terminal className="w-12 h-12 animate-pulse" />
+                        <h4 className="font-bold text-lg">In Progress...</h4>
+                    </div>
+                    
+                    <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm space-y-2 border border-slate-200 dark:border-slate-700">
+                        <p className="font-semibold mb-2">Instructions:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                            <li>Wait for the <b>PowerShell</b> window to open.</li>
+                            <li>Accept the Windows Admin prompt (Yes).</li>
+                            <li>Wait for Ubuntu to download and install.</li>
+                            <li>Enter a <b>new username</b> and password when asked.</li>
+                            <li>Once you see the green command prompt - <b>close the window</b> manually.</li>
+                        </ol>
+                    </div>
+
+                    <p className="text-xs text-center text-slate-400">
+                        Waiting for terminal to close...
+                    </p>
+                </div>
+            )}
+
+            {step === 'restart-required' && (
+                 <div className="space-y-6 text-center py-4">
+                     <div className="mx-auto w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+                        <ShieldAlert className="w-8 h-8" />
+                     </div>
+                     
+                     <h3 className="text-xl font-bold text-slate-800 dark:text-white">Restart Required!</h3>
+                     
+                     <p className="text-slate-600 dark:text-slate-300">
+                         WSL installation is complete, but Windows needs a full restart to enable the virtualization features.
+                     </p>
+                     
+                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg text-amber-800 text-sm font-semibold">
+                         Please restart your computer now, then open WinBorg again.
+                     </div>
+                     
+                     <div className="flex justify-center mt-4">
+                        <Button variant="danger" onClick={handleReboot}>Restart Computer Now</Button>
+                     </div>
+                </div>
+            )}
+
             {step === 'borg-missing' && (
                 <div className="space-y-4">
                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex gap-3 text-amber-700 dark:text-amber-400">
@@ -133,7 +183,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                             <p>Borg is not installed in your default WSL distro.</p>
                         </div>
                     </div>
-                    {errorDetails && <p className="text-xs text-red-500">{errorDetails}</p>}
+                    {errorDetails && (
+                        <div className="max-h-32 overflow-y-auto bg-red-50 dark:bg-red-900/10 p-2 rounded border border-red-100 dark:border-red-900">
+                            <pre className="text-[10px] text-red-600 dark:text-red-400 whitespace-pre-wrap font-mono break-all leading-tight">{errorDetails}</pre>
+                        </div>
+                    )}
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                         WinBorg can attempt to install it automatically for you.
                     </p>
