@@ -45,9 +45,44 @@ async function findFreePort(startPort, attempts = 50) {
 
 function quoteWindowsArg(arg) {
   if (arg === '') return '""';
-  // Minimal safe quoting for cmd.exe
+  // Minimal safe quoting for cmd.exe. Also correctly escape backslashes
+  // before quotes and at the end of the string so that the child process
+  // receives the intended argument.
   if (!/[\s"^&|<>]/.test(arg)) return arg;
-  return `"${arg.replace(/"/g, '\\"')}"`;
+
+  let result = '"';
+  let backslashes = 0;
+
+  for (let i = 0; i < arg.length; i++) {
+    const ch = arg[i];
+    if (ch === '\\') {
+      backslashes++;
+      continue;
+    }
+
+    if (ch === '"') {
+      // Escape backslashes that precede a quote
+      result += '\\'.repeat(backslashes * 2);
+      backslashes = 0;
+      result += '\\"';
+      continue;
+    }
+
+    if (backslashes > 0) {
+      result += '\\'.repeat(backslashes);
+      backslashes = 0;
+    }
+
+    result += ch;
+  }
+
+  // Escape trailing backslashes so they don't escape the closing quote
+  if (backslashes > 0) {
+    result += '\\'.repeat(backslashes * 2);
+  }
+
+  result += '"';
+  return result;
 }
 
 function run(cmd, args, options = {}) {
