@@ -1444,8 +1444,12 @@ fi
 
 # Base64 encode the script to avoid SSH/Shell escaping hell
 b64_script = base64.b64encode(remote_cmd.encode()).decode()
-# Run: echo <b64> | base64 -d | bash
-final_cmd = f"echo {b64_script} | base64 -d | bash"
+
+# Use a temporary file execution strategy.
+# Piping directly into 'bash' ("echo ... | base64 -d | bash") can consume the TTY stdin,
+# causing 'sudo' to hang when it tries to read the password.
+# By writing to a file first, we ensure 'bash script.sh' runs with a clean TTY.
+final_cmd = f"fn=/tmp/winborg_install_$(date +%s).sh; echo {b64_script} | base64 -d > $fn; bash $fn; ret=$?; rm -f $fn; exit $ret"
 
 ssh_cmd = [
     'ssh',
