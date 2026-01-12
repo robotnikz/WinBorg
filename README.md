@@ -36,6 +36,7 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 ### 📂 Full Management Suite
 *   **Repositories:** Add and manage multiple remote (SSH) or local repositories.
 *   **SSH Management:** Built-in tool to generate keys and deploy them to servers (includes native support for **Hetzner Storage Boxes**).
+*   **Remote Setup:** Easily install **BorgBackup** on remote Debian/Ubuntu servers directly from the GUI.
 *   **Archives:** Browse all your snapshots with detailed metadata (size, time, duration).
 *   **File Browser:** Explore the contents of *any* old archive and download/restore specific files effortlessly.
 *   **Mounting:** Mount archives as a FUSE filesystem (requires configured FUSE inside WSL).

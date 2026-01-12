@@ -1381,3 +1381,177 @@ else:
         return { success: false, error: e.message };
     }
 });
+
+ipcMain.handle('ssh-install-borg', async (event, { target, password, port }) => {
+    // Generate unique ID for temp files
+    const runId = Date.now().toString();
+    const passFile = `/tmp/winborg-pass-${runId}`;
+    const scriptFile = `/tmp/winborg-borg-${runId}.py`;
+    
+    // Default port
+    const finalPort = port || '22';
+    const safePort = finalPort.replace(/'/g, "\\'");
+    
+    // Python script to handle the interactive session via PTY
+    // This handles both SSH login (if needed) and sudo password (if needed)
+    // using the SAME password provided.
+    const pythonScript = `
+import pty
+import os
+import sys
+import time
+import subprocess
+import select
+
+# Read password
+try:
+    with open('${passFile}', 'r') as f:
+        password = f.read()
+        if password.endswith('\\n'):
+            password = password[:-1]
+except:
+    sys.exit(1)
+
+target_host = '${target}'
+target_port = '${safePort}'
+
+def read(fd):
+    return os.read(fd, 1024)
+
+# The complex remote command to detect and install borg
+# We check for borg, then check for apt-get, then try install.
+remote_cmd = """
+export DEBIAN_FRONTEND=noninteractive
+if command -v borg >/dev/null 2>&1; then
+    echo "WINBORG_STATUS: BORG_ALREADY_INSTALLED"
+    exit 0
+fi
+
+if ! command -v apt-get >/dev/null 2>&1; then
+    echo "WINBORG_STATUS: UNSUPPORTED_DISTRO"
+    exit 1
+fi
+
+echo "WINBORG_STATUS: INSTALLING"
+if [ "$(id -u)" -eq 0 ]; then
+    apt-get update && apt-get install -y borgbackup
+else
+    # sudo will prompt for password, which our PTY handler will catch
+    sudo -p "sudo password:" apt-get update && sudo -p "sudo password:" apt-get install -y borgbackup
+fi
+"""
+
+# Escape quotes for bash -c
+remote_cmd_escaped = remote_cmd.replace('"', '\\"')
+
+ssh_cmd = [
+    'ssh',
+    '-p', target_port,
+    '-o', 'StrictHostKeyChecking=no',
+    '-o', 'PreferredAuthentications=publickey,password,keyboard-interactive',
+    '-t', # Force pseudo-tty allocation so sudo detects a terminal
+    target_host,
+    f"bash -c \\"{remote_cmd_escaped}\\""
+]
+
+pid, fd = pty.fork()
+
+if pid == 0:
+    # Child
+    try:
+        os.execvp('ssh', ssh_cmd)
+    except Exception as e:
+        sys.exit(1)
+else:
+    # Parent
+    try:
+        output = b""
+        password_sent_count = 0
+        last_pwd_time = 0
+        
+        while True:
+            r, _, _ = select.select([fd], [], [], 0.1)
+            if fd in r:
+                try:
+                    chunk = read(fd)
+                    if not chunk: break
+                except OSError:
+                    break
+                    
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+                
+                output += chunk
+                lower_chunk = chunk.lower()
+                
+                # Answer verify host
+                if b"continue connecting" in lower_chunk:
+                    os.write(fd, b"yes\\n")
+                    time.sleep(0.5)
+
+                # Answer Password Prompts (SSH or Sudo)
+                # We throttle password sending to avoid loops
+                if b"password:" in lower_chunk:
+                     now = time.time()
+                     # Simple debounce: wait at least 2 seconds between passwords
+                     if now - last_pwd_time > 2.0:
+                         print("\\n[PTY] Password prompt detected, sending password...", flush=True)
+                         time.sleep(0.5)
+                         os.write(fd, password.encode() + b'\\n')
+                         last_pwd_time = time.time()
+                         password_sent_count += 1
+            else:
+                # Check if child exited
+                if os.waitpid(pid, os.WNOHANG) != (0, 0):
+                    break
+                    
+    except Exception as e:
+        print(f"Parent loop error: {e}", flush=True)
+
+    # Wait for child
+    try:
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.WEXITSTATUS(status)
+    except:
+        exit_code = 1
+        
+    print(f"Child exited with {exit_code}", flush=True)
+    sys.exit(exit_code)
+`;
+
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    // Helper to write file
+    const writeWslFile = async (filePath, content) => {
+        const hex = Buffer.from(content).toString('hex');
+        const cmd = `echo "${hex}" | python3 -c "import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))" > ${filePath}`;
+        const proc = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+        return new Promise(r => proc.on('close', r));
+    };
+    
+    try {
+        await writeWslFile(passFile, password);
+        await writeWslFile(scriptFile, pythonScript);
+        
+        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile]);
+        
+        let out = '';
+        let err = '';
+        runProc.stdout.on('data', d => out += d.toString());
+        runProc.stderr.on('data', d => err += d.toString());
+        
+        const code = await new Promise(resolve => runProc.on('close', resolve));
+        
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        
+        if (code === 0) {
+            return { success: true, output: out };
+        } else {
+            return { success: false, error: "Usage Error or Failed. Check Logs.", details: out + err };
+        }
+    } catch (e) {
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        return { success: false, error: e.message };
+    }
+});

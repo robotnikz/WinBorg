@@ -112,6 +112,59 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [installKeyPassword, setInstallKeyPassword] = useState('');
   const [isInstallingKey, setIsInstallingKey] = useState(false);
 
+  // Borg Install Modal State
+  const [installBorgTarget, setInstallBorgTarget] = useState<string | null>(null);
+  const [installBorgPort, setInstallBorgPort] = useState<string | null>(null);
+  const [installBorgPassword, setInstallBorgPassword] = useState('');
+  const [isInstallingBorg, setIsInstallingBorg] = useState(false);
+
+  // Helper to parse target
+  const parseTargetFromUrl = () => {
+    let target = "user@host";
+    let port = "";
+    if (repoForm.url && repoForm.url.includes('@')) {
+        try {
+            let nice = repoForm.url.replace(/^ssh:\/\//, '').replace(/^sftp:\/\//, '').replace(/^scp:\/\//, '');
+            const pathSplit = nice.split('/');
+            let hostPart = pathSplit[0];
+            if (hostPart.includes(':') && !hostPart.includes('[')) { // IPv6 safety
+                const parts = hostPart.split(':');
+                target = parts[0]; 
+                port = parts[1];
+            } else {
+                target = hostPart;
+            }
+        } catch(e) {}
+    }
+    return { target, port };
+  };
+
+  const handleInstallBorg = async () => {
+    if (!installBorgTarget || !installBorgPassword) return;
+    setIsInstallingBorg(true);
+    const toastId = toast.show("Installing BorgBackup on remote server...", 'loading', 0);
+    
+    try {
+        const res = await borgService.installBorg(installBorgTarget, installBorgPassword, installBorgPort || undefined);
+        toast.dismiss(toastId);
+        
+        if (res.success) {
+            toast.show("BorgBackup installed successfully!", 'success');
+            setInstallBorgTarget(null);
+            setInstallBorgPort(null);
+            setInstallBorgPassword('');
+        } else {
+            toast.show("Installation failed", 'error');
+            alert("Installation Failed:\n" + (res.details || res.error));
+        }
+    } catch (err: any) {
+        toast.dismiss(toastId);
+        toast.show("Error: " + err.message, 'error');
+    } finally {
+        setIsInstallingBorg(false);
+    }
+  };
+
   const handleInstallKey = async () => {
     if (!installKeyTarget || !installKeyPassword) return;
     setIsInstallingKey(true);
@@ -405,6 +458,55 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         </div>
       )}
 
+      {installBorgTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Cloud className="w-4 h-4 text-blue-500"/> Install BorgBackup
+                    </h3>
+                    {!isInstallingBorg && (
+                        <button onClick={() => setInstallBorgTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
+                <div className="p-5 space-y-4">
+                    <div className="text-sm text-slate-600 dark:text-slate-300">
+                        <p className="mb-2">Enter the password for <strong>{installBorgTarget}</strong> to install BorgBackup.</p>
+                        <p className="text-xs text-slate-400">This will run <code>apt-get install borgbackup</code>. A sudo password may be required.</p>
+                    </div>
+                    <div>
+                        <input 
+                            type="password" 
+                            autoFocus
+                            placeholder="Sudo/Root Password"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                            value={installBorgPassword}
+                            onChange={e => setInstallBorgPassword(e.target.value)}
+                            onKeyDown={e => {
+                                if(e.key === 'Enter' && installBorgPassword && !isInstallingBorg) {
+                                    handleInstallBorg();
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+                <div className="p-4 bg-gray-50/50 dark:bg-slate-900/50 flex justify-end gap-2 border-t border-gray-100 dark:border-slate-700">
+                    <Button variant="ghost" size="sm" onClick={() => setInstallBorgTarget(null)} disabled={isInstallingBorg}>Cancel</Button>
+                    <Button 
+                        size="sm" 
+                        disabled={!installBorgPassword || isInstallingBorg} 
+                        onClick={handleInstallBorg}
+                    >
+                        {isInstallingBorg ? <Loader2 className="w-3 h-3 animate-spin mr-2"/> : <Cloud className="w-3 h-3 mr-2"/>}
+                        {isInstallingBorg ? 'Installing...' : 'Install Borg'}
+                    </Button>
+                </div>
+           </div>
+        </div>
+      )}
+
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -533,35 +635,37 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                                 <RefreshCw className="w-3 h-3" />
                                             </button>
                                             <button 
-                                                onClick={() => {
-                                                    let target = "user@host";
-                                                    let port = "";
-                                                    if (repoForm.url && repoForm.url.includes('@')) {
-                                                        try {
-                                                            let nice = repoForm.url.replace(/^ssh:\/\//, '').replace(/^sftp:\/\//, '').replace(/^scp:\/\//, '');
-                                                            // For URLs like user@host:port/path, split at first slash to drop path first
-                                                            const pathSplit = nice.split('/');
-                                                            let hostPart = pathSplit[0];
-                                                            
-                                                            // Now check for port in hostPart (user@host:port)
-                                                            // Note: This naive logic fails for IPv6 literals but Borg usually uses hostnames or IPv4
-                                                            if (hostPart.includes(':')) {
-                                                                const parts = hostPart.split(':');
-                                                                target = parts[0]; 
-                                                                port = parts[1];
-                                                            } else {
-                                                                target = hostPart;
-                                                            }
-                                                        } catch(e) {}
-                                                    }
+                                                    const { target, port } = parseTargetFromUrl();
+                                                    const { target, port } = parseTargetFromUrl();
                                                     setInstallKeyTarget(target);
                                                     setInstallKeyPort(port || null);
                                                     setInstallKeyPassword('');
                                                 }}
-                                                className="flex-1 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 flex items-center justify-center gap-2"
+                                                className="flex-1 px-3 py-1.5 text-[10px] uppercase font-bold text-white bg-indigo-500 hover:bg-indigo-600 rounded flex items-center justify-center gap-1.5 transition-colors"
                                             >
-                                                <Server className="w-3 h-3" /> Install to Server
+                                                <Server className="w-3 h-3" /> Install SSH Key
                                             </button>
+                                        </div>
+                                        
+                                        {/* Remote Server Setup */}
+                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Remote Server Tools</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    const { target, port } = parseTargetFromUrl();
+                                                    setInstallBorgTarget(target);
+                                                    setInstallBorgPort(port || null);
+                                                    setInstallBorgPassword('');
+                                                }}
+                                                className="w-full px-3 py-1.5 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded flex items-center justify-center gap-1.5 transition-colors"
+                                            >
+                                                <Cloud className="w-3 h-3" /> Install BorgBackup on Server
+                                            </button>
+                                            <p className="text-[9px] text-slate-400 mt-1.5 text-center px-1">
+                                                Installs <code>borgbackup</code> on compatible Debian/Ubuntu servers via apt-get.
+                                            </p>
                                         </div>
                                     </div>
                                 )}

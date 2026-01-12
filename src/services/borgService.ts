@@ -124,6 +124,10 @@ export const borgService = {
   installSSHKey: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string}> => {
       return ipcRenderer.invoke('ssh-key-install', { target, password, port });
   },
+
+  installBorg: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string, details?: string}> => {
+      return ipcRenderer.invoke('ssh-install-borg', { target, password, port });
+  },
   
   // --- SECRETS MANAGEMENT ---
   savePassphrase: async (repoId: string, passphrase: string) => {
