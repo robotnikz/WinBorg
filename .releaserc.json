@@ -15,11 +15,11 @@
       {
         "assets": [
           {
-            "path": "dist-electron/* Setup *.exe",
+            "path": "dist-electron/WinBorg.Manager.Setup.*.exe",
             "label": "Windows Installer"
           },
           {
-            "path": "dist-electron/* Portable *.exe",
+            "path": "dist-electron/WinBorg.Manager.Portable.*.exe",
             "label": "Windows Portable"
           },
           {
