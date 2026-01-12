@@ -146,7 +146,11 @@ We welcome contributions! Please follow the `dev` branch workflow:
 npm install
 
 # Run dev mode (Vite + Electron)
+# - `electron` uses the default Vite port (5174)
+# - `electron:dev` auto-picks a free port (handy if 5174 is already in use)
 npm run electron
+# or
+npm run electron:dev
 
 # Run tests
 npm run test

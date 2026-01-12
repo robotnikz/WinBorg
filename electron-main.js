@@ -95,6 +95,7 @@ let dbCache = {
 let notificationConfig = {
     notifyOnSuccess: true, 
     notifyOnError: true,   
+    notifyOnUpdate: false,
     discordEnabled: false,
     discordWebhook: '',
     emailEnabled: false,
@@ -207,7 +208,8 @@ function createWindow(shouldStartMinimized = false) {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5174');
+        const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
+        mainWindow.loadURL(devUrl);
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
@@ -511,6 +513,24 @@ let isDownloading = false;
 
 autoUpdater.on('update-available', (info) => {
     if (mainWindow) mainWindow.webContents.send('update-available', info);
+
+    // Trigger Rules are global: if enabled, notify via the channels the user has enabled.
+    if (notificationConfig.notifyOnUpdate) {
+        new Notification({
+            title: 'Update verfügbar',
+            body: `Neue Version: ${info.version} steht zum Download bereit.`,
+            icon: getIconPath() || undefined
+        }).show();
+
+        if (notificationConfig.discordEnabled && notificationConfig.discordWebhook) {
+            sendDiscordWebhook('Update verfügbar', `Neue Version: ${info.version} steht zum Download bereit.`, true);
+        }
+
+        if (notificationConfig.emailEnabled && notificationConfig.smtpHost) {
+            sendEmail('Update verfügbar', `Neue Version: ${info.version} steht zum Download bereit.`, true);
+        }
+    }
+
     isManualCheck = false; 
 });
 
@@ -670,6 +690,7 @@ ipcMain.on('open-path', (event, pathString) => {
 ipcMain.handle('get-notification-config', () => ({
     notifyOnSuccess: notificationConfig.notifyOnSuccess,
     notifyOnError: notificationConfig.notifyOnError,
+    notifyOnUpdate: notificationConfig.notifyOnUpdate,
     discordEnabled: notificationConfig.discordEnabled,
     discordWebhook: notificationConfig.discordWebhook,
     emailEnabled: notificationConfig.emailEnabled,
