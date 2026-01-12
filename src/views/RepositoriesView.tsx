@@ -635,7 +635,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                                 <RefreshCw className="w-3 h-3" />
                                             </button>
                                             <button 
-                                                    const { target, port } = parseTargetFromUrl();
+                                                onClick={() => {
                                                     const { target, port } = parseTargetFromUrl();
                                                     setInstallKeyTarget(target);
                                                     setInstallKeyPort(port || null);
