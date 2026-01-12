@@ -36,6 +36,8 @@ beforeEach(() => {
          });
          if (channel === 'get-notification-config') return Promise.resolve({ 
              notifyOnSuccess: true,
+             notifyOnError: true,
+             notifyOnUpdate: false,
              emailEnabled: false,
              smtpHost: ''
          });
@@ -63,9 +65,9 @@ describe('SettingsView', () => {
         await waitFor(() => expect(screen.getByText('Application Behavior')).toBeInTheDocument());
 
         // Switch to Automation
-        fireEvent.click(screen.getByText('Smart Auto-Pilot'));
+        fireEvent.click(screen.getByText('Performance & Rules'));
         await waitFor(() => {
-            expect(screen.getByText('Bandwidth Control')).toBeInTheDocument();
+            expect(screen.getByText('Performance & Limits')).toBeInTheDocument();
         });
 
         // Switch to Notifications

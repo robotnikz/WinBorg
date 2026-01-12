@@ -68,6 +68,7 @@ const SettingsView: React.FC = () => {
   const [notifyConfig, setNotifyConfig] = useState({
     notifyOnSuccess: true,
     notifyOnError: true,
+        notifyOnUpdate: false,
     discordEnabled: false,
     discordWebhook: '',
     emailEnabled: false,
@@ -446,6 +447,10 @@ const SettingsView: React.FC = () => {
                             <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/30 flex-1">
                                 <ToggleSwitch id="notify-error" checked={notifyConfig.notifyOnError} onChange={(c) => setNotifyConfig({...notifyConfig, notifyOnError: c})} color="red" />
                                 <label htmlFor="notify-error" className="text-sm font-medium text-slate-700 dark:text-slate-200">Notify on Failure</label>
+                            </div>
+                            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-900/30 flex-1">
+                                <ToggleSwitch id="notify-updates" checked={notifyConfig.notifyOnUpdate} onChange={(c) => setNotifyConfig({...notifyConfig, notifyOnUpdate: c})} color="blue" />
+                                <label htmlFor="notify-updates" className="text-sm font-medium text-slate-700 dark:text-slate-200">Notify on Updates</label>
                             </div>
                       </div>
                   </SettingsCard>
