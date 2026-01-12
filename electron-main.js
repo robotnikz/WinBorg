@@ -1576,3 +1576,38 @@ else:
         return { success: false, error: e.message };
     }
 });
+
+// TEST SSH CONNECTION (Key Based)
+ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
+    const finalPort = port || '22';
+    // BatchMode=yes ensures we fail if password prompt is needed.
+    // StrictHostKeyChecking=no + UserKnownHostsFile=/dev/null suppresses all host key prompts/errors.
+    const cmd = `ssh -p ${finalPort} -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${target} echo "WINBORG_CONNECT_OK"`;
+    
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    console.log(`[SSH-Test] Command: wsl ${wslBaseArgs.join(' ')} --exec bash -c '${cmd}'`);
+    
+    try {
+        return new Promise((resolve) => {
+             const child = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+             let out = '';
+             let err = '';
+             child.stdout.on('data', d => out += d.toString());
+             child.stderr.on('data', d => err += d.toString());
+             
+             child.on('close', code => {
+                 if (code === 0 && out.includes('WINBORG_CONNECT_OK')) {
+                     resolve({ success: true });
+                 } else {
+                     console.log("[SSH-Test] Failed:", out, err);
+                     resolve({ success: false, error: "Connection failed. Please ensure SSH Keys are deployed and host is reachable." });
+                 }
+             });
+             child.on('error', e => resolve({ success: false, error: e.message }));
+        });
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
