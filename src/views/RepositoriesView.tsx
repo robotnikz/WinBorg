@@ -8,7 +8,7 @@ import DeleteRepoModal from '../components/DeleteRepoModal';
 import CreateBackupModal from '../components/CreateBackupModal';
 import JobsModal from '../components/JobsModal';
 import Button from '../components/Button';
-import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, Key, Copy, RefreshCw, Server } from 'lucide-react';
+import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, Key, Copy, RefreshCw, Server, XCircle } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
 
@@ -687,9 +687,29 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                </div>
                            )}
                            {testResult === 'error' && (
-                               <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded text-xs">
-                                   <div className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3"/> Connection failed</div>
-                                   <div className="font-mono opacity-80 break-all">{testLog.slice(-150)}...</div>
+                               <div className={`mt-3 p-3 rounded-lg text-sm border animate-in slide-in-from-top-1 duration-200 ${addRepoStep === 'borg_fail' ? 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200' : 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-200'}`}>
+                                   <div className="font-bold flex items-center gap-2 mb-1">
+                                       {addRepoStep === 'borg_fail' ? <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400"/> : <XCircle className="w-4 h-4 text-red-600 dark:text-red-400"/>}
+                                       {addRepoStep === 'borg_fail' ? 'BorgBackup Missing' : 'Connection Failed'}
+                                   </div>
+                                   
+                                   <div className="text-xs opacity-90 mb-2 leading-relaxed">
+                                       {addRepoStep === 'borg_fail' 
+                                         ? "BorgBackup is not installed on the remote server. Please use the 'Install BorgBackup on Server' button below to fix this automatically." 
+                                         : (addRepoStep === 'ssh_fail' 
+                                             ? "Could not establish an SSH connection. Please ensure your SSH Public Key is deployed to the server."
+                                             : "An error occurred while testing the connection."
+                                           )
+                                       }
+                                   </div>
+
+                                   {(addRepoStep !== 'borg_fail') && (
+                                       <div className="mt-2 p-2 bg-black/5 dark:bg-black/30 rounded font-mono text-[10px] break-all max-h-24 overflow-y-auto">
+                                           {testLog.split('\n').map((line, i) => (
+                                               <div key={i} className={line.toLowerCase().includes('error') || line.toLowerCase().includes('fail') ? 'text-red-600 dark:text-red-400 font-bold' : ''}>{line}</div>
+                                           ))}
+                                       </div>
+                                   )}
                                </div>
                            )}
                        </div>
