@@ -47,10 +47,11 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 *   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files).
 
 ### 🤖 Automation & Monitoring
-*   **Auto-Updater:** Built-in update system that checks for new releases on startup.
+*   **Auto-Updater:** Built-in update system that checks for new releases periodically.
 *   **Background Jobs:** Schedule backups to run automatically (Hourly/Daily/Weekly).
 *   **Notifications:** Get native Windows toasts, **Discord Webhook** alerts, or **Email Notifications** (SMTP) when backups finish or fail.
 *   **Pruning:** Automated retention policies (e.g., "Keep 7 daily, 4 weekly").
+*   **Settings Export/Import:** Backup and restore your WinBorg configuration after reinstalling.
 
 ---
 

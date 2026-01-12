@@ -165,6 +165,15 @@ function persistDb() {
     try { fs.writeFileSync(databasePath, JSON.stringify(dbCache, null, 2)); } catch (e) { console.error(e); }
 }
 
+function syncRuntimeStateFromDb() {
+    closeToTray = dbCache?.settings?.closeToTray || false;
+    availableRepos = dbCache?.repos || [];
+    scheduledJobs = dbCache?.jobs || [];
+    applyAutoStartSettings();
+    updateTrayMenu();
+    startScheduler();
+}
+
 // Helper: Get decrypted password
 function getDecryptedPassword(id) {
     if (!id || !secretsCache[id]) return null;
@@ -649,6 +658,121 @@ ipcMain.handle('save-db', (event, partialData) => {
     persistDb();
     updateTrayMenu();
     return true;
+});
+
+ipcMain.handle('export-app-data', async (event, { includeSecrets } = { includeSecrets: false }) => {
+    if (!mainWindow) return { canceled: true };
+
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const defaultFileName = `WinBorg-backup-${date}.json`;
+    const defaultPath = path.join(app.getPath('downloads'), defaultFileName);
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export WinBorg Settings',
+        defaultPath,
+        filters: [{ name: 'WinBorg Backup', extensions: ['json'] }]
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+
+    const payload = {
+        schema: 'winborg-backup',
+        schemaVersion: 1,
+        exportedAt: now.toISOString(),
+        appVersion: (typeof app.getVersion === 'function') ? app.getVersion() : null,
+        data: {
+            db: dbCache,
+            notifications: notificationConfig
+        },
+        ...(includeSecrets ? { secrets: secretsCache } : {})
+    };
+
+    fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2), 'utf8');
+    return { canceled: false, filePath: result.filePath, includedSecrets: !!includeSecrets };
+});
+
+ipcMain.handle('import-app-data', async (event, { includeSecrets } = { includeSecrets: false }) => {
+    if (!mainWindow) return { canceled: true };
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Import WinBorg Settings',
+        properties: ['openFile'],
+        filters: [{ name: 'WinBorg Backup', extensions: ['json'] }]
+    });
+
+    if (result.canceled || !result.filePaths?.[0]) return { canceled: true };
+
+    const selectedPath = result.filePaths[0];
+    let parsed;
+    try {
+        parsed = JSON.parse(fs.readFileSync(selectedPath, 'utf8'));
+    } catch (e) {
+        return { canceled: false, ok: false, error: 'Invalid JSON backup file.' };
+    }
+
+    const importedDb = parsed?.data?.db;
+    const importedNotifications = parsed?.data?.notifications;
+    const importedSecrets = parsed?.secrets;
+
+    if (!importedDb || typeof importedDb !== 'object') {
+        return { canceled: false, ok: false, error: 'Backup file is missing data.db.' };
+    }
+    if (!importedNotifications || typeof importedNotifications !== 'object') {
+        return { canceled: false, ok: false, error: 'Backup file is missing data.notifications.' };
+    }
+
+    // Apply with sane fallbacks to avoid breaking on older exports
+    const fallbackSettings = {
+        useWsl: true,
+        borgPath: 'borg',
+        disableHostCheck: false,
+        closeToTray: false,
+        startWithWindows: false,
+        startMinimized: false,
+        limitBandwidth: false,
+        bandwidthLimit: 1000,
+        stopOnBattery: true,
+        stopOnLowSignal: false,
+        scheduleEnabled: false,
+        scheduleStart: '02:00',
+        scheduleEnd: '06:00',
+        scheduleStrict: false
+    };
+
+    dbCache = {
+        ...dbCache,
+        ...importedDb,
+        repos: Array.isArray(importedDb.repos) ? importedDb.repos : [],
+        jobs: Array.isArray(importedDb.jobs) ? importedDb.jobs : [],
+        settings: { ...fallbackSettings, ...(importedDb.settings || {}) }
+    };
+
+    notificationConfig = { ...notificationConfig, ...importedNotifications };
+
+    if (includeSecrets && importedSecrets && typeof importedSecrets === 'object') {
+        secretsCache = importedSecrets;
+    }
+
+    persistDb();
+    persistNotifications();
+    if (includeSecrets && importedSecrets) persistSecrets();
+
+    syncRuntimeStateFromDb();
+
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('app-data-imported');
+    }
+
+    return {
+        canceled: false,
+        ok: true,
+        imported: {
+            repos: Array.isArray(dbCache.repos) ? dbCache.repos.length : 0,
+            jobs: Array.isArray(dbCache.jobs) ? dbCache.jobs.length : 0,
+            secrets: !!(includeSecrets && importedSecrets)
+        }
+    };
 });
 
 // Original legacy handler kept for compatibility during migration, mapped to save-db logic essentially
