@@ -1402,6 +1402,7 @@ import sys
 import time
 import subprocess
 import select
+import base64
 
 # Read password
 try:
@@ -1441,8 +1442,10 @@ else
 fi
 """
 
-# Escape quotes for bash -c
-remote_cmd_escaped = remote_cmd.replace('"', '\\"')
+# Base64 encode the script to avoid SSH/Shell escaping hell
+b64_script = base64.b64encode(remote_cmd.encode()).decode()
+# Run: echo <b64> | base64 -d | bash
+final_cmd = f"echo {b64_script} | base64 -d | bash"
 
 ssh_cmd = [
     'ssh',
@@ -1451,7 +1454,7 @@ ssh_cmd = [
     '-o', 'PreferredAuthentications=publickey,password,keyboard-interactive',
     '-t', # Force pseudo-tty allocation so sudo detects a terminal
     target_host,
-    f"bash -c \\"{remote_cmd_escaped}\\""
+    final_cmd
 ]
 
 pid, fd = pty.fork()
