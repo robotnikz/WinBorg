@@ -236,7 +236,14 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       setIsModalOpen(true);
       setTestResult(null);
       setTestLog('');
-  };
+  };  
+
+  // Force check on open
+  useEffect(() => {
+    if (isModalOpen) {
+        handleCheckKey();
+    }
+  }, [isModalOpen]);
 
   const handleTestConnection = async () => {
       setIsTesting(true);
@@ -661,6 +668,33 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                         />
                     </div>
                     
+                    {/* Test Connection Button */}
+                   {!editingRepoId && (addMode === 'connect' || (addMode === 'init' && repoForm.url.startsWith('ssh://'))) && repoForm.url && (
+                       <div>
+                           <Button 
+                                variant="secondary" 
+                                size="sm"
+                                className="w-full" 
+                                onClick={handleTestConnection}
+                                disabled={isTesting}
+                           >
+                               {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Terminal className="w-3 h-3 mr-2" />}
+                               {isTesting ? 'Testing Connection...' : 'Test ' + (repoForm.url.startsWith('ssh://') ? 'SSH & Remote ' : '') + 'Connection'}
+                           </Button>
+                           {testResult === 'success' && (
+                               <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
+                                   <Check className="w-3 h-3" /> Connection successful
+                               </div>
+                           )}
+                           {testResult === 'error' && (
+                               <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded text-xs">
+                                   <div className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3"/> Connection failed</div>
+                                   <div className="font-mono opacity-80 break-all">{testLog.slice(-150)}...</div>
+                               </div>
+                           )}
+                       </div>
+                   )}
+                    
                     {/* SSH Key Management */}
                     <div className="space-y-3">
                          {/* SSH Keys Panel */}
@@ -669,7 +703,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                                    <Key className="w-3 h-3" /> SSH Authentication 
                                    <span className="text-[10px] font-normal text-slate-400 capitalize flex-1">
-                                       &mdash; {sshKeyStatus === 'found' ? 'Key Present' : sshKeyStatus === 'missing' ? 'No Key' : 'Manage Keys'}
+                                       &mdash; {sshKeyStatus === 'found' ? 'Key Present' : sshKeyStatus === 'missing' ? 'No Key' : 'Checking...'}
                                    </span>
                                </div>
                             </div>
@@ -817,32 +851,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                     </div>
                </label>
                
-               {/* Test Connection Button */}
-               {!editingRepoId && (addMode === 'connect' || (addMode === 'init' && repoForm.url.startsWith('ssh://'))) && repoForm.url && (
-                   <div>
-                       <Button 
-                            variant="secondary" 
-                            size="sm"
-                            className="w-full" 
-                            onClick={handleTestConnection}
-                            disabled={isTesting}
-                       >
-                           {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Terminal className="w-3 h-3 mr-2" />}
-                           {isTesting ? 'Testing Connection...' : 'Test ' + (repoForm.url.startsWith('ssh://') ? 'SSH & Remote ' : '') + 'Connection'}
-                       </Button>
-                       {testResult === 'success' && (
-                           <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
-                               <Check className="w-3 h-3" /> Connection successful
-                           </div>
-                       )}
-                       {testResult === 'error' && (
-                           <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 rounded text-xs">
-                               <div className="font-bold flex items-center gap-1 mb-1"><AlertTriangle className="w-3 h-3"/> Connection failed</div>
-                               <div className="font-mono opacity-80 break-all">{testLog.slice(-150)}...</div>
-                           </div>
-                       )}
-                   </div>
-               )}
+               {/* Test Connection Button - OLD LOCATION REMOVED */}
 
                {initError && (
                    <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 text-xs rounded-lg border border-red-100 dark:border-red-900/50 flex items-start gap-2">
