@@ -52,6 +52,12 @@ const SettingsView: React.FC = () => {
   // Smart Settings
   const [stopOnBattery, setStopOnBattery] = useState(true);
   const [stopOnLowSignal, setStopOnLowSignal] = useState(false);
+  
+  // Scheduler / Time Window
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleStart, setScheduleStart] = useState("02:00");
+  const [scheduleEnd, setScheduleEnd] = useState("06:00");
+  const [scheduleStrict, setScheduleStrict] = useState(false);
 
   // States
   const [saved, setSaved] = useState(false);
@@ -97,6 +103,12 @@ const SettingsView: React.FC = () => {
                 setStopOnLowSignal(db.settings.stopOnLowSignal !== undefined ? db.settings.stopOnLowSignal : false);
                 setLimitBandwidth(db.settings.limitBandwidth || false);
                 setBandwidthLimit(db.settings.bandwidthLimit || 1000);
+                
+                // Scheduler
+                setScheduleEnabled(db.settings.scheduleEnabled || false);
+                setScheduleStart(db.settings.scheduleStart || "02:00");
+                setScheduleEnd(db.settings.scheduleEnd || "06:00");
+                setScheduleStrict(db.settings.scheduleStrict || false);
             }
         });
 
@@ -126,7 +138,11 @@ const SettingsView: React.FC = () => {
                 stopOnBattery,
                 stopOnLowSignal,
                 limitBandwidth,
-                bandwidthLimit
+                bandwidthLimit,
+                scheduleEnabled,
+                scheduleStart,
+                scheduleEnd,
+                scheduleStrict
             }
         });
         ipc.invoke('save-notification-config', notifyConfig);
@@ -199,7 +215,7 @@ const SettingsView: React.FC = () => {
           <div className="space-y-1">
               <div className="px-4 py-2 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Preferences</div>
               {renderSidebarItem('general', 'General', <Layout className="w-4 h-4" />)}
-              {renderSidebarItem('automation', 'Smart Auto-Pilot', <Zap className="w-4 h-4" />)}
+              {renderSidebarItem('automation', 'Performance & Rules', <Zap className="w-4 h-4" />)}
               {renderSidebarItem('notifications', 'Notifications', <Bell className="w-4 h-4" />)}
               
               <div className="px-4 py-2 mb-2 mt-6 text-xs font-bold text-slate-400 uppercase tracking-wider">System</div>
@@ -296,10 +312,94 @@ const SettingsView: React.FC = () => {
               </div>
           )}
 
-          {/* TAB: AUTOMATION */}
+          {/* TAB: AUTOMATION (PERFORMANCE & RULES) */}
           {activeTab === 'automation' && (
               <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                   <SettingsCard title="Smart Auto-Pilot" icon={<Zap className="w-5 h-5"/>} description="Intelligent rules for skipping scheduled jobs">
+                   {/* 1. Time Window / Scheduler */}
+                   <SettingsCard title="Backup Schedule Window" icon={<Monitor className="w-5 h-5"/>} description="Restrict backups to specific hours (e.g., night time)">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                <div className="flex items-center gap-3">
+                                   <div className={`p-2 rounded-full ${scheduleEnabled ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                                       <Layout className="w-5 h-5" />
+                                   </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="sched-toggle">Active Hours Only</label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Only run scheduled jobs within the specified time window</p>
+                                    </div>
+                                </div>
+                                <ToggleSwitch id="sched-toggle" checked={scheduleEnabled} onChange={setScheduleEnabled} color="blue" />
+                            </div>
+
+                            {/* Time Inputs */}
+                            <div className={`grid grid-cols-2 gap-4 pl-14 transition-all duration-300 ${!scheduleEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Start Time</label>
+                                    <input 
+                                        type="time" 
+                                        value={scheduleStart}
+                                        onChange={(e) => setScheduleStart(e.target.value)}
+                                        className={inputClass}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">End Time</label>
+                                    <input 
+                                        type="time" 
+                                        value={scheduleEnd}
+                                        onChange={(e) => setScheduleEnd(e.target.value)}
+                                        className={inputClass}
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Strict Mode */}
+                             <div className={`flex items-center gap-2 pl-14 ${!scheduleEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                                <input
+                                    type="checkbox"
+                                    id="strict-sched"
+                                    checked={scheduleStrict}
+                                    onChange={(e) => setScheduleStrict(e.target.checked)}
+                                    className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                />
+                                <label htmlFor="strict-sched" className="text-sm text-slate-700 dark:text-slate-300">
+                                    <span className="font-medium">Force Stop</span> (Cancel running jobs if time ends)
+                                </label>
+                             </div>
+                        </div>
+                   </SettingsCard>
+
+                   {/* 2. Bandwidth & Performance */}
+                   <SettingsCard title="Performance & Limits" icon={<Cpu className="w-5 h-5"/>} description="Manage resource usage">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                 <div className='flex items-center gap-3'>
+                                    <div className={`p-2 rounded-full ${limitBandwidth ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600' : 'bg-gray-100 dark:bg-slate-700 text-gray-500'}`}>
+                                       <Network className="w-5 h-5" />
+                                   </div>
+                                    <div>
+                                        <label htmlFor="bw-limit-check" className="text-sm font-medium text-slate-800 dark:text-slate-200 cursor-pointer">Upload Bandwidth Limit</label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Restrict speed to prevent network congestion</p>
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                     <div className={`flex items-center gap-2 ${!limitBandwidth ? 'opacity-50 pointer-events-none' : ''}`}>
+                                        <input
+                                            type="number"
+                                            className="w-24 px-2 py-1 text-sm bg-white dark:bg-slate-900 dark:text-white border border-gray-300 dark:border-slate-600 rounded-md text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                            value={bandwidthLimit}
+                                            onChange={(e) => setBandwidthLimit(parseInt(e.target.value) || 0)}
+                                        />
+                                        <span className='text-xs text-slate-500 dark:text-slate-400 font-medium'>KB/s</span>
+                                     </div>
+                                     <ToggleSwitch id="bw-limit-check" checked={limitBandwidth} onChange={setLimitBandwidth} color="indigo" size="sm" />
+                                 </div>
+                             </div>
+                        </div>
+                   </SettingsCard>
+
+                   {/* 3. Conditions (Battery / Mobile) */}
+                   <SettingsCard title="Smart Conditions" icon={<Shield className="w-5 h-5"/>}>
                         <div className="space-y-4">
                             {/* Battery */}
                             <div className="flex items-center justify-between p-3 border border-gray-100 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -308,8 +408,8 @@ const SettingsView: React.FC = () => {
                                        <Battery className="w-5 h-5" />
                                    </div>
                                    <div>
-                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="battery-toggle">Power Saving Mode</label>
-                                       <p className="text-xs text-slate-500 dark:text-slate-400">Skip automation when running on battery</p>
+                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="battery-toggle">On Battery Power</label>
+                                       <p className="text-xs text-slate-500 dark:text-slate-400">Pause/Skip jobs when device is unplugged</p>
                                    </div>
                                </div>
                                <ToggleSwitch id="battery-toggle" checked={stopOnBattery} onChange={setStopOnBattery} color="orange" />
@@ -322,8 +422,8 @@ const SettingsView: React.FC = () => {
                                        {stopOnLowSignal ? <WifiOff className="w-5 h-5" /> : <Network className="w-5 h-5" />}
                                    </div>
                                    <div>
-                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="offline-toggle">Offline Protection</label>
-                                       <p className="text-xs text-slate-500 dark:text-slate-400">Strictly skip jobs when offline (avoids errors)</p>
+                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="offline-toggle">Offline / Metered Connection</label>
+                                       <p className="text-xs text-slate-500 dark:text-slate-400">Skip jobs when internet is unavailable or expensive</p>
                                    </div>
                                </div>
                                <ToggleSwitch id="offline-toggle" checked={stopOnLowSignal} onChange={setStopOnLowSignal} color="red" />
@@ -331,32 +431,6 @@ const SettingsView: React.FC = () => {
                         </div>
                    </SettingsCard>
 
-                   <SettingsCard title="Bandwidth Control" icon={<Network className="w-5 h-5"/>}>
-                        <div className="flex items-center justify-between">
-                             <div className='flex items-center gap-3'>
-                                <input
-                                    type="checkbox"
-                                    id="bw-limit-check"
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    checked={limitBandwidth}
-                                    onChange={(e) => setLimitBandwidth(e.target.checked)}
-                                />
-                                <div>
-                                    <label htmlFor="bw-limit-check" className="text-sm font-medium text-slate-800 dark:text-slate-200">Limit Remote Bandwidth</label>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">Restrict upload speed for remote repositories</p>
-                                </div>
-                             </div>
-                             <div className={`flex items-center gap-2 ${!limitBandwidth ? 'opacity-50 pointer-events-none' : ''}`}>
-                                 <input
-                                     type="number"
-                                     className="w-24 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-right"
-                                     value={bandwidthLimit}
-                                     onChange={(e) => setBandwidthLimit(parseInt(e.target.value) || 0)}
-                                 />
-                                 <span className='text-xs text-slate-500 dark:text-slate-400 font-medium'>KB/s</span>
-                             </div>
-                         </div>
-                   </SettingsCard>
               </div>
           )}
 
