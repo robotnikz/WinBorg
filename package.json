@@ -15,6 +15,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5174 && electron .\"",
+    "electron:dev": "node scripts/dev-electron.mjs",
     "dist": "tsc && vite build && electron-builder",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",

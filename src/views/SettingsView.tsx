@@ -393,7 +393,7 @@ const SettingsView: React.FC = () => {
                                         />
                                         <span className='text-xs text-slate-500 dark:text-slate-400 font-medium'>KB/s</span>
                                      </div>
-                                     <ToggleSwitch id="bw-limit-check" checked={limitBandwidth} onChange={setLimitBandwidth} color="indigo" size="sm" />
+                                     <ToggleSwitch id="bw-limit-check" checked={limitBandwidth} onChange={setLimitBandwidth} color="indigo" />
                                  </div>
                              </div>
                         </div>

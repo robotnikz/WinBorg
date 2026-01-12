@@ -208,7 +208,8 @@ function createWindow(shouldStartMinimized = false) {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5174');
+        const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
+        mainWindow.loadURL(devUrl);
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
