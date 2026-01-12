@@ -37,6 +37,12 @@ export interface Repository {
   checkStartTime?: number; // Timestamp in ms
   lastCheckTime?: string;
   
+  // Stats
+  stats?: {
+    originalSize: number; // Bytes
+    deduplicatedSize: number; // Bytes (Actual size on disk)
+  };
+
   // Lock State
   isLocked?: boolean;
   

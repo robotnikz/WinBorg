@@ -193,6 +193,44 @@ describe('DashboardView', () => {
     // If using Icons, they might not have text.
     // Let's use `fireEvent` on buttons if we can identify them.
     
+
     // Simplest: Check if repo names are clickable or have specific action buttons adjacent.
   });
+
+  test('calculates and displays efficiency correctly', () => {
+    const reposWithStats: Repository[] = [
+      {
+        id: 'repo-stats',
+        name: 'High Efficiency Repo',
+        url: '/tmp/repo',
+        encryption: 'none',
+        status: 'connected',
+        checkStatus: 'idle',
+        lastBackup: new Date().toISOString(),
+        size: '10.00 GB', // Dedup size
+        fileCount: 1000,
+        stats: {
+           originalSize: 20 * 1024 * 1024 * 1024, // 20 GB
+           deduplicatedSize: 10 * 1024 * 1024 * 1024 // 10 GB
+        }
+      }
+    ];
+
+    render(
+      <DashboardView
+        repos={reposWithStats}
+        mounts={mockMounts}
+        jobs={mockJobs}
+        activityLogs={mockActivityLogs}
+        {...mockHandlers}
+      />
+    );
+
+    // 20GB original - 10GB stored = 10GB savings = 50% efficiency
+    // The component renders {dashboardStats.savingsPercent}%
+    
+    // We expect "50%" to be visible in the Efficiency card
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
 });
+
