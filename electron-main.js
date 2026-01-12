@@ -1095,3 +1095,289 @@ ipcMain.handle('system-install-borg', async (event) => {
         });
     });
 });
+
+ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
+    // type default = 'ed25519' (could be rsa)
+    const keyType = type || 'ed25519'; 
+    const keyFile = `~/.ssh/id_${keyType}`;
+    const keyFilePub = `${keyFile}.pub`;
+    
+    // We get the preferred distro so we operate on the same one as Borg
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    // Helper to run
+    const runWsl = (cmd) => {
+        return new Promise((resolve) => {
+            // exec via bash -c to handle ~ expansion and redirects
+            const args = [...wslBaseArgs, '--exec', 'bash', '-c', cmd];
+            console.log(`[SSH] Running: wsl ${args.join(' ')}`);
+            const child = spawn('wsl', args);
+            let out = '', err = '';
+            child.stdout.on('data', d => out += d.toString());
+            child.stderr.on('data', d => err += d.toString());
+            child.on('close', code => resolve({ code, out, err }));
+            child.on('error', e => resolve({ code: -1, out: '', err: e.message }));
+        });
+    };
+
+    try {
+        if (action === 'check') {
+            const res = await runWsl(`test -f ${keyFilePub} && echo "exists"`);
+            return { 
+                success: true, 
+                exists: res.out.trim().includes('exists'), 
+                path: keyFilePub 
+            };
+        }
+        
+        if (action === 'generate') {
+            // Ensure .ssh dir exists
+            await runWsl('mkdir -p ~/.ssh && chmod 700 ~/.ssh');
+            // Remove old if exists (or ssh-keygen fails?) - ssh-keygen fails if file exists without -f?
+            // Actually -f overwrites? No, it asks. We should probably only generate if check returns false, or rm first.
+            // Let's assume the UI asks for confirmation before "Overwrite/Regenerate".
+            // Adding -q (quiet) and -N "" (no passphrase)
+            // Use yes | to auto-overwrite if it exists? Or just rm first.
+            const rmRes = await runWsl(`rm -f ${keyFile} ${keyFilePub}`);
+            const res = await runWsl(`ssh-keygen -t ${keyType} -N "" -f ${keyFile}`);
+            
+            if (res.code === 0) {
+                 return { success: true };
+            } else {
+                 return { success: false, error: res.err || res.out };
+            }
+        }
+        
+        if (action === 'read') {
+            const res = await runWsl(`cat ${keyFilePub}`);
+            if (res.code === 0) {
+                return { success: true, key: res.out.trim() };
+            } else {
+                return { success: false, error: "Could not read key file." };
+            }
+        }
+        
+        return { success: false, error: "Unknown action" };
+        
+    } catch (error) {
+        console.error("[SSH] Error:", error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('ssh-key-install', async (event, { target, password, port }) => {
+    // Generate unique ID for temp files
+    const runId = Date.now().toString();
+    const passFile = `/tmp/winborg-pass-${runId}`;
+    const scriptFile = `/tmp/winborg-ssh-${runId}.py`;
+    
+    // HETZNER STORAGE BOX FIX:
+    // Hetzner Storage Boxes require Port 23 for SSH key management (Port 22 is SFTP only with RFC4716 keys).
+    // If we detect a Hetzner URL and no port is specified, force Port 23.
+    let finalPort = port;
+    let isHetzner = false;
+
+    if (target.includes('storagebox.de')) {
+        isHetzner = true;
+        if (!finalPort || finalPort === '22') {
+            console.log("[SSH-Install] Detected Hetzner Storage Box. Enforcing Port 23.");
+            finalPort = '23';
+        }
+    }
+    
+    const safePort = finalPort ? finalPort.replace(/'/g, "\\'") : '';
+    // Extract user from target
+    const parts = target.split('@');
+    const remoteUser = parts.length > 1 ? parts[0] : '';
+    
+    // We will read the password from the temp file effectively verifying it's raw content
+    const pythonScript = `
+import pty
+import os
+import sys
+import time
+import subprocess
+
+# Read password safely from file
+try:
+    with open('${passFile}', 'r') as f:
+        password = f.read()
+        # Safety trim: usually we don't want trailing newlines in passwords unless explicit.
+        # But if the user's password HAS a trailing newline, this breaks it.
+        # Given the Hex transfer method, we trust the content is exact.
+        # However, to be safe against file system quirks:
+        if password.endswith('\\n'):
+            password = password[:-1]
+except:
+    print("Failed to read password file", flush=True)
+    sys.exit(1)
+
+target_host = '${target}'
+target_port = '${safePort}'
+remote_user = '${remoteUser}'
+use_sftp = ${isHetzner ? 'True' : 'False'}
+
+def read(fd):
+    return os.read(fd, 1024)
+
+print("Starting PTY...", flush=True)
+print(f"Password length: {len(password)}", flush=True)
+if len(password) > 2:
+    print(f"Password starts with: {password[:2]}...", flush=True)
+
+# Try to get user safely without relying on controlling terminal
+try:
+    import pwd
+    username = pwd.getpwuid(os.getuid()).pw_name
+    print(f"User: {username}", flush=True)
+except:
+    print("User: (detection failed)", flush=True)
+
+try:
+    pid, fd = pty.fork()
+except Exception as e:
+    print(f"Fork failed: {e}", flush=True)
+    sys.exit(1)
+
+if pid == 0:
+    # Child
+    try:
+        # Use execvp to find ssh-copy-id in PATH automatically
+        # Expand user path manually just in case
+        pubkey = os.path.expanduser('~/.ssh/id_ed25519.pub')
+        print(f"Using key: {pubkey}", flush=True)
+        
+        if not os.path.exists(pubkey):
+             rsa = os.path.expanduser('~/.ssh/id_rsa.pub')
+             if os.path.exists(rsa):
+                 print(f"Ed25519 not found, switching to RSA: {rsa}", flush=True)
+                 pubkey = rsa
+             else:
+                 sys.stderr.write(f"Public key not found at {pubkey}\\n")
+                 sys.exit(1)
+
+        # SELECT STRATEGY
+        if use_sftp: # use_sftp is True for Hetzner detected via IS_HETZNER flag or hostname
+             # HETZNER SPECIAL: Use install-ssh-key command
+             # Logic: pipe local key to remote install-ssh-key command via ssh
+             
+             cmd_str = f"cat {pubkey} | ssh -p {target_port if target_port else '23'} -o StrictHostKeyChecking=no -o PreferredAuthentications=password,keyboard-interactive {target_host} install-ssh-key"
+             
+             print(f"Running Hetzner native install command: {cmd_str}", flush=True)
+             # We must run via shell to handle the pipe
+             os.execvp('bash', ['bash', '-c', cmd_str])
+        else:
+             # GENERIC LINUX: Use standard ssh-copy-id
+             args = [
+                'ssh-copy-id', 
+                '-i', pubkey, 
+                '-o', 'StrictHostKeyChecking=no',
+                '-o', 'PreferredAuthentications=password,keyboard-interactive'
+             ]
+             if target_port: args.extend(['-p', target_port])
+             args.append(target_host)
+             
+             print(f"Running standard ssh-copy-id: {args}", flush=True)
+             os.execvp('ssh-copy-id', args)
+
+    except Exception as e:
+        sys.stderr.write(f"Exec failed: {e}\\n")
+        sys.exit(1)
+else:
+    # Parent (PTY Handler)
+    # Simple loop that just handles password Authentication.
+    # The Child command (ssh-copy-id OR ssh ... install-ssh-key) handles the logic.
+    try:
+        output = b""
+        password_sent = False
+        
+        while True:
+            try:
+                chunk = read(fd)
+                if not chunk: break
+                
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
+                
+                output += chunk
+                lower_chunk = chunk.lower()
+
+                # --- 1. Auth ---
+                if b"continue connecting" in lower_chunk:
+                    print("\\n[PTY] Host check detected, sending yes...", flush=True)
+                    os.write(fd, b"yes\\n")
+                    time.sleep(1.0)
+                
+                if b"password:" in lower_chunk and not password_sent:
+                    print("\\n[PTY] Prompt detected, sending password...", flush=True)
+                    time.sleep(0.5)
+                    os.write(fd, password.encode() + b'\\r')
+                    password_sent = True 
+                    time.sleep(1.0)
+                
+                if b"permission denied" in lower_chunk and password_sent:
+                     print("\\n[PTY] Permission denied detected.", flush=True)
+                     password_sent = False
+                    
+            except OSError:
+                break
+    except Exception as e:
+        print(f"Parent loop error: {e}", flush=True)
+        sys.exit(1)
+
+        
+    # Wait for child
+    _, status = os.waitpid(pid, 0)
+    # Forward exit code
+    exit_code = os.WEXITSTATUS(status)
+    print(f"Child exited with {exit_code}", flush=True)
+    sys.exit(exit_code)
+`;
+
+    const targetDistro = await getPreferredWslDistro();
+    const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
+    
+    // Helper to write file to WSL via hex
+    const writeWslFile = async (filePath, content) => {
+        const hex = Buffer.from(content).toString('hex');
+        const cmd = `echo "${hex}" | python3 -c "import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))" > ${filePath}`;
+        // Ensure no history? it's in a variable. 
+        const proc = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
+        return new Promise(r => proc.on('close', r));
+    };
+    
+    try {
+        // 1. Write password to temp file
+        await writeWslFile(passFile, password);
+
+        // 2. Write python script to temp file
+        await writeWslFile(scriptFile, pythonScript);
+        
+        // 3. Run the script with python3 -u (unbuffered)
+        console.log(`[SSH-Install] Running python PTY script on ${target}...`);
+        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile]);
+        
+        let out = '';
+        let err = '';
+        runProc.stdout.on('data', d => out += d.toString());
+        runProc.stderr.on('data', d => err += d.toString());
+        
+        const code = await new Promise(resolve => runProc.on('close', resolve));
+        
+        // 4. Cleanup
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        
+        if (code === 0) {
+            return { success: true };
+        } else {
+            // Analyze output for common errors
+            console.error("SSH Install Failed:", out, err);
+            return { success: false, error: `Process exited with code ${code}.\nOutput: ${out}\nError: ${err}` };
+        }
+    } catch (e) {
+        // Try cleanup on error
+        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        return { success: false, error: e.message };
+    }
+});

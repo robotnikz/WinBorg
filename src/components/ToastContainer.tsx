@@ -23,9 +23,18 @@ export const ToastContainer: React.FC = () => {
         }, newToast.duration || 4000);
       }
     };
+    
+    const handleDismiss = (e: CustomEvent<string>) => {
+        removeToast(e.detail);
+    };
 
     window.addEventListener('show-toast' as any, handleToast);
-    return () => window.removeEventListener('show-toast' as any, handleToast);
+    window.addEventListener('dismiss-toast' as any, handleDismiss);
+    
+    return () => {
+        window.removeEventListener('show-toast' as any, handleToast);
+        window.removeEventListener('dismiss-toast' as any, handleDismiss);
+    };
   }, []);
 
   const removeToast = (id: string) => {
