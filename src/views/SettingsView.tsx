@@ -4,7 +4,7 @@ import ToggleSwitch from '../components/ToggleSwitch';
 import { 
   Save, Terminal, Key, Check, Network, Info, Download, Monitor, XCircle, 
   Layout, Bell, Mail, Hash, AlertTriangle, Loader2, Battery, WifiOff, Zap,
-  Settings, Shield, Globe, Cpu, ChevronRight
+    Settings, Shield, Globe, Cpu, ChevronRight, Upload
 } from 'lucide-react';
 import { borgService } from '../services/borgService';
 
@@ -82,6 +82,11 @@ const SettingsView: React.FC = () => {
   });
   const [notifyTestStatus, setNotifyTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
+    // Settings transfer
+    const [includeSecretsInBackup, setIncludeSecretsInBackup] = useState(false);
+    const [transferStatus, setTransferStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
+    const [transferMessage, setTransferMessage] = useState('');
+
   // Helper to access Electron
   const getElectron = () => {
       try { return (window as any).require('electron'); } catch (e) { return null; }
@@ -123,6 +128,86 @@ const SettingsView: React.FC = () => {
         setUseWsl(storedWsl === null ? true : storedWsl === 'true');
     }
   }, []);
+
+  useEffect(() => {
+      const ipc = getElectron()?.ipcRenderer;
+      if (!ipc || typeof ipc.on !== 'function' || typeof ipc.removeListener !== 'function') return;
+
+      const onImported = () => {
+          // Import affects repos/jobs/settings across the whole app; easiest is a full reload.
+          window.location.reload();
+      };
+
+      ipc.on('app-data-imported', onImported);
+      return () => {
+          ipc.removeListener('app-data-imported', onImported);
+      };
+  }, []);
+
+  const handleExportAppData = async () => {
+      const ipc = getElectron()?.ipcRenderer;
+      if (!ipc) {
+          alert('Export is only available in the packaged Electron app.');
+          return;
+      }
+
+      try {
+          setTransferStatus('exporting');
+          setTransferMessage('');
+          const res = await ipc.invoke('export-app-data', { includeSecrets: includeSecretsInBackup });
+          if (res?.canceled) {
+              setTransferStatus('idle');
+              return;
+          }
+          if (res?.filePath) {
+              setTransferStatus('success');
+              setTransferMessage(`Exported to: ${res.filePath}`);
+              setTimeout(() => setTransferStatus('idle'), 3000);
+          } else {
+              setTransferStatus('error');
+              setTransferMessage('Export failed.');
+          }
+      } catch (e) {
+          setTransferStatus('error');
+          setTransferMessage('Export failed.');
+      }
+  };
+
+  const handleImportAppData = async () => {
+      const ipc = getElectron()?.ipcRenderer;
+      if (!ipc) {
+          alert('Import is only available in the packaged Electron app.');
+          return;
+      }
+
+      const ok = confirm(
+          'This will replace your current WinBorg repositories, jobs, and settings with the contents of the backup file. Continue?'
+      );
+      if (!ok) return;
+
+      try {
+          setTransferStatus('importing');
+          setTransferMessage('');
+          const res = await ipc.invoke('import-app-data', { includeSecrets: includeSecretsInBackup });
+          if (res?.canceled) {
+              setTransferStatus('idle');
+              return;
+          }
+          if (res?.ok) {
+              setTransferStatus('success');
+              setTransferMessage(
+                  `Imported: ${res.imported?.repos ?? 0} repos, ${res.imported?.jobs ?? 0} jobs${res.imported?.secrets ? ', secrets included' : ''}. Reloading...`
+              );
+              // main process emits 'app-data-imported' -> reload
+          } else {
+              setTransferStatus('error');
+              setTransferMessage(res?.error || 'Import failed.');
+          }
+      } catch (e) {
+          setTransferStatus('error');
+          setTransferMessage('Import failed.');
+      }
+  };
 
   const handleSave = () => {
     const ipc = getElectron()?.ipcRenderer;
@@ -595,6 +680,53 @@ const SettingsView: React.FC = () => {
                                 )}
                            </div>
                        </div>
+                  </SettingsCard>
+
+                  <SettingsCard title="Backup & Restore" icon={<Download className="w-5 h-5"/>} description="Export/import your WinBorg repositories, jobs and settings">
+                      <div className="space-y-4">
+                          <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg">
+                              <input
+                                  type="checkbox"
+                                  id="include-secrets"
+                                  className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  checked={includeSecretsInBackup}
+                                  onChange={(e) => setIncludeSecretsInBackup(e.target.checked)}
+                              />
+                              <div>
+                                  <label htmlFor="include-secrets" className="text-sm font-medium text-slate-800 dark:text-slate-200">Include encrypted secrets (advanced)</label>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                      Includes stored repo passphrases and SMTP password from this Windows user profile. Treat the export file as sensitive.
+                                  </p>
+                              </div>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-3">
+                              <Button
+                                  variant="secondary"
+                                  onClick={handleExportAppData}
+                                  disabled={transferStatus === 'exporting' || transferStatus === 'importing'}
+                                  className="w-full"
+                              >
+                                  <Download className="w-4 h-4" />
+                                  <span className="ml-2">Export Settings</span>
+                              </Button>
+                              <Button
+                                  variant="secondary"
+                                  onClick={handleImportAppData}
+                                  disabled={transferStatus === 'exporting' || transferStatus === 'importing'}
+                                  className="w-full"
+                              >
+                                  <Upload className="w-4 h-4" />
+                                  <span className="ml-2">Import Settings</span>
+                              </Button>
+                          </div>
+
+                          {transferMessage && (
+                              <div className={`text-xs rounded border p-3 ${transferStatus === 'error' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-blue-50 border-blue-100 text-blue-800 dark:text-blue-200 dark:bg-blue-900/10 dark:border-blue-900/30'}`}>
+                                  {transferMessage}
+                              </div>
+                          )}
+                      </div>
                   </SettingsCard>
               </div>
           )}
