@@ -64,13 +64,19 @@ describe('Sidebar', () => {
     });
 
     it('handles GitHub link click (Fallback mode)', () => {
-        // Suppress mockRequire to force fallback
-        mockRequire.mockImplementationOnce(() => { throw new Error('Not found') });
+        // Suppress mockRequire to force fallback (Sidebar also queries app version on mount)
+        const prevImpl = mockRequire.getMockImplementation();
+        mockRequire.mockImplementation(() => {
+            throw new Error('Not found');
+        });
         
         render(<Sidebar currentView={View.DASHBOARD} onChangeView={vi.fn()} />);
         const devArea = screen.getByTitle('View on GitHub');
         
         fireEvent.click(devArea);
         expect(window.open).toHaveBeenCalled();
+
+        // Restore for other tests
+        mockRequire.mockImplementation(prevImpl as any);
     });
 });

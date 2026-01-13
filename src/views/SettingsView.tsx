@@ -7,6 +7,7 @@ import {
     Settings, Shield, Globe, Cpu, ChevronRight, Upload
 } from 'lucide-react';
 import { borgService } from '../services/borgService';
+import { getAppVersion } from '../utils/appVersion';
 
 // Helper component for Section Cards
 const SettingsCard: React.FC<{
@@ -35,6 +36,8 @@ type SettingsTab = 'general' | 'automation' | 'notifications' | 'system';
 
 const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+
+    const [appVersion, setAppVersion] = useState<string | null>((process.env as any)?.APP_VERSION ?? null);
 
   // Application Settings
   const [useWsl, setUseWsl] = useState(true);
@@ -128,6 +131,16 @@ const SettingsView: React.FC = () => {
         setUseWsl(storedWsl === null ? true : storedWsl === 'true');
     }
   }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+        getAppVersion().then((v) => {
+            if (isMounted) setAppVersion(v);
+        });
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
   useEffect(() => {
       const ipc = getElectron()?.ipcRenderer;
@@ -388,7 +401,7 @@ const SettingsView: React.FC = () => {
                        <div className="flex items-center justify-between p-1">
                            <div>
                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Check for Updates</div>
-                               <p className="text-xs text-slate-500 dark:text-slate-400">Current version: {process.env.APP_VERSION || 'Web Dev'}</p>
+                               <p className="text-xs text-slate-500 dark:text-slate-400">Current version: {appVersion || (process.env as any).APP_VERSION || 'Web Dev'}</p>
                            </div>
                            <Button variant="secondary" onClick={handleCheckUpdate} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                                Check Now

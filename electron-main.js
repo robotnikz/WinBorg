@@ -315,6 +315,15 @@ function getDecryptedPassword(id) {
 
 const isDev = !app.isPackaged && process.env.NODE_ENV !== 'test';
 
+// Expose app version to renderer (prefer this over build-time env vars).
+ipcMain.handle('get-app-version', async () => {
+    try {
+        return (typeof app.getVersion === 'function') ? app.getVersion() : null;
+    } catch (e) {
+        return null;
+    }
+});
+
 function escapePythonSingleQuotedString(value) {
     return String(value ?? '')
         .replace(/\\/g, "\\\\")
