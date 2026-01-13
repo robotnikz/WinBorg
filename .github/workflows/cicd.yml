@@ -20,8 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # semantic-release@25 requires Node >= 22.14.0
-          node-version: '22.x'
+          node-version: '20.x'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -69,7 +68,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          # semantic-release@25 requires Node >= 22.14.0
+          node-version: '22.x'
           cache: 'npm'
 
       - name: Install dependencies
