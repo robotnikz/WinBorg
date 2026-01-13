@@ -19,7 +19,12 @@
     "dist": "tsc && vite build && electron-builder",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:full": "playwright test",
+    "pretest:e2e": "npm run build",
+    "pretest:e2e:smoke": "npm run build",
+    "pretest:e2e:full": "npm run build"
   },
   "build": {
     "appId": "com.winborg.manager",
@@ -30,6 +35,7 @@
     "files": [
       "dist/**/*",
       "electron-main.js",
+      "main/**/*",
       "wsl-helper.js",
       "package.json"
     ],

@@ -10,6 +10,16 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      thresholds: {
+        statements: 30,
+        branches: 25,
+        functions: 20,
+        lines: 30,
+      },
+    },
   },
   base: './', // IMPORTANT for Electron: makes paths relative so they work with file:// protocol
   server: {

@@ -14,13 +14,22 @@ We use **Vitest** for unit testing and **Playwright** for End-to-End (E2E) testi
     ```bash
     npm test
     ```
-3.  **Run E2E Tests (Launches App):**
+3.  **Run Unit Tests with Coverage:**
+    ```bash
+    npm run test:coverage
+    ```
+4.  **Run E2E Tests (Launches App):**
     ```bash
     npm run test:e2e
     ```
 
+5.  **Run E2E Smoke Tests (fast subset):**
+    ```bash
+    npm run test:e2e:smoke
+    ```
+
 ### CI/CD Pipeline
-Tests are automatically run via GitHub Actions on every push to `main` or `dev`. See `.github/workflows/cicd.yml`.
+Tests are automatically run via GitHub Actions on every push (all branches) and on pull requests targeting `main`. See `.github/workflows/cicd.yml`.
 
 ---
 
