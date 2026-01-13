@@ -143,4 +143,35 @@ describe('CreateBackupModal', () => {
             expect(defaultProps.onSuccess).not.toHaveBeenCalled();
         });
     });
+
+    it('passes exclude patterns to createArchive when provided', async () => {
+        vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
+        vi.mocked(borgService.createArchive).mockResolvedValue(true);
+
+        render(<CreateBackupModal {...defaultProps} />);
+
+        // Select folder
+        const folderBtn = screen.getByRole('button', { name: /browse/i });
+        fireEvent.click(folderBtn);
+        await waitFor(() => screen.getByDisplayValue('C:\\Source'));
+
+        // Enter excludes
+        const excludesTextarea = screen.getByPlaceholderText(/node_modules/i);
+        fireEvent.change(excludesTextarea, { target: { value: 'node_modules\nC:\\Temp' } });
+
+        // Submit
+        const createBtn = screen.getByRole('button', { name: /start backup/i });
+        fireEvent.click(createBtn);
+
+        await waitFor(() => {
+            expect(borgService.createArchive).toHaveBeenCalledWith(
+                mockRepo.url,
+                expect.any(String),
+                ['C:\\Source'],
+                expect.any(Function),
+                expect.objectContaining({ repoId: mockRepo.id }),
+                { excludePatterns: ['node_modules', 'C:\\Temp'] }
+            );
+        });
+    });
 });

@@ -18,6 +18,7 @@ interface CreateBackupModalProps {
 const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repos = [], isOpen, onClose, onLog, onSuccess }) => {
   const [selectedRepoId, setSelectedRepoId] = useState(initialRepo.id);
   const [sourcePath, setSourcePath] = useState('');
+    const [excludePatternsText, setExcludePatternsText] = useState('');
   const [archiveName, setArchiveName] = useState(() => {
       const now = new Date();
       // Default: backup-2023-10-25-1430
@@ -33,6 +34,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   useEffect(() => {
       if (isOpen) {
           setSelectedRepoId(initialRepo.id);
+          setExcludePatternsText('');
       }
   }, [isOpen, initialRepo]);
 
@@ -62,12 +64,18 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
       };
 
       try {
+          const excludePatterns = excludePatternsText
+              .split(/\r?\n/)
+              .map(p => p.trim())
+              .filter(Boolean);
+
           const success = await borgService.createArchive(
               activeRepo.url,
               archiveName,
               [sourcePath],
               logCollector,
-              { repoId: activeRepo.id, disableHostCheck: activeRepo.trustHost }
+              { repoId: activeRepo.id, disableHostCheck: activeRepo.trustHost, remotePath: activeRepo.remotePath },
+              ...(excludePatterns.length ? [{ excludePatterns }] : [])
           );
 
           if (success) {
@@ -162,6 +170,25 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                            Browse...
                        </Button>
                    </div>
+               </div>
+
+               <div>
+                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Exclude Patterns (Optional)</label>
+                   <textarea
+                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-green-500/20 min-h-[96px]"
+                       placeholder={[
+                           "node_modules",
+                           ".git",
+                           "**/Cache",
+                           "C:\\Temp"
+                       ].join("\n")}
+                       value={excludePatternsText}
+                       onChange={(e) => setExcludePatternsText(e.target.value)}
+                       disabled={isProcessing}
+                   />
+                   <p className="text-[10px] text-slate-400 mt-1">
+                       One pattern per line. Passed to borg as <code>--exclude &lt;pattern&gt;</code>.
+                   </p>
                </div>
                
                {isProcessing && (

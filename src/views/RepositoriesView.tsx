@@ -24,13 +24,14 @@ interface RepositoriesViewProps {
   onBreakLock: (repo: Repository) => void;
   // Job Handlers
   onAddJob: (job: BackupJob) => void;
+    onUpdateJob: (job: BackupJob) => void;
   onDeleteJob: (jobId: string) => void;
   onRunJob: (jobId: string) => void;
 }
 
 const RepositoriesView: React.FC<RepositoriesViewProps> = ({ 
     repos, jobs, onAddRepo, onEditRepo, onConnect, onMount, onCheck, onDelete, onBreakLock,
-    onAddJob, onDeleteJob, onRunJob
+        onAddJob, onUpdateJob, onDeleteJob, onRunJob
 }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -545,6 +546,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
              isOpen={!!jobsRepo}
              onClose={() => setJobsRepo(null)}
              onAddJob={onAddJob}
+             onUpdateJob={onUpdateJob}
              onDeleteJob={onDeleteJob}
              onRunJob={onRunJob}
           />

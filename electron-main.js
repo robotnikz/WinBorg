@@ -553,14 +553,57 @@ async function executeBackgroundJob(job) {
     // Use DB setting or default
     const useWsl = dbCache.settings.useWsl !== false;
     
-    let sourcePath = job.sourcePath;
-    if (useWsl && /^[a-zA-Z]:[\\/]/.test(sourcePath)) {
-         const drive = sourcePath.charAt(0).toLowerCase();
-         const rest = sourcePath.slice(3).replace(/\\/g, '/');
-         sourcePath = `/mnt/${drive}/${rest}`;
+    const rawSources = Array.isArray(job.sourcePaths) && job.sourcePaths.length ? job.sourcePaths : [job.sourcePath];
+    const cleanedSources = rawSources
+        .filter(Boolean)
+        .map(p => String(p).trim())
+        .filter(Boolean);
+
+    if (cleanedSources.length === 0) {
+        console.log(`[Scheduler] Skipped job ${job.name} because no source paths are configured.`);
+        new Notification({
+            title: 'Backup Failed',
+            body: `Job '${job.name}' has no source paths configured.`,
+            icon: getIconPath() || undefined
+        }).show();
+        safeSendToRenderer('job-complete', { jobId: job.id, success: false });
+        return;
     }
 
-    const createArgs = ['create', '--stats', `${repo.url}::${archiveName}`, sourcePath];
+    const sourcePathsForCreate = useWsl
+        ? cleanedSources.map((p) => {
+            if (/^[a-zA-Z]:[\\/]/.test(p)) {
+                const drive = p.charAt(0).toLowerCase();
+                const rest = p.slice(3).replace(/\\/g, '/');
+                return `/mnt/${drive}/${rest}`;
+            }
+            return p.replace(/\\/g, '/');
+        })
+        : cleanedSources;
+
+    const excludeArgs = [];
+    if (Array.isArray(job.excludePatterns) && job.excludePatterns.length) {
+        for (let pattern of job.excludePatterns) {
+            if (!pattern) continue;
+            pattern = String(pattern).trim();
+            if (!pattern) continue;
+
+            if (useWsl) {
+                // Best-effort conversion for users who paste Windows paths.
+                if (/^[a-zA-Z]:[\\/]/.test(pattern)) {
+                    const drive = pattern.charAt(0).toLowerCase();
+                    const rest = pattern.slice(3).replace(/\\/g, '/');
+                    pattern = `/mnt/${drive}/${rest}`;
+                } else {
+                    pattern = pattern.replace(/\\/g, '/');
+                }
+            }
+
+            excludeArgs.push('--exclude', pattern);
+        }
+    }
+
+    const createArgs = ['create', '--stats', ...excludeArgs, `${repo.url}::${archiveName}`, ...sourcePathsForCreate];
     if (job.compression && job.compression !== 'auto') {
         createArgs.unshift(job.compression);
         createArgs.unshift('--compression');

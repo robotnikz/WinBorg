@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Repository, BackupJob } from '../types';
 import Button from './Button';
-import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert } from 'lucide-react';
+import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Copy, Pencil } from 'lucide-react';
 import { borgService } from '../services/borgService';
 
 interface JobsModalProps {
@@ -11,17 +11,22 @@ interface JobsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddJob: (job: BackupJob) => void;
+    onUpdateJob: (job: BackupJob) => void;
   onDeleteJob: (jobId: string) => void;
   onRunJob: (jobId: string) => void;
 }
 
-const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAddJob, onDeleteJob, onRunJob }) => {
+const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAddJob, onUpdateJob, onDeleteJob, onRunJob }) => {
   const [view, setView] = useState<'list' | 'create'>('list');
   const [activeTab, setActiveTab] = useState<'general' | 'schedule' | 'retention'>('general');
+    const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+    const [editingJob, setEditingJob] = useState<BackupJob | null>(null);
   
   // Job Form State
   const [jobName, setJobName] = useState('');
-  const [sourcePath, setSourcePath] = useState('');
+    const [sourcePaths, setSourcePaths] = useState<string[]>([]);
+    const [sourcePathInput, setSourcePathInput] = useState('');
+    const [excludePatternsText, setExcludePatternsText] = useState('');
   const [archivePrefix, setArchivePrefix] = useState('');
   const [compression, setCompression] = useState<BackupJob['compression']>('zstd');
   
@@ -39,17 +44,48 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
 
   if (!isOpen) return null;
 
-  const handleCreate = () => {
-      if (!jobName || !sourcePath || !archivePrefix) return;
+    const handleCreate = () => {
+      if (!jobName || sourcePaths.length === 0 || !archivePrefix) return;
+
+      const excludePatterns = excludePatternsText
+          .split(/\r?\n/)
+          .map(p => p.trim())
+          .filter(Boolean);
+
+      const uniqueSourcePaths = Array.from(new Set(sourcePaths.map(p => p.trim()).filter(Boolean)));
+      if (uniqueSourcePaths.length === 0) return;
       
-      const newJob: BackupJob = {
-          id: Math.random().toString(36).substr(2, 9),
+      const baseJob: BackupJob = editingJob
+          ? editingJob
+          : {
+              id: Math.random().toString(36).substr(2, 9),
+              repoId: repo.id,
+              name: jobName,
+              sourcePath: uniqueSourcePaths[0],
+              sourcePaths: uniqueSourcePaths,
+              archivePrefix,
+              lastRun: 'Never',
+              status: 'idle',
+              compression,
+              pruneEnabled,
+              keepDaily,
+              keepWeekly,
+              keepMonthly,
+              keepYearly,
+              scheduleEnabled,
+              scheduleType,
+              scheduleTime
+          };
+
+      const updatedJob: BackupJob = {
+          ...baseJob,
           repoId: repo.id,
           name: jobName,
-          sourcePath,
+          // legacy compatibility
+          sourcePath: uniqueSourcePaths[0],
+          sourcePaths: uniqueSourcePaths,
+          excludePatterns: excludePatterns.length ? excludePatterns : undefined,
           archivePrefix,
-          lastRun: 'Never',
-          status: 'idle',
           compression,
           pruneEnabled,
           keepDaily,
@@ -60,15 +96,22 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
           scheduleType,
           scheduleTime
       };
-      
-      onAddJob(newJob);
+
+      if (editingJob) {
+          onUpdateJob(updatedJob);
+      } else {
+          onAddJob(updatedJob);
+      }
       resetForm();
       setView('list');
   };
 
   const resetForm = () => {
+      setEditingJob(null);
       setJobName('');
-      setSourcePath('');
+      setSourcePaths([]);
+      setSourcePathInput('');
+      setExcludePatternsText('');
       setArchivePrefix('');
       setCompression('zstd');
       setPruneEnabled(true);
@@ -82,10 +125,70 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
       setActiveTab('general');
   };
 
+  const handleEdit = (job: BackupJob) => {
+      setEditingJob(job);
+      setView('create');
+      setActiveTab('general');
+      setJobName(job.name || '');
+      const initialSources = (job.sourcePaths && job.sourcePaths.length)
+          ? job.sourcePaths
+          : (job.sourcePath ? [job.sourcePath] : []);
+      setSourcePaths(initialSources);
+      setSourcePathInput('');
+      setExcludePatternsText(job.excludePatterns?.join('\n') || '');
+      setArchivePrefix(job.archivePrefix || '');
+      setCompression(job.compression || 'zstd');
+      setPruneEnabled(!!job.pruneEnabled);
+      setKeepDaily(job.keepDaily ?? 7);
+      setKeepWeekly(job.keepWeekly ?? 4);
+      setKeepMonthly(job.keepMonthly ?? 6);
+      setKeepYearly(job.keepYearly ?? 1);
+      setScheduleEnabled(!!job.scheduleEnabled);
+      setScheduleType(job.scheduleType || 'daily');
+      setScheduleTime(job.scheduleTime || '14:00');
+  };
+
   const handleSelectFolder = async () => {
       const paths = await borgService.selectDirectory();
       if (paths && paths.length > 0) {
-          setSourcePath(paths[0]);
+          const cleaned = paths.map(p => p.trim()).filter(Boolean);
+          if (cleaned.length === 0) return;
+          setSourcePaths(prev => Array.from(new Set([...prev, ...cleaned])));
+      }
+  };
+
+  const addSourcePathFromInput = () => {
+      const raw = sourcePathInput.trim();
+      if (!raw) return;
+
+      // allow users to paste multiple lines
+      const toAdd = raw
+          .split(/\r?\n/)
+          .map(p => p.trim())
+          .filter(Boolean);
+
+      if (toAdd.length === 0) return;
+      setSourcePaths(prev => Array.from(new Set([...prev, ...toAdd])));
+      setSourcePathInput('');
+  };
+
+  const moveSourcePath = (index: number, direction: -1 | 1) => {
+      setSourcePaths(prev => {
+          const nextIndex = index + direction;
+          if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+          const copy = [...prev];
+          const tmp = copy[index];
+          copy[index] = copy[nextIndex];
+          copy[nextIndex] = tmp;
+          return copy;
+      });
+  };
+
+  const copyToClipboard = async (text: string) => {
+      try {
+          await navigator.clipboard.writeText(text);
+      } catch {
+          // ignore (clipboard may be unavailable in some contexts)
       }
   };
 
@@ -132,10 +235,44 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                            {job.pruneEnabled && (
                                                <span className="text-[10px] text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded border border-orange-100 dark:border-orange-800/50">Auto-Prune</span>
                                            )}
+                                           {!!job.excludePatterns?.length && (
+                                               <span className="text-[10px] text-slate-600 bg-slate-50 dark:bg-slate-900/30 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                   Excludes: {job.excludePatterns.length}
+                                               </span>
+                                           )}
                                        </div>
                                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono mb-1">
-                                           <Folder className="w-3 h-3" /> {job.sourcePath}
+                                           <Folder className="w-3 h-3" /> {(job.sourcePaths && job.sourcePaths.length ? job.sourcePaths[0] : job.sourcePath)}
+                                           {job.sourcePaths && job.sourcePaths.length > 1 && (
+                                               <button
+                                                   type="button"
+                                                   onClick={() => setExpandedJobId(prev => prev === job.id ? null : job.id)}
+                                                   className="text-[10px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1"
+                                                   title="Show all source folders"
+                                               >
+                                                   Sources: {job.sourcePaths.length}
+                                                   {expandedJobId === job.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                               </button>
+                                           )}
                                        </div>
+
+                                       {expandedJobId === job.id && job.sourcePaths && job.sourcePaths.length > 1 && (
+                                           <div className="mt-2 space-y-1">
+                                               {job.sourcePaths.map((p) => (
+                                                   <div key={p} className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-md">
+                                                       <div className="min-w-0 flex-1 text-xs text-slate-600 dark:text-slate-300 font-mono truncate">{p}</div>
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => copyToClipboard(p)}
+                                                           className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                                                           title="Copy path"
+                                                       >
+                                                           <Copy className="w-4 h-4" />
+                                                       </button>
+                                                   </div>
+                                               ))}
+                                           </div>
+                                       )}
                                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                                            <Clock className="w-3 h-3" /> Last run: {job.lastRun === 'Never' ? 'Never' : new Date(job.lastRun).toLocaleString()}
                                        </div>
@@ -148,6 +285,14 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                             title="Run Job Now"
                                         >
                                            <Play className="w-4 h-4 fill-current" />
+                                       </button>
+                                       <button 
+                                            onClick={() => handleEdit(job)}
+                                            disabled={job.status === 'running'}
+                                            className="p-2 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 disabled:opacity-50 transition-colors"
+                                            title="Edit Job"
+                                        >
+                                           <Pencil className="w-4 h-4" />
                                        </button>
                                        <button 
                                             onClick={() => onDeleteJob(job.id)}
@@ -200,17 +345,90 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                </div>
 
                                <div>
-                                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Source Folder</label>
+                                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Source Folders</label>
+
                                    <div className="flex gap-2">
-                                        <input 
-                                            type="text" 
-                                            readOnly
-                                            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-600 dark:text-slate-300 cursor-not-allowed"
-                                            value={sourcePath}
-                                            placeholder="Select folder..."
-                                        />
-                                        <Button variant="secondary" onClick={handleSelectFolder} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">Browse</Button>
+                                       <Button variant="secondary" onClick={handleSelectFolder} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
+                                           <Folder className="w-4 h-4 mr-2" /> Add Folder…
+                                       </Button>
+                                       <Button
+                                           variant="secondary"
+                                           onClick={() => setSourcePaths([])}
+                                           className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                                           disabled={sourcePaths.length === 0}
+                                       >
+                                           Clear
+                                       </Button>
                                    </div>
+
+                                   <div className="mt-3">
+                                       <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Paste a path (optional)</label>
+                                       <div className="flex gap-2">
+                                           <input
+                                               type="text"
+                                               className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                                               placeholder="e.g. C:\\Users\\tobia\\Documents"
+                                               value={sourcePathInput}
+                                               onChange={(e) => setSourcePathInput(e.target.value)}
+                                               onKeyDown={(e) => {
+                                                   if (e.key === 'Enter') {
+                                                       e.preventDefault();
+                                                       addSourcePathFromInput();
+                                                   }
+                                               }}
+                                           />
+                                           <Button variant="secondary" onClick={addSourcePathFromInput} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">Add</Button>
+                                       </div>
+                                       <p className="text-[10px] text-slate-400 mt-1">
+                                           Tip: You can add multiple folders. The first one is shown on the job card.
+                                       </p>
+                                   </div>
+
+                                   {sourcePaths.length > 0 && (
+                                       <div className="mt-3 space-y-1">
+                                           {sourcePaths.map((p, idx) => (
+                                               <div key={p} className="flex items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md">
+                                                   <div className="min-w-0 flex-1 text-xs text-slate-600 dark:text-slate-300 font-mono truncate">{p}</div>
+                                                   <div className="flex items-center gap-1">
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => copyToClipboard(p)}
+                                                           className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                                                           title="Copy"
+                                                       >
+                                                           <Copy className="w-4 h-4" />
+                                                       </button>
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => moveSourcePath(idx, -1)}
+                                                           className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-40"
+                                                           title="Move up"
+                                                           disabled={idx === 0}
+                                                       >
+                                                           <ArrowUp className="w-4 h-4" />
+                                                       </button>
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => moveSourcePath(idx, 1)}
+                                                           className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-40"
+                                                           title="Move down"
+                                                           disabled={idx === sourcePaths.length - 1}
+                                                       >
+                                                           <ArrowDown className="w-4 h-4" />
+                                                       </button>
+                                                       <button
+                                                           type="button"
+                                                           onClick={() => setSourcePaths(prev => prev.filter(x => x !== p))}
+                                                           className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                                           title="Remove"
+                                                       >
+                                                           <X size={14} />
+                                                       </button>
+                                                   </div>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   )}
                                </div>
 
                                <div>
@@ -242,6 +460,24 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                    </select>
                                    <p className="text-[10px] text-slate-400 mt-1">
                                        ZSTD provides the best balance between speed and compression ratio.
+                                   </p>
+                               </div>
+
+                               <div>
+                                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Exclude Patterns (Optional)</label>
+                                   <textarea
+                                       className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/20 min-h-[96px]"
+                                       placeholder={[
+                                           "node_modules",
+                                           ".git",
+                                           "**/Cache",
+                                           "C:\\Temp"
+                                       ].join("\n")}
+                                       value={excludePatternsText}
+                                       onChange={e => setExcludePatternsText(e.target.value)}
+                                   />
+                                   <p className="text-[10px] text-slate-400 mt-1">
+                                       One pattern per line. Passed to borg as <code>--exclude &lt;pattern&gt;</code>.
                                    </p>
                                </div>
                            </>
@@ -361,7 +597,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                {view === 'create' ? (
                    <>
                        <Button variant="secondary" onClick={() => { setView('list'); resetForm(); }}>Cancel</Button>
-                       <Button onClick={handleCreate} disabled={!jobName || !sourcePath || !archivePrefix}>Save Job</Button>
+                       <Button onClick={handleCreate} disabled={!jobName || sourcePaths.length === 0 || !archivePrefix}>{editingJob ? 'Save Changes' : 'Save Job'}</Button>
                    </>
                ) : (
                    <Button variant="secondary" onClick={onClose}>Close</Button>

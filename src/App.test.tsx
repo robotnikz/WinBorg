@@ -117,6 +117,51 @@ describe('App', () => {
         });
     });
 
+    it('migrates legacy jobs to multi-source format', async () => {
+        // Empty DB
+        mockIpcRenderer.invoke.mockImplementation((c) => {
+            if (c === 'get-db') return Promise.resolve({ repos: [], jobs: [] });
+            if (c === 'system-check-wsl') return Promise.resolve({ success: true, isInstalled: true });
+            if (c === 'system-check-borg') return Promise.resolve({ success: true, isInstalled: true });
+            return Promise.resolve({ success: true });
+        });
+
+        window.localStorage.setItem('winborg_jobs', JSON.stringify([
+            {
+                id: 'job1',
+                repoId: 'r1',
+                name: 'Job 1',
+                sourcePath: 'C:\\Data',
+                archivePrefix: 'job',
+                lastRun: 'Never',
+                status: 'idle',
+                compression: 'zstd',
+                pruneEnabled: false,
+                keepDaily: 0,
+                keepWeekly: 0,
+                keepMonthly: 0,
+                keepYearly: 0,
+                scheduleEnabled: false,
+                scheduleType: 'manual',
+                scheduleTime: '00:00'
+            }
+        ]));
+
+        render(<App />);
+
+        await waitFor(() => {
+            expect(mockIpcRenderer.invoke).toHaveBeenCalledWith('save-db', expect.objectContaining({
+                jobs: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'job1',
+                        sourcePath: 'C:\\Data',
+                        sourcePaths: ['C:\\Data']
+                    })
+                ])
+            }));
+        });
+    });
+
     it('toggles theme correctly', async () => {
         render(<App />);
 

@@ -45,6 +45,7 @@ describe('RepositoriesView', () => {
         onDelete: vi.fn(),
         onBreakLock: vi.fn(),
         onAddJob: vi.fn(),
+        onUpdateJob: vi.fn(),
         onDeleteJob: vi.fn(),
         onRunJob: vi.fn()
     };
