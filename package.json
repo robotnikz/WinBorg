@@ -1,7 +1,7 @@
 {
   "name": "winborg-manager",
   "productName": "WinBorg Manager",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "A Windows 11-styled interface for managing BorgBackup repositories via WSL.",
   "author": "robotnikz",
   "repository": {
