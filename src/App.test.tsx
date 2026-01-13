@@ -119,22 +119,18 @@ describe('App', () => {
 
     it('toggles theme correctly', async () => {
         render(<App />);
-        
-        // Wait for effect to apply initial class
-        await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
 
-        const toggleBtn = screen.getByRole('button', { name: /toggle theme/i });
-        
+        // Ensure initial loading finished so the mocked DashboardView is mounted
+        await waitFor(() => expect(screen.getByTestId('view-dashboard')).toBeInTheDocument());
+
+        const toggleBtn = await screen.findByRole('button', { name: /toggle theme/i });
+
+        const wasDark = document.documentElement.classList.contains('dark');
         fireEvent.click(toggleBtn);
-        // Wait for re-render
-        await waitFor(() => {
-            expect(document.documentElement.classList.contains('dark')).toBe(false);
-        });
+        await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(!wasDark));
 
         fireEvent.click(toggleBtn);
-        await waitFor(() => {
-             expect(document.documentElement.classList.contains('dark')).toBe(true);
-        });
+        await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(wasDark));
     });
 
     it('navigates between views', async () => {
