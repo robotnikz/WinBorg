@@ -1,7 +1,7 @@
 import { test, expect, _electron as electron } from '@playwright/test';
 import path from 'path';
 
-test.describe('Onboarding Flow', () => {
+test.describe('@smoke Onboarding Flow', () => {
   let electronApp;
   let firstWindow;
 

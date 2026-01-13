@@ -1,8 +1,10 @@
 import { test, expect, _electron as electron } from '@playwright/test';
 import path from 'path';
+import { addMockElectronInitScript } from './helpers/mockElectron';
 
-test.describe('WinBorg App Launch', () => {
+test.describe('@smoke WinBorg App Launch', () => {
   let electronApp;
+  let firstWindow;
 
   test.beforeEach(async () => {
     // Launch Electron app.
@@ -13,6 +15,15 @@ test.describe('WinBorg App Launch', () => {
         NODE_ENV: 'test',
       },
     });
+
+    firstWindow = await electronApp.firstWindow();
+
+    await addMockElectronInitScript(firstWindow.context(), {
+      initialDb: { repos: [], jobs: [], archives: [], activityLogs: [], settings: {} },
+      system: { wslInstalled: true, borgInstalled: true },
+    });
+
+    await firstWindow.reload();
   });
 
   test.afterEach(async () => {
@@ -20,16 +31,17 @@ test.describe('WinBorg App Launch', () => {
   });
 
   test('app window opens and has correct title', async () => {
-    const window = await electronApp.firstWindow();
-    const title = await window.title();
+    const title = await firstWindow.title();
     
     // Note: The app uses a custom titlebar so the native window title might be different or standard
     // Check main window logic.
     // However, we can check if content loads.
-    await window.waitForLoadState('domcontentloaded');
+    await firstWindow.waitForLoadState('domcontentloaded');
     
     // Basic check for UI elements
-    const dashboardElement = await window.locator('text=WinBorg Manager'); // Sidebar or Title
-    expect(dashboardElement).toBeTruthy();
+    expect(title).toBeTruthy();
+
+    // Basic check for UI elements
+    await expect(firstWindow.getByText('WinBorg', { exact: true })).toBeVisible();
   });
 });

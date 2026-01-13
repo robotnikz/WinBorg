@@ -223,5 +223,12 @@ describe('borgService', () => {
             expect(mockInvoke).toHaveBeenCalledWith('ssh-test-connection', { target: 'user@host', port: '2222' });
             expect(res).toEqual({ success: true });
         });
+
+        it('checkBorgInstalledRemote calls ssh-check-borg with correct args', async () => {
+            mockInvoke.mockResolvedValue({ success: true, version: 'borg 1.2.7', path: '/usr/bin/borg' });
+            const res = await borgService.checkBorgInstalledRemote('user@host', '2222');
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-check-borg', { target: 'user@host', port: '2222' });
+            expect(res).toEqual({ success: true, version: 'borg 1.2.7', path: '/usr/bin/borg' });
+        });
     });
 });

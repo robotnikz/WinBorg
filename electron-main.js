@@ -9,6 +9,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+const { safeReadJsonWithBackupSync, atomicWriteFileSync } = require('./main/persistence');
+const { createProcessManager } = require('./main/processManager');
+const { shouldTriggerScheduledJob, tryStartJob, finishJob } = require('./main/scheduler');
+const { createSystemHandlers } = require('./main/systemHandlers');
+const { resolveSshKeyInstallOptions } = require('./main/sshHelpers');
+const { createMountPreflight } = require('./main/mountPreflight');
+
 // --- SINGLE INSTANCE LOCK ---
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -58,9 +65,26 @@ let scheduledJobs = [];
 let availableRepos = [];
 let schedulerInterval = null;
 
+const lastSchedulerTriggerKeyByJob = new Map();
+const runningBackgroundJobIds = new Set();
+
 const activeMounts = new Map();
+const expectedMountExitIds = new Set();
 const activeProcesses = new Map();
 let powerBlockerId = null;
+
+const processManager = createProcessManager({
+    updatePowerBlocker,
+    processMap: activeProcesses,
+    spawn,
+});
+
+const {
+    killChildProcess,
+    stopTrackedProcessEntry,
+    registerManagedChild,
+    spawnCapture,
+} = processManager;
 
 // --- PERSISTENCE PATHS ---
 const userDataPath = app.getPath('userData');
@@ -69,6 +93,61 @@ const notificationsPath = path.join(userDataPath, 'notifications.json');
 const databasePath = path.join(userDataPath, 'data.json'); // Main DB for Repos, Jobs, Settings
 
 const { getPreferredWslDistro } = require('./wsl-helper');
+
+const systemHandlers = createSystemHandlers({
+    spawnCapture,
+    spawn,
+    exec,
+    registerManagedChild,
+    activeProcesses,
+    getPreferredWslDistro,
+    logger: console,
+});
+
+const mountPreflight = createMountPreflight({
+    spawnCapture,
+    getPreferredWslDistro,
+});
+
+function deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function isPlainObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function safeSendToRenderer(channel, payload) {
+    try {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+            mainWindow.webContents.send(channel, payload);
+        }
+    } catch (e) {
+        // Best-effort only
+    }
+}
+
+async function wslWriteFile(wslBaseArgs, filePath, content, { timeoutMs = 30000, restrictPerms = true } = {}) {
+    const script = restrictPerms ? 'umask 077; cat > "$1"' : 'cat > "$1"';
+    const res = await spawnCapture('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', script, 'winborg', filePath], {
+        timeoutMs,
+        stdin: content
+    });
+    if (res.error || res.code !== 0) {
+        const detail = (res.stderr || res.stdout || res.error || '').toString().slice(0, 2000);
+        throw new Error(`Failed to write file in WSL: ${filePath}. ${detail}`);
+    }
+}
+
+async function wslCleanupFiles(wslBaseArgs, files, { timeoutMs = 15000 } = {}) {
+    const list = (Array.isArray(files) ? files : []).filter(Boolean);
+    if (list.length === 0) return;
+    try {
+        await spawnCapture('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', ...list], { timeoutMs });
+    } catch (e) {
+        // Best-effort only
+    }
+}
 
 // --- IN-MEMORY CACHE ---
 let secretsCache = {};
@@ -106,35 +185,81 @@ let notificationConfig = {
     smtpTo: ''
 };
 
+const DEFAULT_DB_CACHE = deepClone(dbCache);
+const DEFAULT_NOTIFICATION_CONFIG = deepClone(notificationConfig);
+
+function normalizeSecretsCache(value) {
+    if (!isPlainObject(value)) return {};
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+        if (typeof k === 'string' && typeof v === 'string') out[k] = v;
+    }
+    return out;
+}
+
+function normalizeNotificationConfig(value) {
+    const base = deepClone(DEFAULT_NOTIFICATION_CONFIG);
+    if (!isPlainObject(value)) return base;
+
+    const copyString = (key) => { if (typeof value[key] === 'string') base[key] = value[key]; };
+    const copyBool = (key) => { if (typeof value[key] === 'boolean') base[key] = value[key]; };
+    const copyNumber = (key) => { if (typeof value[key] === 'number' && Number.isFinite(value[key])) base[key] = value[key]; };
+
+    copyBool('notifyOnSuccess');
+    copyBool('notifyOnError');
+    copyBool('notifyOnUpdate');
+    copyBool('discordEnabled');
+    copyString('discordWebhook');
+    copyBool('emailEnabled');
+    copyString('smtpHost');
+    copyNumber('smtpPort');
+    copyString('smtpUser');
+    copyString('smtpFrom');
+    copyString('smtpTo');
+
+    return base;
+}
+
+function normalizeDbCache(value) {
+    const base = deepClone(DEFAULT_DB_CACHE);
+    if (!isPlainObject(value)) return base;
+
+    base.repos = Array.isArray(value.repos) ? value.repos : base.repos;
+    base.jobs = Array.isArray(value.jobs) ? value.jobs : base.jobs;
+    base.archives = Array.isArray(value.archives) ? value.archives : base.archives;
+    base.activityLogs = Array.isArray(value.activityLogs) ? value.activityLogs : base.activityLogs;
+
+    if (isPlainObject(value.settings)) {
+        base.settings = { ...base.settings, ...value.settings };
+    }
+
+    return base;
+}
+
 // --- LOAD DATA ON STARTUP ---
 function loadData() {
     // 1. Secrets
     try {
-        if (fs.existsSync(secretsPath)) {
-            secretsCache = JSON.parse(fs.readFileSync(secretsPath, 'utf8'));
-        }
+        const loadedSecrets = safeReadJsonWithBackupSync(secretsPath, {});
+        secretsCache = normalizeSecretsCache(loadedSecrets);
     } catch (e) { console.error("Failed to load secrets", e); }
 
     // 2. Notifications
     try {
-        if (fs.existsSync(notificationsPath)) {
-            const loaded = JSON.parse(fs.readFileSync(notificationsPath, 'utf8'));
-            notificationConfig = { ...notificationConfig, ...loaded };
-        }
+        const loadedNotifications = safeReadJsonWithBackupSync(notificationsPath, {});
+        notificationConfig = normalizeNotificationConfig(loadedNotifications);
     } catch (e) { console.error("Failed to load notifications", e); }
 
     // 3. Main Database (Repos, Jobs, Settings)
     try {
-        if (fs.existsSync(databasePath)) {
-            const loaded = JSON.parse(fs.readFileSync(databasePath, 'utf8'));
-            dbCache = { ...dbCache, ...loaded };
-            
-            // Sync internal variables
-            closeToTray = dbCache.settings.closeToTray || false;
-            availableRepos = dbCache.repos || [];
-            scheduledJobs = dbCache.jobs || [];
-            applyAutoStartSettings(); // Apply autostart setting on load
-        }
+        const loadedDb = safeReadJsonWithBackupSync(databasePath, {});
+        dbCache = normalizeDbCache(loadedDb);
+
+        // Sync internal variables
+        closeToTray = dbCache?.settings?.closeToTray || false;
+        availableRepos = dbCache?.repos || [];
+        scheduledJobs = dbCache?.jobs || [];
+        applyAutoStartSettings(); // Apply autostart setting on load
     } catch (e) { console.error("Failed to load database", e); }
 }
 
@@ -154,15 +279,15 @@ function applyAutoStartSettings() {
 
 // --- PERSISTENCE HELPERS ---
 function persistSecrets() {
-    try { fs.writeFileSync(secretsPath, JSON.stringify(secretsCache)); } catch (e) { console.error(e); }
+    try { atomicWriteFileSync(secretsPath, JSON.stringify(secretsCache), { makeBackup: true }); } catch (e) { console.error(e); }
 }
 
 function persistNotifications() {
-    try { fs.writeFileSync(notificationsPath, JSON.stringify(notificationConfig)); } catch (e) { console.error(e); }
+    try { atomicWriteFileSync(notificationsPath, JSON.stringify(notificationConfig), { makeBackup: true }); } catch (e) { console.error(e); }
 }
 
 function persistDb() {
-    try { fs.writeFileSync(databasePath, JSON.stringify(dbCache, null, 2)); } catch (e) { console.error(e); }
+    try { atomicWriteFileSync(databasePath, JSON.stringify(dbCache, null, 2), { makeBackup: true }); } catch (e) { console.error(e); }
 }
 
 function syncRuntimeStateFromDb() {
@@ -339,7 +464,10 @@ function updateTrayMenu() {
         template.push({
             label: 'Stop All Mounts',
             click: () => {
-                activeMounts.forEach((proc, id) => { proc.kill(); activeMounts.delete(id); });
+                activeMounts.forEach((proc, id) => {
+                    stopTrackedProcessEntry(proc);
+                    activeMounts.delete(id);
+                });
                 updatePowerBlocker();
                 if(mainWindow) mainWindow.webContents.send('mount-exited', { mountId: 'all', code: 0 });
             }
@@ -358,19 +486,28 @@ function startScheduler() {
     if (schedulerInterval) clearInterval(schedulerInterval);
     schedulerInterval = setInterval(() => {
         const now = new Date();
-        const currentHour = String(now.getHours()).padStart(2, '0');
-        const currentMinute = String(now.getMinutes()).padStart(2, '0');
-        const timeString = `${currentHour}:${currentMinute}`;
         scheduledJobs.forEach(job => {
             if (!job.scheduleEnabled) return;
-            if (job.scheduleType === 'daily' && job.scheduleTime === timeString) executeBackgroundJob(job);
-            if (job.scheduleType === 'hourly' && currentMinute === '00') executeBackgroundJob(job);
+
+            const lastKey = lastSchedulerTriggerKeyByJob.get(job.id);
+            const decision = shouldTriggerScheduledJob(job, now, lastKey);
+            if (decision.shouldTrigger) {
+                lastSchedulerTriggerKeyByJob.set(job.id, decision.triggerKey);
+                executeBackgroundJob(job);
+            }
         });
     }, 60000); 
 }
 
 async function executeBackgroundJob(job) {
+    if (!tryStartJob(job.id, runningBackgroundJobIds)) {
+        console.log(`[Scheduler] Job already running, skipping: ${job.name}`);
+        return;
+    }
+
     console.log(`[Scheduler] Triggering Job: ${job.name}`);
+
+    try {
 
     // --- SMART CHECKS ---
     const settings = dbCache.settings || {};
@@ -398,13 +535,15 @@ async function executeBackgroundJob(job) {
     }
 
     const repo = availableRepos.find(r => r.id === job.repoId);
-    if (!repo) return;
+    if (!repo) {
+        return;
+    }
     new Notification({ 
         title: 'Backup Started', 
         body: `Job: ${job.name}`,
         icon: getIconPath() || undefined
     }).show();
-    if (mainWindow) mainWindow.webContents.send('job-started', job.id);
+    safeSendToRenderer('job-started', job.id);
 
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
@@ -427,7 +566,12 @@ async function executeBackgroundJob(job) {
         createArgs.unshift('--compression');
     }
 
-    const createResult = await runBorgInternal(createArgs, repo.id, useWsl, job.name);
+    let createResult;
+    try {
+        createResult = await runBorgInternal(createArgs, repo.id, useWsl, job.name);
+    } catch (e) {
+        throw e;
+    }
     
     if (createResult.success) {
         let pruneSummary = '';
@@ -448,7 +592,7 @@ async function executeBackgroundJob(job) {
             icon: getIconPath() || undefined
         }).show();
         dispatchNotifications(job.name, true, `Archive created: ${archiveName}${pruneSummary}\n\n${getLastLines(createResult.output, 10)}`);
-        if (mainWindow) mainWindow.webContents.send('job-complete', { jobId: job.id, success: true });
+        safeSendToRenderer('job-complete', { jobId: job.id, success: true });
         
     } else {
         new Notification({ 
@@ -458,7 +602,11 @@ async function executeBackgroundJob(job) {
         }).show();
         const logSnippet = getLastLines(createResult.output, 25);
         dispatchNotifications(job.name, false, `The Borg command exited with a non-zero status code.\n\nError Log:\n${logSnippet}`);
-        if (mainWindow) mainWindow.webContents.send('job-complete', { jobId: job.id, success: false });
+        safeSendToRenderer('job-complete', { jobId: job.id, success: false });
+    }
+
+    } finally {
+        finishJob(job.id, runningBackgroundJobIds);
     }
 }
 
@@ -497,23 +645,24 @@ function runBorgInternal(args, repoId, useWsl, jobName) {
         }
 
         const child = spawn(bin, finalArgs, { env: { ...process.env, ...envVars } });
-        activeProcesses.set(internalId, child);
+        registerManagedChild({
+            map: activeProcesses,
+            id: internalId,
+            child,
+            kind: 'process'
+        });
 
         let output = '';
         child.stdout.on('data', d => output += d);
         child.stderr.on('data', d => output += d);
 
-        child.on('close', (code) => {
-            activeProcesses.delete(internalId);
-            updatePowerBlocker();
-            if (mainWindow) {
-                mainWindow.webContents.send('activity-log', {
-                    title: code === 0 ? 'Scheduled Backup Success' : 'Scheduled Backup Failed',
-                    detail: `${jobName} - Code ${code}`,
-                    status: code === 0 ? 'success' : 'error',
-                    cmd: output
-                });
-            }
+        child.once('close', (code) => {
+            safeSendToRenderer('activity-log', {
+                title: code === 0 ? 'Scheduled Backup Success' : 'Scheduled Backup Failed',
+                detail: `${jobName} - Code ${code}`,
+                status: code === 0 ? 'success' : 'error',
+                cmd: output
+            });
             resolve({ success: code === 0, output: output });
         });
     });
@@ -609,13 +758,13 @@ function cleanupAndQuit() {
     
     // Kill active mounts
     activeMounts.forEach((proc) => {
-        try { proc.kill(); } catch(e) {}
+        stopTrackedProcessEntry(proc);
     });
     activeMounts.clear();
 
     // Kill active background processes
     activeProcesses.forEach((proc) => {
-        try { proc.kill(); } catch(e) {}
+        stopTrackedProcessEntry(proc);
     });
     activeProcesses.clear();
 
@@ -879,6 +1028,7 @@ ipcMain.handle('select-directory', async () => {
 });
 
 ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executablePath, envVars, forceBinary, repoId, cwd, wslUser }) => {
+    args = Array.isArray(args) ? [...args] : [];
     // WINBORG: Inject bandwidth limit if necessary
     if (dbCache.settings.limitBandwidth && dbCache.settings.bandwidthLimit > 0) {
         let repoArg = '';
@@ -952,27 +1102,32 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
         }
         console.log(`[Spawn] ${bin} ${finalArgs.join(' ')} (ID: ${commandId})`);
         const child = spawn(bin, finalArgs, { env: spawnEnv, cwd: cwd || undefined });
-        activeProcesses.set(commandId, child);
-        updatePowerBlocker();
-        child.stdout.on('data', (data) => mainWindow.webContents.send('terminal-log', { id: commandId, text: data.toString() }));
-        child.stderr.on('data', (data) => mainWindow.webContents.send('terminal-log', { id: commandId, text: data.toString() }));
-        child.on('close', (code) => {
-            activeProcesses.delete(commandId);
-            updatePowerBlocker();
-            resolve({ success: code === 0 });
-        });
-        child.on('error', (err) => {
-            activeProcesses.delete(commandId);
-            updatePowerBlocker();
-            mainWindow.webContents.send('terminal-log', { id: commandId, text: `Error: ${err.message}` });
-            resolve({ success: false, error: err.message });
+        registerManagedChild({
+            map: activeProcesses,
+            id: commandId,
+            child,
+            kind: 'process',
+            // Stability-first: do not enforce a default timeout here to avoid breaking long backups.
+            // Renderer may implement its own deadline logic and call borg-stop.
+            onStdout: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
+            onStderr: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
+            onExit: (code) => resolve({ success: code === 0 }),
+            onError: (err) => {
+                safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
+                resolve({ success: false, error: err.message });
+            }
         });
     });
 });
 
 ipcMain.handle('borg-stop', async (event, { commandId }) => {
     const child = activeProcesses.get(commandId);
-    if (child) { child.kill(); activeProcesses.delete(commandId); updatePowerBlocker(); return { success: true }; }
+    if (child) {
+        killChildProcess(child);
+        activeProcesses.delete(commandId);
+        updatePowerBlocker();
+        return { success: true };
+    }
     return { success: false };
 });
 
@@ -990,268 +1145,133 @@ ipcMain.handle('borg-mount', async (event, { args, mountId, useWsl, executablePa
             }
         }
     }
-    if (useWsl) { bin = 'wsl'; finalArgs = ['--exec', 'borg', ...args]; }
+    if (useWsl) {
+        // Pre-flight: ensure mountpoint exists and is writable.
+        // Borg fails with "Mountpoint must be a writable directory" if the directory is left behind
+        // from a previous mount with wrong permissions (common after unmount/kill).
+        const mountPoint = Array.isArray(args) && args.length > 0 ? args[args.length - 1] : null;
+        try {
+            const prep = await mountPreflight.prepareWslMountpoint(mountPoint);
+            if (!prep.ok) {
+                return { success: false, error: prep.error };
+            }
+        } catch (e) {
+            return { success: false, error: `Failed to prepare mountpoint ${mountPoint}: ${e.message}` };
+        }
+
+        const wslDistroArgs = await mountPreflight.getWslDistroArgs();
+        bin = 'wsl';
+        finalArgs = [...wslDistroArgs, '--exec', 'borg', ...args];
+    }
     const child = spawn(bin, finalArgs, { env: spawnEnv });
-    activeMounts.set(mountId, child);
-    updatePowerBlocker();
+    let startupLog = '';
+    registerManagedChild({
+        map: activeMounts,
+        id: mountId,
+        child,
+        kind: 'mount',
+        onStdout: (data) => {
+            const t = data.toString();
+            startupLog += t;
+            safeSendToRenderer('terminal-log', { id: 'mount', text: t });
+        },
+        onStderr: (data) => {
+            const t = data.toString();
+            startupLog += t;
+            safeSendToRenderer('terminal-log', { id: 'mount', text: t });
+        },
+        onExit: (code) => {
+            const expected = expectedMountExitIds.has(mountId);
+            if (expected) expectedMountExitIds.delete(mountId);
+            safeSendToRenderer('mount-exited', { mountId, code, expected });
+        },
+        onError: (err) => safeSendToRenderer('terminal-log', { id: 'mount', text: `Error: ${err.message}` })
+    });
     return new Promise((resolve) => {
         let hasExited = false;
-        let startupLog = '';
         const timeout = setTimeout(() => { if (!hasExited) resolve({ success: true }); }, 2500);
-        child.stdout.on('data', (data) => { const t = data.toString(); startupLog += t; mainWindow.webContents.send('terminal-log', { id: 'mount', text: t }); });
-        child.stderr.on('data', (data) => { const t = data.toString(); startupLog += t; mainWindow.webContents.send('terminal-log', { id: 'mount', text: t }); });
         child.on('close', (code) => {
-            hasExited = true; clearTimeout(timeout); activeMounts.delete(mountId); updatePowerBlocker();
-            mainWindow.webContents.send('mount-exited', { mountId, code });
+            hasExited = true;
+            clearTimeout(timeout);
             resolve({ success: false, error: `Exited with code ${code}. Log: ${startupLog}` });
         });
     });
 });
 
 ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, executablePath }) => {
+    if (mountId) expectedMountExitIds.add(mountId);
     const child = activeMounts.get(mountId);
-    if (child) { child.kill(); activeMounts.delete(mountId); updatePowerBlocker(); return { success: true }; }
+    if (child) {
+        killChildProcess(child);
+        activeMounts.delete(mountId);
+        updatePowerBlocker();
+
+        // Best-effort: ask borg to unmount, then remove mountpoint directory.
+        try {
+            if (useWsl && typeof localPath === 'string' && localPath.startsWith('/')) {
+                const detectedDistro = await getPreferredWslDistro();
+                const wslDistroArgs = detectedDistro ? ['-d', detectedDistro] : [];
+                await spawnCapture('wsl', [...wslDistroArgs, '--exec', 'borg', 'umount', localPath], { timeoutMs: 60000 });
+                await spawnCapture(
+                    'wsl',
+                    [...wslDistroArgs, '-u', 'root', '--exec', 'bash', '-lc', 'rmdir "$1" 2>/dev/null || true', 'winborg', localPath],
+                    { timeoutMs: 15000 }
+                );
+            }
+        } catch (e) {
+            // Best-effort only
+        }
+
+        return { success: true };
+    }
     let bin = executablePath || 'borg';
     let args = ['umount', localPath];
-    if (useWsl) { bin = 'wsl'; args = ['--exec', 'borg', 'umount', localPath]; }
-    return new Promise(resolve => { const p = spawn(bin, args); p.on('close', (code) => resolve({ success: code === 0 })); });
+    let postCleanup = null;
+    if (useWsl) {
+        const detectedDistro = await getPreferredWslDistro();
+        const wslDistroArgs = detectedDistro ? ['-d', detectedDistro] : [];
+        bin = 'wsl';
+        args = [...wslDistroArgs, '--exec', 'borg', 'umount', localPath];
+        if (typeof localPath === 'string' && localPath.startsWith('/')) {
+            postCleanup = async () => {
+                await spawnCapture(
+                    'wsl',
+                    [...wslDistroArgs, '-u', 'root', '--exec', 'bash', '-lc', 'rmdir "$1" 2>/dev/null || true', 'winborg', localPath],
+                    { timeoutMs: 15000 }
+                );
+            };
+        }
+    }
+    return new Promise(resolve => {
+        const p = spawn(bin, args);
+        registerManagedChild({
+            map: activeProcesses,
+            id: `unmount-${Date.now()}`,
+            child: p,
+            kind: 'process',
+            timeoutMs: 60000,
+            onExit: async (code) => {
+                if (code === 0 && postCleanup) {
+                    try {
+                        await postCleanup();
+                    } catch (e) {
+                        // Best-effort only
+                    }
+                }
+                resolve({ success: code === 0 });
+            },
+            onError: () => resolve({ success: false })
+        });
+    });
 });
 
 // --- ONBOARDING & SYSTEM CHECKS ---
 
-ipcMain.handle('system-reboot', async () => {
-    // Reboot Windows immediately
-    exec('shutdown /r /t 0', (err) => {
-        if (err) console.error("Reboot failed:", err);
-    });
-    return true;
-});
-
-ipcMain.handle('system-check-wsl', async () => {
-    return new Promise((resolve) => {
-        // Step 1: Check if 'wsl' command exists and is functional at all
-        exec('wsl --status', { encoding: 'utf16le' }, (err) => {
-            if (err) {
-                 return resolve({ installed: false, error: "WSL is not enabled on this machine." });
-            }
-
-            // Step 2: Check for a functional DEFAULT distribution
-            // Docker Desktop sometimes registers itself as default, which is bad for us.
-            exec('wsl --list --verbose', { encoding: 'utf16le' }, (error, stdout) => {
-                 let hasUbuntu = false;
-                 let defaultDistro = '';
-                 
-                 if (stdout) {
-                     // Parse output line by line (skip header)
-                     const lines = stdout.split('\n').slice(1);
-                     for (const line of lines) {
-                         const cleanLine = line.trim();
-                         if (!cleanLine) continue;
-                         // Format: [*] <Name> <State> <Version>
-                         // Example: * Ubuntu Running 2
-                         const parts = cleanLine.split(/\s+/);
-                         const isDefault = cleanLine.startsWith('*');
-                         const nameIndex = isDefault ? 1 : 0;
-                         const name = parts[nameIndex];
-                         
-                         if (isDefault) defaultDistro = name;
-                         if (name && (name.toLowerCase().includes('ubuntu') || name.toLowerCase().includes('debian'))) {
-                             hasUbuntu = true;
-                         }
-                     }
-                 }
-
-                 // If default is Docker-related and no Ubuntu is found, fail or warn
-                 if (defaultDistro.toLowerCase().includes('docker') && !hasUbuntu) {
-                     console.warn("WSL Default is Docker, no Ubuntu found.");
-                     // We force fail so user sees "WSL Missing" and trigger "Install WSL" which will install Ubuntu.
-                     return resolve({ installed: false, error: `Default distro is '${defaultDistro}'. We need Ubuntu/Debian.` });
-                 }
-
-                 // Step 3: Verify execution capability
-                 exec('wsl --exec echo wsl_active', (execErr, execOut) => {
-                    const cleanStdout = execOut ? execOut.toString().trim() : '';
-                    if (execErr || cleanStdout !== 'wsl_active') {
-                        resolve({ installed: false, error: "WSL installed but cannot execute commands (No distro?)" });
-                    } else {
-                        resolve({ installed: true, details: `Default: ${defaultDistro}` });
-                    }
-                 });
-            });
-        });
-    });
-});
-
-ipcMain.handle('system-install-wsl', async () => {
-    return new Promise((resolve) => {
-        // Runs `wsl --install -d Ubuntu` via PowerShell with Admin privileges.
-        // Specifying `-d Ubuntu` ensures that if WSL is already enabled but no distro is present,
-        // it actively installs Ubuntu instead of just showing the help text.
-        const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install -d Ubuntu" -Wait';
-        const child = spawn('powershell.exe', ['-Command', cmd]);
-        
-        child.on('close', (code) => {
-            // We can't easily valid exit code of the elevated process from here due to Start-Process decoupling,
-            // but if the powershell wrapper exits cleanly (code 0), we assume the prompt was launched.
-            // The user will need to restart their PC afterwards.
-            resolve({ success: code === 0 });
-        });
-        
-        child.on('error', (err) => {
-             resolve({ success: false, error: err.message });
-        });
-    });
-});
-
-ipcMain.handle('system-check-borg', async () => {
-    const distro = await getPreferredWslDistro();
-    return new Promise((resolve) => {
-        // Use spawn instead of exec to avoid shell quoting issues with distro names
-        const runCheck = (checkArgs) => {
-            return new Promise(r => {
-                const wslArgs = distro ? ['-d', distro] : [];
-                const finalArgs = [...wslArgs, ...checkArgs];
-                const p = spawn('wsl', finalArgs);
-                let out = '';
-                p.stdout.on('data', d => out += d.toString());
-                p.on('close', code => r({ success: code === 0, out }));
-                p.on('error', () => r({ success: false, out: '' }));
-            });
-        };
-
-        (async () => {
-            // 1. Check generic PATH
-            let res = await runCheck(['--exec', 'borg', '--version']);
-            if (res.success && res.out.includes('borg')) {
-                 return resolve({ installed: true, version: res.out.trim(), distro: distro || 'Default' });
-            }
-
-            // 2. Check explicit /usr/bin/borg
-            res = await runCheck(['--exec', '/usr/bin/borg', '--version']);
-            if (res.success && res.out.includes('borg')) {
-                 return resolve({ installed: true, version: res.out.trim(), distro: distro || 'Default', path: '/usr/bin/borg' });
-            }
-
-            console.log(`[Check] Borg check failed on distro '${distro || 'default'}'`);
-            resolve({ installed: false });
-        })();
-    });
-});
-
-ipcMain.handle('system-install-borg', async (event) => {
-    const targetDistro = await getPreferredWslDistro();
-    
-    return new Promise((resolve) => {
-        console.log("[Setup] Installing Borg via WSL (root)...");
-        
-        if (targetDistro) console.log(`[Setup] Targeted distro: '${targetDistro}'`);
-
-        // Use full path /usr/bin/apt-get to avoid PATH issues in non-interactive sh
-        const script = 'export DEBIAN_FRONTEND=noninteractive && /usr/bin/apt-get update --allow-releaseinfo-change && /usr/bin/apt-get install -y --no-install-recommends --fix-missing borgbackup';
-        
-        // Construct args: if we found a distro, target it explicitly (-d).
-        const wslArgs = ['-u', 'root'];
-        if (targetDistro) {
-            wslArgs.push('-d', targetDistro);
-        }
-        wslArgs.push('-e', 'sh', '-c', script);
-
-        console.log(`[Setup] Spawning: wsl ${wslArgs.join(' ')}`);
-        const child = spawn('wsl', wslArgs);
-        
-        let output = '';
-        let errorOutput = '';
-
-        child.stdout.on('data', (d) => { output += d.toString(); });
-        child.stderr.on('data', (d) => { errorOutput += d.toString(); });
-
-        child.on('close', (code) => {
-            if (code === 0) {
-                console.log("[Setup] Install command finished with code 0. Verifying...");
-                
-                // DOUBLE CHECK: Verify it actually works before claiming success
-                
-                // Helper to perform check using spawn (more reliable than exec on Windows)
-                const checkBorg = async (distro, args) => {
-                     return new Promise(resolve => {
-                         const wslArgs = distro ? ['-d', distro] : [];
-                         // Note: wsl args must be strictly ordered: wsl [options] [command]
-                         const finalArgs = [...wslArgs, ...args];
-                         
-                         const childArgsStr = `wsl ${finalArgs.join(' ')}`;
-                         console.log(`[Setup] Verifying with: ${childArgsStr}`);
-
-                         const p = spawn('wsl', finalArgs);
-                         let out = '', stderr = '';
-                         p.stdout.on('data', d => out += d.toString());
-                         p.stderr.on('data', d => stderr += d.toString());
-                         p.on('close', code => resolve({ err: code === 0 ? null : { code }, out, stderr }));
-                         p.on('error', e => resolve({ err: e, out, stderr }));
-                     });
-                };
-
-                (async () => {
-                    // 1. Try generic 'borg' in path (most likely)
-                    // equivalent to: wsl -d Distro --exec borg --version
-                    let res = await checkBorg(targetDistro, ['--exec', 'borg', '--version']);
-                    
-                    if (res.err || !res.out.includes('borg')) {
-                        console.log("[Setup] Generic 'borg' check failed. Trying explicit /usr/bin/borg...");
-                        // 2. Try explicit path
-                        res = await checkBorg(targetDistro, ['--exec', '/usr/bin/borg', '--version']);
-                    }
-
-                    if (!res.err && res.out.includes('borg')) {
-                         console.log("[Setup] Verified: Borg is installed and runnable.");
-                         resolve({ success: true });
-                    } else {
-                         console.warn("[Setup] Verification failed despite code 0!", res.err);
-                         
-                         // Try to find WHERE it is to help debug
-                         const whichCheck = await checkBorg(targetDistro, ['--exec', 'which', 'borg']);
-                         
-                         // Capture the last lines of the installer output to help debug
-                         const logSnippet = output.slice(-2000) + "\n" + errorOutput.slice(-2000); 
-                         const debugInfo = `\n\nDebug Info:\nTarget Distro: ${targetDistro || 'Default'}\nExit Code: ${res.err ? res.err.code : '0'}\nStdout: ${res.out}\nStderr: ${res.stderr}\n'which borg' output: ${whichCheck.out}\n'which' error: ${whichCheck.stderr}`;
-
-                         resolve({ 
-                             success: false, 
-                             error: `Installation appeared successful, but verification failed.\n\nCommand Output:\n${logSnippet}${debugInfo}` 
-                         });
-                    }
-                })();
-            } else {
-                console.error("[Setup] Install failed code:", code);
-                
-                // Construct a helpful error message
-                let friendlyError = `Installation failed (Code ${code}).`;
-                const lowerErr = errorOutput.toLowerCase();
-                
-                // Detect triggers
-                if (lowerErr.includes('apt-get: not found') || lowerErr.includes('command not found')) {
-                     friendlyError += " It seems 'apt-get' is missing. WinBorg requires a Debian-based WSL distro (likely Ubuntu).";
-                     // Debug hint:
-                     friendlyError += "\nTry running 'wsl --list --verbose' in PowerShell to see which distro is default.";
-                } else {
-                     // Include detailed error output for debugging
-                     const lines = errorOutput.split('\n').filter(l => l.trim().length > 0);
-                     const snippet = lines.slice(-10).join('\n'); // Last 10 lines
-                     friendlyError += `\n\nError Details:\n${snippet}`;
-                }
-
-                // Append output of cat /etc/os-release if possible for debugging context
-                // (We can't easily run it here without complex chaining, so we rely on user report)
-                
-                resolve({ success: false, error: friendlyError });
-            }
-        });
-
-        child.on('error', (err) => {
-            console.error("[Setup] Spawn error:", err);
-            resolve({ success: false, error: "Failed to start WSL process: " + err.message });
-        });
-    });
-});
+ipcMain.handle('system-reboot', systemHandlers.reboot);
+ipcMain.handle('system-check-wsl', systemHandlers.checkWsl);
+ipcMain.handle('system-install-wsl', systemHandlers.installWsl);
+ipcMain.handle('system-check-borg', systemHandlers.checkBorg);
+ipcMain.handle('system-install-borg', systemHandlers.installBorg);
 
 ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
     // type default = 'ed25519' (could be rsa)
@@ -1265,17 +1285,7 @@ ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
     
     // Helper to run
     const runWsl = (cmd) => {
-        return new Promise((resolve) => {
-            // exec via bash -c to handle ~ expansion and redirects
-            const args = [...wslBaseArgs, '--exec', 'bash', '-c', cmd];
-            console.log(`[SSH] Running: wsl ${args.join(' ')}`);
-            const child = spawn('wsl', args);
-            let out = '', err = '';
-            child.stdout.on('data', d => out += d.toString());
-            child.stderr.on('data', d => err += d.toString());
-            child.on('close', code => resolve({ code, out, err }));
-            child.on('error', e => resolve({ code: -1, out: '', err: e.message }));
-        });
+        return spawnCapture('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd], { timeoutMs: 20000 });
     };
 
     try {
@@ -1283,7 +1293,7 @@ ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
             const res = await runWsl(`test -f ${keyFilePub} && echo "exists"`);
             return { 
                 success: true, 
-                exists: res.out.trim().includes('exists'), 
+                exists: (res.stdout || '').trim().includes('exists'), 
                 path: keyFilePub 
             };
         }
@@ -1296,20 +1306,20 @@ ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
             // Let's assume the UI asks for confirmation before "Overwrite/Regenerate".
             // Adding -q (quiet) and -N "" (no passphrase)
             // Use yes | to auto-overwrite if it exists? Or just rm first.
-            const rmRes = await runWsl(`rm -f ${keyFile} ${keyFilePub}`);
-            const res = await runWsl(`ssh-keygen -t ${keyType} -N "" -f ${keyFile}`);
+              await runWsl(`rm -f ${keyFile} ${keyFilePub}`);
+              const res = await runWsl(`ssh-keygen -t ${keyType} -N "" -f ${keyFile}`);
             
-            if (res.code === 0) {
+              if (res.code === 0) {
                  return { success: true };
             } else {
-                 return { success: false, error: res.err || res.out };
+                  return { success: false, error: (res.stderr || res.stdout || '').toString() };
             }
         }
         
         if (action === 'read') {
             const res = await runWsl(`cat ${keyFilePub}`);
             if (res.code === 0) {
-                return { success: true, key: res.out.trim() };
+                return { success: true, key: (res.stdout || '').trim() };
             } else {
                 return { success: false, error: "Could not read key file." };
             }
@@ -1332,21 +1342,12 @@ ipcMain.handle('ssh-key-install', async (event, { target, password, port }) => {
     // HETZNER STORAGE BOX FIX:
     // Hetzner Storage Boxes require Port 23 for SSH key management (Port 22 is SFTP only with RFC4716 keys).
     // If we detect a Hetzner URL and no port is specified, force Port 23.
-    let finalPort = port;
-    let isHetzner = false;
-
-    if (target.includes('storagebox.de')) {
-        isHetzner = true;
-        if (!finalPort || finalPort === '22') {
-            console.log("[SSH-Install] Detected Hetzner Storage Box. Enforcing Port 23.");
-            finalPort = '23';
-        }
+    const { isHetzner, finalPort, remoteUser } = resolveSshKeyInstallOptions(target, port);
+    if (isHetzner && (!port || port === '22') && finalPort === '23') {
+        console.log('[SSH-Install] Detected Hetzner Storage Box. Enforcing Port 23.');
     }
     
     const safePort = escapePythonSingleQuotedString(finalPort || '');
-    // Extract user from target
-    const parts = target.split('@');
-    const remoteUser = parts.length > 1 ? parts[0] : '';
     const safeTarget = escapePythonSingleQuotedString(target);
     const safeRemoteUser = escapePythonSingleQuotedString(remoteUser);
     const safePassFile = escapePythonSingleQuotedString(passFile);
@@ -1497,47 +1498,51 @@ else:
 
     const targetDistro = await getPreferredWslDistro();
     const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
-    
-    // Helper to write file to WSL via hex
-    const writeWslFile = async (filePath, content) => {
-        const hex = Buffer.from(content).toString('hex');
-        const cmd = `echo "${hex}" | python3 -c "import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))" > ${filePath}`;
-        // Ensure no history? it's in a variable. 
-        const proc = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
-        return new Promise(r => proc.on('close', r));
-    };
-    
+
     try {
         // 1. Write password to temp file
-        await writeWslFile(passFile, password);
+        await wslWriteFile(wslBaseArgs, passFile, password, { timeoutMs: 20000, restrictPerms: true });
 
         // 2. Write python script to temp file
-        await writeWslFile(scriptFile, pythonScript);
+        await wslWriteFile(wslBaseArgs, scriptFile, pythonScript, { timeoutMs: 30000, restrictPerms: true });
         
         // 3. Run the script with python3 -u (unbuffered)
         console.log(`[SSH-Install] Running python PTY script on ${target}...`);
-        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile]);
-        
+        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile], { windowsHide: true });
+
         let out = '';
         let err = '';
-        runProc.stdout.on('data', d => out += d.toString());
-        runProc.stderr.on('data', d => err += d.toString());
+        const result = await new Promise((resolve) => {
+            registerManagedChild({
+                map: activeProcesses,
+                id: `ssh-key-install-${Date.now()}`,
+                child: runProc,
+                kind: 'process',
+                timeoutMs: 10 * 60 * 1000,
+                onStdout: (d) => { out += d.toString(); },
+                onStderr: (d) => { err += d.toString(); },
+                onExit: (code) => resolve({ code, timedOut: false }),
+                onError: (e, meta) => resolve({ code: null, timedOut: !!meta?.timedOut, error: e?.message })
+            });
+        });
+
+        // 4. Cleanup (best-effort but awaited)
+        await wslCleanupFiles(wslBaseArgs, [scriptFile, passFile]);
         
-        const code = await new Promise(resolve => runProc.on('close', resolve));
-        
-        // 4. Cleanup
-        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
-        
-        if (code === 0) {
+        if (result.timedOut) {
+            return { success: false, error: 'SSH key installation timed out.' };
+        }
+
+        if (result.code === 0) {
             return { success: true };
         } else {
             // Analyze output for common errors
             console.error("SSH Install Failed:", out, err);
-            return { success: false, error: `Process exited with code ${code}.\nOutput: ${out}\nError: ${err}` };
+            return { success: false, error: `Process exited with code ${result.code}.\nOutput: ${out}\nError: ${err}` };
         }
     } catch (e) {
         // Try cleanup on error
-        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        await wslCleanupFiles(wslBaseArgs, [scriptFile, passFile]);
         return { success: false, error: e.message };
     }
 });
@@ -1704,37 +1709,42 @@ else:
 
     const targetDistro = await getPreferredWslDistro();
     const wslBaseArgs = targetDistro ? ['-d', targetDistro] : [];
-    
-    // Helper to write file
-    const writeWslFile = async (filePath, content) => {
-        const hex = Buffer.from(content).toString('hex');
-        const cmd = `echo "${hex}" | python3 -c "import sys, binascii; sys.stdout.buffer.write(binascii.unhexlify(sys.stdin.read().strip()))" > ${filePath}`;
-        const proc = spawn('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', cmd]);
-        return new Promise(r => proc.on('close', r));
-    };
-    
+
     try {
-        await writeWslFile(passFile, password);
-        await writeWslFile(scriptFile, pythonScript);
+        await wslWriteFile(wslBaseArgs, passFile, password, { timeoutMs: 20000, restrictPerms: true });
+        await wslWriteFile(wslBaseArgs, scriptFile, pythonScript, { timeoutMs: 30000, restrictPerms: true });
         
-        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile]);
-        
+        const runProc = spawn('wsl', [...wslBaseArgs, '--exec', 'python3', '-u', scriptFile], { windowsHide: true });
+
         let out = '';
         let err = '';
-        runProc.stdout.on('data', d => out += d.toString());
-        runProc.stderr.on('data', d => err += d.toString());
-        
-        const code = await new Promise(resolve => runProc.on('close', resolve));
-        
-        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
-        
-        if (code === 0) {
+        const result = await new Promise((resolve) => {
+            registerManagedChild({
+                map: activeProcesses,
+                id: `ssh-install-borg-${Date.now()}`,
+                child: runProc,
+                kind: 'process',
+                timeoutMs: 30 * 60 * 1000,
+                onStdout: (d) => { out += d.toString(); },
+                onStderr: (d) => { err += d.toString(); },
+                onExit: (code) => resolve({ code, timedOut: false }),
+                onError: (e, meta) => resolve({ code: null, timedOut: !!meta?.timedOut, error: e?.message })
+            });
+        });
+
+        await wslCleanupFiles(wslBaseArgs, [scriptFile, passFile]);
+
+        if (result.timedOut) {
+            return { success: false, error: 'Remote Borg installation timed out.', details: (out + err).slice(0, 6000) };
+        }
+
+        if (result.code === 0) {
             return { success: true, output: out };
         } else {
             return { success: false, error: "Usage Error or Failed. Check Logs.", details: out + err };
         }
     } catch (e) {
-        spawn('wsl', [...wslBaseArgs, '--exec', 'rm', '-f', scriptFile, passFile]);
+        await wslCleanupFiles(wslBaseArgs, [scriptFile, passFile]);
         return { success: false, error: e.message };
     }
 });
@@ -1762,27 +1772,10 @@ ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
 
     console.log(`[SSH-Test] Spawning: wsl ${spawnArgs.join(' ')}`);
     
-    try {
-        return new Promise((resolve) => {
-             const child = spawn('wsl', spawnArgs);
-             let out = '';
-             let err = '';
-             child.stdout.on('data', d => out += d.toString());
-             child.stderr.on('data', d => err += d.toString());
-             
-             child.on('close', code => {
-                 if (code === 0) {
-                     resolve({ success: true });
-                 } else {
-                     console.log("[SSH-Test] Failed:", out, err);
-                     resolve({ success: false, error: "Connection failed. Please ensure SSH Keys are deployed and host is reachable." });
-                 }
-             });
-             child.on('error', e => resolve({ success: false, error: e.message }));
-        });
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
+    const res = await spawnCapture('wsl', spawnArgs, { timeoutMs: 20000 });
+    if (!res.error && res.code === 0) return { success: true };
+    console.log('[SSH-Test] Failed:', (res.stdout || '').slice(0, 1000), (res.stderr || '').slice(0, 1000));
+    return { success: false, error: res.timedOut ? 'Connection test timed out.' : 'Connection failed. Please ensure SSH Keys are deployed and host is reachable.' };
 });
 
 // CHECK IF BORG INSTALLED ON REMOTE
@@ -1807,14 +1800,12 @@ ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
             ];
             
             console.log(`[SSH-Check-Borg] Try: ${remoteCmd}`);
-            const child = spawn('wsl', spawnArgs);
-            let out = '';
-            let err = '';
-            child.stdout.on('data', d => out += d.toString());
-            child.stderr.on('data', d => err += d.toString());
-            
-            child.on('close', code => {
-                resolve({ code, out: out.trim(), err: err.trim(), full: (out + '\n' + err).trim() });
+            spawnCapture('wsl', spawnArgs, { timeoutMs: 20000 }).then((res) => {
+                const out = (res.stdout || '').trim();
+                const err = (res.stderr || '').trim();
+                const full = (out + '\n' + err).trim();
+                const code = (res.error && res.code === null) ? 1 : (res.code ?? 1);
+                resolve({ code, out, err, full, timedOut: !!res.timedOut });
             });
         });
     };

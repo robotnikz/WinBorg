@@ -263,24 +263,31 @@ const App: React.FC = () => {
       setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, isLocked } : r));
   };
 
+  const reposRef = useRef<Repository[]>([]);
+  useEffect(() => {
+      reposRef.current = repos;
+  }, [repos]);
+
   // Mount Listener
   useEffect(() => {
     try {
         const { ipcRenderer } = (window as any).require('electron');
-        const handleMountExited = (_: any, { mountId, code }: { mountId: string, code: number }) => {
+        const handleMountExited = (
+            _: any,
+            { mountId, code, expected }: { mountId: string, code: number, expected?: boolean }
+        ) => {
             console.log(`Mount ${mountId} exited with code ${code}`);
-            
-            const affectedMount = mounts.find(m => m.id === mountId);
-            if(affectedMount) {
-                const repo = repos.find(r => r.id === affectedMount.repoId);
-                if(repo) setTimeout(() => checkRepoLock(repo), 1000);
-            }
 
             setMounts(prev => {
                 const mount = prev.find(m => m.id === mountId);
                 if (mount) {
-                     addActivity('Mount Crashed', `Mount point ${mount.localPath} exited unexpectedly (Code ${code})`, 'error');
-                     toast.error(`Mount exited unexpectedly: ${mount.archiveName}`);
+                     if (!expected) {
+                         addActivity('Mount Crashed', `Mount point ${mount.localPath} exited unexpectedly (Code ${code})`, 'error');
+                         toast.error(`Mount exited unexpectedly: ${mount.archiveName}`);
+                     }
+
+                     const repo = reposRef.current.find(r => r.id === mount.repoId);
+                     if (repo) setTimeout(() => checkRepoLock(repo), 1000);
                 }
                 return prev.filter(m => m.id !== mountId);
             });
@@ -293,7 +300,7 @@ const App: React.FC = () => {
     } catch (e) {
         console.warn("Could not attach mount-exited listener");
     }
-  }, [mounts, repos]);
+    }, []);
 
   // Terminal State
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);

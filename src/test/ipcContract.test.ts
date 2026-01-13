@@ -18,6 +18,13 @@ describe('IPC contract (renderer <-> main)', () => {
   const borgServicePath = path.join(repoRoot, 'src', 'services', 'borgService.ts');
 
   const channels = [
+    // Onboarding / system checks & installs
+    'system-check-wsl',
+    'system-install-wsl',
+    'system-check-borg',
+    'system-install-borg',
+    'system-reboot',
+
     // SSH / remote operations (key selling points)
     'ssh-key-manage',
     'ssh-key-install',
