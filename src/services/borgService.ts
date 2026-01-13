@@ -321,7 +321,9 @@ export const borgService = {
   },
 
   diffArchives: async (repoUrl: string, archive1: string, archive2: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
-      const args = ['diff', `${repoUrl}::${archive1}`, `${archive2}`];
+      // borg diff syntax: borg diff REPO::ARCHIVE1 ARCHIVE2
+      // ARCHIVE2 is just the archive name (same REPO), not a full REPO::ARCHIVE spec.
+      const args = ['diff', `${repoUrl}::${archive1}`, archive2];
       return await borgService.runCommand(args, onLog, overrides);
   },
 

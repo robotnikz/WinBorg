@@ -27,6 +27,8 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   const [diffLogs, setDiffLogs] = useState<string[]>([]);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
   const [isDiffing, setIsDiffing] = useState(false);
+    const [diffArchiveOld, setDiffArchiveOld] = useState('');
+    const [diffArchiveNew, setDiffArchiveNew] = useState('');
   
   // Delete State
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
@@ -106,13 +108,30 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
            [oldArchive, newArchive] = [newArchive, oldArchive];
        }
 
-       await borgService.diffArchives(
-           activeRepo.url,
-           oldArchive,
-           newArchive,
-           (log) => setDiffLogs(prev => [...prev, log])
-       );
-       setIsDiffing(false);
+       setDiffArchiveOld(oldArchive);
+       setDiffArchiveNew(newArchive);
+
+       try {
+           const ok = await borgService.diffArchives(
+               activeRepo.url,
+               oldArchive,
+               newArchive,
+               (log) => setDiffLogs(prev => [...prev, log]),
+               {
+                   repoId: activeRepo.id,
+                   remotePath: activeRepo.remotePath
+               }
+           );
+
+           if (!ok) {
+               setDiffLogs(prev => [...prev, '[Error] borg diff failed (see logs above for details).']);
+           }
+       } catch (e: any) {
+           const msg = e?.message || String(e);
+           setDiffLogs(prev => [...prev, `[Error] borg diff crashed: ${msg}`]);
+       } finally {
+           setIsDiffing(false);
+       }
   };
 
   const handleDeleteClick = (names: string[]) => {
@@ -155,8 +174,8 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       <DiffViewerModal 
           isOpen={isDiffOpen}
           onClose={() => setIsDiffOpen(false)}
-          archiveOld={selectedArchives[0] || ''}
-          archiveNew={selectedArchives[1] || ''}
+          archiveOld={diffArchiveOld || selectedArchives[0] || ''}
+          archiveNew={diffArchiveNew || selectedArchives[1] || ''}
           logs={diffLogs}
           isProcessing={isDiffing}
       />
