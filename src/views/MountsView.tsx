@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MountPoint, Repository, Archive } from '../types';
 import Button from '../components/Button';
 import { FolderOpen, XCircle, HardDrive, Terminal, Loader2, Info, Plus, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
@@ -18,6 +18,7 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
   const [selectedRepo, setSelectedRepo] = useState(repos[0]?.id || '');
   const [selectedArchive, setSelectedArchive] = useState(archives[0]?.name || '');
   const [commandPreview, setCommandPreview] = useState('');
+  const lastAppliedPreselectedRepoId = useRef<string | null>(null);
   
   const [useWsl, setUseWsl] = useState(true);
   
@@ -25,11 +26,14 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
      const storedWsl = localStorage.getItem('winborg_use_wsl');
      setUseWsl(storedWsl === null ? true : storedWsl === 'true');
 
-     if (preselectedRepoId) {
+      if (preselectedRepoId && preselectedRepoId !== lastAppliedPreselectedRepoId.current) {
         setIsCreating(true);
         setSelectedRepo(preselectedRepoId);
+        lastAppliedPreselectedRepoId.current = preselectedRepoId;
      } else if (!selectedRepo && repos.length > 0) {
         setSelectedRepo(repos[0].id);
+      } else if (!preselectedRepoId && lastAppliedPreselectedRepoId.current) {
+        lastAppliedPreselectedRepoId.current = null;
      }
 
      if (!selectedArchive && archives.length > 0) {
