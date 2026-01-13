@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart, ArrowUpCircle } from 'lucide-react';
 import { View } from '../types';
 import AppLogo from './AppLogo';
+import { getAppVersion } from '../utils/appVersion';
 
 interface SidebarProps {
   currentView: View;
@@ -10,6 +11,18 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvailable }) => {
+  const [appVersion, setAppVersion] = useState<string | null>((process.env as any)?.APP_VERSION ?? null);
+
+  useEffect(() => {
+    let isMounted = true;
+    getAppVersion().then((v) => {
+      if (isMounted) setAppVersion(v);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const navItems = [
     { view: View.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { view: View.REPOSITORIES, label: 'Repositories', icon: Server },
@@ -23,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
       name: "robotnikz",
       role: "Developer",
       repo: "robotnikz/WinBorg",
-      version: "v" + process.env.APP_VERSION
+      version: "v" + (appVersion || '0.0.0')
   };
 
   const handleOpenRepo = (e: React.MouseEvent) => {

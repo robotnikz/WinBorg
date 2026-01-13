@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, CheckCircle2, AlertTriangle, Terminal, HardDrive, Wifi, Server } from 'lucide-react';
+import { getAppVersion } from '../utils/appVersion';
 
 interface SystemStatusModalProps {
   isOpen: boolean;
@@ -31,9 +32,10 @@ const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, onClose }
       const { ipcRenderer } = (window as any).require('electron');
       
       // Parallel system checks
-      const [wslResult, borgResult] = await Promise.all([
+      const [wslResult, borgResult, appVersion] = await Promise.all([
         ipcRenderer.invoke('system-check-wsl'),
         ipcRenderer.invoke('system-check-borg'),
+        getAppVersion(),
       ]);
 
       setStatus({
@@ -42,7 +44,7 @@ const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, onClose }
         borgVersion: borgResult.installed ? (borgResult.version || 'Detected') : 'Not Found',
         borgPath: borgResult.path || 'Unknown',
         networkStatus: navigator.onLine ? 'connected' : 'offline',
-        backendVersion: 'v' + process.env.APP_VERSION || 'Unknown'
+        backendVersion: appVersion ? `v${appVersion}` : 'Unknown'
       });
     } catch (e) {
       console.error("Status Check Failed", e);
