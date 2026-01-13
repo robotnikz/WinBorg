@@ -55,7 +55,11 @@ export interface BackupJob {
     id: string;
     repoId: string;
     name: string;          
-    sourcePath: string;    
+  // Legacy single-path field (kept for backwards compatibility)
+  sourcePath: string;
+  // Preferred multi-source field
+  sourcePaths?: string[];
+  excludePatterns?: string[];
     archivePrefix: string; 
     lastRun: string;       
     status: 'idle' | 'running' | 'success' | 'error';

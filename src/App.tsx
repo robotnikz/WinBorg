@@ -143,8 +143,25 @@ const App: React.FC = () => {
                   activeCommandId: undefined
               }));
 
+              // Normalize Jobs (multi-source migration + legacy field compatibility)
+              const safeJobs = (initialJobs || []).map((j: any) => {
+                  const rawSourcePaths = Array.isArray(j.sourcePaths) ? j.sourcePaths : [];
+                  const cleanedSourcePaths = rawSourcePaths.map((p: any) => String(p).trim()).filter(Boolean);
+                  const legacySourcePath = j.sourcePath ? String(j.sourcePath).trim() : '';
+
+                  const finalSourcePaths = cleanedSourcePaths.length
+                      ? cleanedSourcePaths
+                      : (legacySourcePath ? [legacySourcePath] : []);
+
+                  return {
+                      ...j,
+                      sourcePath: legacySourcePath || finalSourcePaths[0] || '',
+                      sourcePaths: finalSourcePaths
+                  };
+              });
+
               setRepos(safeRepos);
-              setJobs(initialJobs);
+              setJobs(safeJobs);
               setArchives(initialArchives);
               setActivityLogs(initialLogs);
               
@@ -155,7 +172,7 @@ const App: React.FC = () => {
               if (initialRepos.length > 0 || initialJobs.length > 0) {
                   ipcRenderer.invoke('save-db', { 
                       repos: safeRepos, 
-                      jobs: initialJobs, 
+                      jobs: safeJobs, 
                       archives: initialArchives, 
                       activityLogs: initialLogs 
                   });
@@ -675,6 +692,11 @@ const App: React.FC = () => {
       toast.success("Backup Job created.");
   };
 
+  const handleUpdateJob = (job: BackupJob) => {
+      setJobs(prev => prev.map(j => j.id === job.id ? job : j));
+      toast.success("Backup Job updated.");
+  };
+
   const handleDeleteJob = (jobId: string) => {
       setJobs(prev => prev.filter(j => j.id !== jobId));
       toast.info("Backup Job deleted.");
@@ -700,13 +722,18 @@ const App: React.FC = () => {
       const logs: string[] = [];
       const logCollector = (l: string) => logs.push(l);
 
+      const effectiveSourcePaths = (job.sourcePaths && job.sourcePaths.length)
+          ? job.sourcePaths
+          : [job.sourcePath];
+
       try {
           const success = await borgService.createArchive(
               repo.url,
               archiveName,
-              [job.sourcePath],
+              effectiveSourcePaths,
               logCollector,
-              { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath }
+              { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath },
+              { excludePatterns: job.excludePatterns }
           );
 
           if (success) {
@@ -759,6 +786,7 @@ const App: React.FC = () => {
             onBreakLock={handleBreakLock}
             onDelete={handleDeleteRepo}
             onAddJob={handleAddJob}
+                        onUpdateJob={handleUpdateJob}
             onDeleteJob={handleDeleteJob}
             onRunJob={handleRunJob}
           />

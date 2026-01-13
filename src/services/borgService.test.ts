@@ -179,6 +179,60 @@ describe('borgService', () => {
         });
     });
 
+    describe('createArchive', () => {
+        it('adds --exclude arguments when provided (WSL enabled)', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+
+            const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);
+            const onLog = vi.fn();
+
+            await borgService.createArchive(
+                'ssh://repo',
+                'arch-1',
+                ['C:\\Data'],
+                onLog,
+                undefined,
+                { excludePatterns: ['node_modules', 'C:\\Data\\tmp'] }
+            );
+
+            expect(spy).toHaveBeenCalledWith(
+                expect.arrayContaining(['create', '--progress', '--stats']),
+                onLog,
+                undefined
+            );
+
+            const calledArgs = spy.mock.calls[0][0];
+            expect(calledArgs).toContain('--exclude');
+            expect(calledArgs).toContain('node_modules');
+            expect(calledArgs).toContain('/mnt/c/Data/tmp');
+            expect(calledArgs).toContain('/mnt/c/Data');
+            expect(calledArgs).toContain('ssh://repo::arch-1');
+
+            spy.mockRestore();
+        });
+
+        it('does not add --exclude when excludePatterns are empty/whitespace', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);
+            const onLog = vi.fn();
+
+            await borgService.createArchive(
+                'ssh://repo',
+                'arch-2',
+                ['C:\\Data'],
+                onLog,
+                undefined,
+                { excludePatterns: ['  ', '', '\n'] }
+            );
+
+            const calledArgs = spy.mock.calls[0][0];
+            expect(calledArgs).not.toContain('--exclude');
+            spy.mockRestore();
+        });
+    });
+
     describe('initRepo', () => {
         it('maps encryption repokey to repokey-blake2', async () => {
             const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);

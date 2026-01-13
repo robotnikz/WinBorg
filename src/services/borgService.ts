@@ -698,7 +698,8 @@ export const borgService = {
       archiveName: string, 
       sourcePaths: string[], 
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string },
+      options?: { excludePatterns?: string[] }
   ): Promise<boolean> => {
       const config = getBorgConfig();
       
@@ -716,8 +717,27 @@ export const borgService = {
           });
       }
 
+      const excludes = (options?.excludePatterns || []).map(p => p.trim()).filter(Boolean);
+      const excludeArgs: string[] = [];
+      if (excludes.length) {
+          const converted = config.useWsl
+              ? excludes.map(p => {
+                    if (/^[a-zA-Z]:[\\/]/.test(p)) {
+                        const drive = p.charAt(0).toLowerCase();
+                        const rest = p.slice(3).replace(/\\/g, '/');
+                        return `/mnt/${drive}/${rest}`;
+                    }
+                    return p.replace(/\\/g, '/');
+                })
+              : excludes;
+
+          for (const pattern of converted) {
+              excludeArgs.push('--exclude', pattern);
+          }
+      }
+
       // Create command: borg create --progress --stats REPO::ARCHIVE PATHS...
-      const args = ['create', '--progress', '--stats', `${repoUrl}::${archiveName}`, ...paths];
+      const args = ['create', '--progress', '--stats', ...excludeArgs, `${repoUrl}::${archiveName}`, ...paths];
       
       return await borgService.runCommand(args, onLog, overrides);
   },

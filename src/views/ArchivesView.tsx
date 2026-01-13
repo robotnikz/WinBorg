@@ -385,35 +385,35 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                     {archive.duration === 'Unknown' ? '-' : archive.duration}
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex justify-end gap-2 opacity-100 transition-opacity">
                                         <Button 
                                             size="sm" 
                                             variant="secondary" 
-                                            className="h-8 w-8 p-0 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600"
+                                            className="h-10 w-10 p-0 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-600/70 dark:text-slate-100 dark:border-slate-500 dark:hover:bg-slate-600"
                                             onClick={() => setBrowserArchive(archive)}
                                             disabled={isFetchingAll}
                                             title="Browse Files"
                                         >
-                                            <FolderSearch className="w-3.5 h-3.5" />
+                                            <FolderSearch className="w-5 h-5" />
                                         </Button>
                                         <Button 
                                             size="sm" 
                                             variant="secondary" 
-                                            className="h-8 w-8 p-0 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600"
+                                            className="h-10 w-10 p-0 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-600/70 dark:text-slate-100 dark:border-slate-500 dark:hover:bg-slate-600"
                                             onClick={() => activeRepo && onMount(activeRepo, archive.name)}
                                             disabled={isFetchingAll}
                                             title="Mount Archive"
                                         >
-                                            <HardDrive className="w-3.5 h-3.5" />
+                                            <HardDrive className="w-5 h-5" />
                                         </Button>
                                         
                                         <button 
                                             onClick={() => handleDeleteClick([archive.name])}
-                                            className="h-8 w-8 p-0 flex items-center justify-center bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors border border-red-100 dark:border-red-900/50"
+                                            className="h-10 w-10 p-0 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100 dark:bg-red-900/25 dark:text-red-300 dark:hover:bg-red-900/45 dark:border-red-900/60"
                                             title="Delete Archive"
                                             disabled={isFetchingAll}
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Trash2 className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </td>
