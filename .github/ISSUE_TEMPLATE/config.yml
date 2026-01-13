@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions / Support
+    url: https://github.com/robotnikz/WinBorg/discussions
+    about: Please use Discussions for questions and help.
+  - name: Documentation
+    url: https://github.com/robotnikz/WinBorg#readme
+    about: Read the README for installation and usage.
+  - name: Security vulnerabilities
+    url: https://github.com/robotnikz/WinBorg/security/policy
+    about: Please report security issues via the Security Policy.
