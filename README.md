@@ -55,7 +55,7 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ---
 
-## � Gallery
+## 🖼️ Gallery
 
 <div align="center">
   <img src="public/dashboard.png" alt="Dashboard" width="45%" />
@@ -128,18 +128,40 @@ which borg
 ## 🛠 Project Structure
 
 WinBorg is built with:
-*   **Frontend:** React 18, TypeScript, Tailwind CSS (Custom Dark/Light Theme).
-*   **Backend:** Electron (Main Process handles Node-pty & WSL interactions).
-*   **Testing:** Vitest (Unit) & Playwright (E2E).
+*   **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS.
+*   **Desktop App:** Electron (main process in `electron-main.js`).
+*   **Main-process modules:** `main/` contains dependency-injected helpers used by the Electron main process (keeps logic unit-testable).
+*   **WSL/Borg Integration:** Borg runs inside WSL2 using the official Linux binaries.
+*   **Testing:** Vitest (unit) + Playwright (Electron E2E with deterministic IPC mocks).
+*   **CI:** GitHub Actions runs typecheck, unit tests with coverage, build, and E2E.
+
+## ✅ Testing
+
+```bash
+# Unit tests
+npm test
+
+# Unit tests with coverage (threshold-gated)
+npm run test:coverage
+
+# E2E (Playwright launches Electron)
+# Note: the E2E scripts run a build first via pretest hooks.
+npm run test:e2e
+
+# Fast smoke subset
+npm run test:e2e:smoke
+```
+
+More details: see [docs/TESTING.md](docs/TESTING.md).
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow the `dev` branch workflow:
+We welcome contributions!
 
 1.  Fork the repository.
 2.  Create a feature branch (`git checkout -b feature/NewThing`).
 3.  Commit your changes (we use **Semantic Release**, so please use conventional commits like `feat:`, `fix:`, `docs:`).
-4.  Push and open a Pull Request to `dev`.
+4.  Push and open a Pull Request targeting `main`.
 
 ### Running Locally
 ```bash
