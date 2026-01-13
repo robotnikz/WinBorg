@@ -11,6 +11,8 @@
 
   <!-- Badges -->
   [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorg?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorg/releases)
+  [![CI/CD](https://img.shields.io/github/actions/workflow/status/robotnikz/WinBorg/cicd.yml?branch=main&style=for-the-badge&label=CI%2FCD)](https://github.com/robotnikz/WinBorg/actions/workflows/cicd.yml)
+  [![Downloads](https://img.shields.io/github/downloads/robotnikz/WinBorg/total?style=for-the-badge&label=Downloads&color=brightgreen)](https://github.com/robotnikz/WinBorg/releases)
   [![License](https://img.shields.io/github/license/robotnikz/WinBorg?style=for-the-badge)](LICENSE)
   [![Tech Stack](https://img.shields.io/badge/Stack-Electron%20%7C%20React%20%7C%20TS-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
   
