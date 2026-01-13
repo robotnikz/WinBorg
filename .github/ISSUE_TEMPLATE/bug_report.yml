@@ -1,0 +1,139 @@
+name: Bug report
+description: Report a bug or regression in WinBorg Manager
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        Before filing, please check:
+        - existing issues
+        - you're on the latest release (or mention the exact version below)
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues to avoid duplicates
+          required: true
+        - label: I can reproduce this with the latest release
+          required: false
+        - label: I am willing to test a pre-release / fix
+          required: false
+
+  - type: input
+    id: app_version
+    attributes:
+      label: WinBorg version
+      description: The version shown in the app (or the Git commit if running from source)
+      placeholder: "e.g. 1.3.5"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installation type
+      options:
+        - Installer (.exe) from Releases
+        - Built from source (npm)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: wsl_distro
+    attributes:
+      label: WSL distro
+      description: Output of `wsl -l -v` (or just the distro name)
+      placeholder: "e.g. Ubuntu-22.04"
+    validations:
+      required: false
+
+  - type: input
+    id: borg_version
+    attributes:
+      label: Borg version
+      description: Output of `borg --version` (inside WSL)
+      placeholder: "e.g. borg 1.2.7"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+      placeholder: "When I click …, the app …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide step-by-step instructions so we can reproduce.
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See error …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: "I expected …"
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: "Instead, …"
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error output
+      description: |
+        Paste relevant logs here.
+        Tip: If it involves Borg/WSL, include the command output shown in the app.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / recordings
+      description: Drag and drop images/videos here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else that might help (repo type, remote provider, special config, etc.)
+    validations:
+      required: false

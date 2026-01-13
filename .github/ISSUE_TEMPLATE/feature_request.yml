@@ -1,0 +1,69 @@
+name: Feature request
+description: Suggest an improvement or new capability for WinBorg Manager
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement!
+
+        If this is a bug, please use the **Bug report** template instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use-case
+      description: What are you trying to achieve? What’s painful today?
+      placeholder: "I want to … but currently …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe how you imagine it working in WinBorg.
+      placeholder: "Add a button/setting that …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you considered (or why existing options don’t work).
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / details
+      description: Any specifics that matter (UX, defaults, edge cases, performance, security).
+      placeholder: |
+        - UX: …
+        - Defaults: …
+        - Edge cases: …
+        - Security: …
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I’m willing to open a PR for this
+          required: false
+        - label: I can help test an implementation
+          required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Mockups, screenshots, related links, provider details (BorgBase/Hetzner/etc.), etc.
+    validations:
+      required: false

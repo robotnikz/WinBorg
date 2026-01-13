@@ -2,6 +2,10 @@
 
 Thanks for your interest in contributing to WinBorg.
 
+## Before you start
+- Please read the project overview and user-facing behavior in `README.md`.
+- For bug reports and feature ideas, prefer opening an issue (GitHub issue templates are provided).
+
 ## Quick start
 
 ### Prereqs
@@ -44,6 +48,10 @@ npm run test:e2e
 - Default branch: `main`
 - Prefer small, focused PRs.
 - For dependency upgrades, keep changes scoped and avoid mixing unrelated refactors.
+
+### Recommended workflow
+- External contributors: fork the repo, create a feature branch, then open a PR targeting `main`.
+- Maintainers with write access: create a feature branch in-repo, then open a PR targeting `main`.
 
 ## Commit messages
 This repo uses semantic-release. Please follow Conventional Commits:
