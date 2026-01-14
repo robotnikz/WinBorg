@@ -60,7 +60,7 @@ describe('OnboardingModal', () => {
         render(<OnboardingModal onComplete={onComplete} />);
 
         await waitFor(() => {
-            expect(screen.getByText('WSL Not Found')).toBeInTheDocument();
+            expect(screen.getByText('WSL Setup Required')).toBeInTheDocument();
         });
 
         expect(screen.getByText(/WinBorg requires Windows Subsystem for Linux/i)).toBeInTheDocument();

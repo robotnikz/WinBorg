@@ -18,7 +18,10 @@ describe('systemHandlers (main-process logic)', () => {
         });
 
         const res = await handlers.checkWsl();
-        expect(res).toEqual({ installed: false, error: 'WSL is not enabled on this machine.' });
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('wsl-missing');
+        expect(typeof res.error).toBe('string');
+        expect(res.error.length).toBeGreaterThan(0);
         expect(spawnCapture).toHaveBeenCalledWith('wsl', ['--status'], expect.any(Object));
     });
 
@@ -27,7 +30,8 @@ describe('systemHandlers (main-process logic)', () => {
         const spawnCapture = vi
             .fn()
             .mockResolvedValueOnce({ code: 0, stdout: 'ok' })
-            .mockResolvedValueOnce({ code: 0, stdout: listOut });
+            .mockResolvedValueOnce({ code: 0, stdout: listOut })
+            .mockResolvedValueOnce({ code: 0, stdout: 'wsl_core_active\n' });
 
         const handlers = createSystemHandlers({
             spawnCapture,
@@ -41,6 +45,7 @@ describe('systemHandlers (main-process logic)', () => {
 
         const res = await handlers.checkWsl();
         expect(res.installed).toBe(false);
+        expect(res.reason).toBe('docker-default');
         expect(res.error).toContain("Default distro is 'docker-desktop'");
     });
 
@@ -63,10 +68,9 @@ describe('systemHandlers (main-process logic)', () => {
         });
 
         const res = await handlers.checkWsl();
-        expect(res).toEqual({
-            installed: false,
-            error: 'WSL installed but cannot execute commands (No distro?)',
-        });
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('distro-not-ready');
+        expect(res.distro).toBe('Ubuntu');
     });
 
     it('checkWsl returns installed=true when status/list/exec succeeds', async () => {
@@ -88,7 +92,52 @@ describe('systemHandlers (main-process logic)', () => {
         });
 
         const res = await handlers.checkWsl();
-        expect(res).toEqual({ installed: true, details: 'Default: Ubuntu' });
+        expect(res).toEqual({ installed: true, distro: 'Ubuntu', details: 'Default: Ubuntu' });
+    });
+
+    it('checkWsl returns installed=false with reason=no-distro when no distributions are installed', async () => {
+        const listOut = `NAME            STATE           VERSION\nEs sind keine Distributionen installiert.\n`;
+        const spawnCapture = vi
+            .fn()
+            .mockResolvedValueOnce({ code: 0, stdout: 'ok' })
+            .mockResolvedValueOnce({ code: 0, stdout: listOut });
+
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn(),
+            exec: vi.fn(),
+            registerManagedChild: vi.fn(),
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn(),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.checkWsl();
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('no-distro');
+    });
+
+    it('checkWsl returns installed=false with reason=no-supported-distro when no Ubuntu/Debian exists', async () => {
+        const listOut = `NAME            STATE           VERSION\n* kali-linux      Running         2\n`;
+        const spawnCapture = vi
+            .fn()
+            .mockResolvedValueOnce({ code: 0, stdout: 'ok' })
+            .mockResolvedValueOnce({ code: 0, stdout: listOut })
+            .mockResolvedValueOnce({ code: 0, stdout: 'wsl_core_active\n' });
+
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn(),
+            exec: vi.fn(),
+            registerManagedChild: vi.fn(),
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn(),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.checkWsl();
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('no-supported-distro');
     });
 
     it('checkBorg returns installed=true when borg is in PATH', async () => {
@@ -142,6 +191,24 @@ describe('systemHandlers (main-process logic)', () => {
 
         const res = await handlers.installWsl();
         expect(res).toEqual({ success: true });
+    });
+
+    it('installUbuntu resolves success=true on exit code 0', async () => {
+        const registerManagedChild = vi.fn(({ onExit }: any) => onExit(0));
+        const spawnCapture = vi.fn().mockResolvedValue({ code: 0, stdout: '' });
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn().mockReturnValue({}),
+            exec: vi.fn(),
+            registerManagedChild,
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn().mockResolvedValue('Ubuntu'),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.installUbuntu();
+        expect(res).toEqual({ success: true });
+        expect(spawnCapture).toHaveBeenCalledWith('wsl', ['--set-default', 'Ubuntu'], expect.any(Object));
     });
 
     it('installWsl resolves timed-out error when registerManagedChild reports timeout', async () => {
