@@ -91,8 +91,8 @@ test.describe('@smoke Onboarding Flow', () => {
     // Reload page to apply init script
     await firstWindow.reload();
 
-    // 1. Verify "WSL Not Found" screen
-    await expect(firstWindow.locator('text=WSL Not Found')).toBeVisible();
+    // 1. Verify WSL onboarding screen
+    await expect(firstWindow.locator('text=WSL Setup Required')).toBeVisible();
     await expect(firstWindow.locator('text=WinBorg requires Windows Subsystem for Linux')).toBeVisible();
 
     // 2. Click "Install WSL"
