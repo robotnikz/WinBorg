@@ -49,6 +49,28 @@ describe('systemHandlers (main-process logic)', () => {
         expect(res.error).toContain("Default distro is 'docker-desktop'");
     });
 
+    it('checkWsl succeeds when Docker is default but Ubuntu exists (prefers Ubuntu)', async () => {
+        const listOut = `NAME            STATE           VERSION\n* docker-desktop Running         2\n  Ubuntu-20.04    Stopped         2\n`;
+        const spawnCapture = vi
+            .fn()
+            .mockResolvedValueOnce({ code: 0, stdout: 'ok' })
+            .mockResolvedValueOnce({ code: 0, stdout: listOut })
+            .mockResolvedValueOnce({ code: 0, stdout: 'wsl_active\n' });
+
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn(),
+            exec: vi.fn(),
+            registerManagedChild: vi.fn(),
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn(),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.checkWsl();
+        expect(res).toEqual({ installed: true, distro: 'Ubuntu-20.04', details: 'Default: docker-desktop' });
+    });
+
     it('checkWsl returns installed=false when exec echo fails', async () => {
         const listOut = `NAME            STATE           VERSION\n* Ubuntu         Running         2\n`;
         const spawnCapture = vi
