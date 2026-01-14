@@ -92,6 +92,43 @@ describe('OnboardingModal', () => {
         });
     });
 
+    it('offers Ubuntu install when WSL enabled but no distro exists', async () => {
+        const onComplete = vi.fn();
+        let wslChecks = 0;
+
+        mockInvoke.mockImplementation((channel) => {
+            if (channel === 'system-check-wsl') {
+                wslChecks += 1;
+                if (wslChecks === 1) {
+                    return Promise.resolve({ installed: false, reason: 'no-distro', error: 'No distro installed' });
+                }
+                return Promise.resolve({ installed: true });
+            }
+            if (channel === 'system-install-ubuntu') return Promise.resolve({ success: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
+            return Promise.resolve({});
+        });
+
+        render(<OnboardingModal onComplete={onComplete} />);
+
+        await waitFor(() => {
+            expect(screen.getByText('WSL Setup Required')).toBeInTheDocument();
+            expect(screen.getByText(/WSL is enabled, but Ubuntu\/Debian is not installed yet\./i)).toBeInTheDocument();
+        });
+
+        expect(screen.getByText('Install Ubuntu (WSL)')).toBeInTheDocument();
+        expect(screen.queryByText('Install WSL (Admin)')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Install Ubuntu (WSL)'));
+
+        await waitFor(() => {
+            expect(mockInvoke).toHaveBeenCalledWith('system-install-ubuntu');
+        });
+        expect(mockInvoke).not.toHaveBeenCalledWith('system-install-wsl');
+
+        await waitFor(() => expect(onComplete).toHaveBeenCalled(), { timeout: 4000 });
+    });
+
     it('shows Borg missing step and handles installation', async () => {
         const onComplete = vi.fn();
         
