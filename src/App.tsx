@@ -1017,6 +1017,7 @@ const App: React.FC = () => {
                 }
             }}
             version={updateInfo?.version || ''}
+            releaseNotes={updateInfo?.releaseNotes}
             downloading={isDownloadingUpdate}
             progress={updateProgress}
             readyToInstall={isUpdateReady}
