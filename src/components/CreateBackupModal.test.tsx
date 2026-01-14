@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CreateBackupModal from './CreateBackupModal';
 import { borgService } from '../services/borgService';
@@ -9,6 +9,7 @@ vi.mock('../services/borgService', () => ({
     borgService: {
         selectDirectory: vi.fn(),
         createArchive: vi.fn(),
+        stopCommand: vi.fn(),
     }
 }));
 
@@ -172,6 +173,44 @@ describe('CreateBackupModal', () => {
                 expect.objectContaining({ repoId: mockRepo.id }),
                 { excludePatterns: ['node_modules', 'C:\\Temp'] }
             );
+        });
+    });
+
+    it('allows cancelling while a backup is running', async () => {
+        vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
+
+        let resolveCreate: (v: boolean) => void;
+        const createPromise = new Promise<boolean>((resolve) => {
+            resolveCreate = resolve;
+        });
+        vi.mocked(borgService.createArchive).mockReturnValue(createPromise as any);
+        vi.mocked(borgService.stopCommand).mockResolvedValue(true);
+
+        const onClose = vi.fn();
+        render(<CreateBackupModal {...defaultProps} onClose={onClose} />);
+
+        // Select folder
+        const folderBtn = screen.getByRole('button', { name: /browse/i });
+        fireEvent.click(folderBtn);
+        await waitFor(() => screen.getByDisplayValue('C:\\Source'));
+
+        // Start backup
+        const startBtn = screen.getByRole('button', { name: /start backup/i });
+        fireEvent.click(startBtn);
+
+        // Cancel Backup should be enabled while processing
+        const cancelBackupBtn = await screen.findByRole('button', { name: /cancel backup/i });
+        expect(cancelBackupBtn).not.toBeDisabled();
+        fireEvent.click(cancelBackupBtn);
+
+        await waitFor(() => {
+            expect(borgService.stopCommand).toHaveBeenCalledTimes(1);
+            expect(onClose).toHaveBeenCalled();
+        });
+
+        // Allow promise to resolve to avoid pending promise leakage
+        await act(async () => {
+            resolveCreate!(false);
         });
     });
 });

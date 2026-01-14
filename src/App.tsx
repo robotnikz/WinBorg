@@ -229,16 +229,45 @@ const App: React.FC = () => {
       try {
           const { ipcRenderer } = (window as any).require('electron');
           
-          const handleJobStarted = (_: any, jobId: string) => {
-              setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'running' } : j));
+          type JobStartedPayload =
+              | string
+              | { jobId: string; repoId?: string; commandId?: string };
+
+          type JobCompletePayload = {
+              jobId: string;
+              success: boolean;
+              repoId?: string;
+              commandId?: string;
           };
 
-          const handleJobComplete = (_: any, { jobId, success }: { jobId: string, success: boolean }) => {
-              setJobs(prev => prev.map(j => j.id === jobId ? { 
-                  ...j, 
+          const handleJobStarted = (_: any, payload: JobStartedPayload) => {
+              const jobId = typeof payload === 'string' ? payload : payload.jobId;
+              setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'running' } : j));
+
+              if (typeof payload !== 'string' && payload.repoId && payload.commandId) {
+                  const repo = reposRef.current.find(r => r.id === payload.repoId);
+                  if (repo) {
+                      startRepoBackup(repo, payload.commandId, jobId);
+                  }
+              }
+          };
+
+          const handleJobComplete = (_: any, payload: JobCompletePayload) => {
+              const { jobId, success } = payload;
+              setJobs(prev => prev.map(j => j.id === jobId ? {
+                  ...j,
                   status: success ? 'success' : 'error',
                   lastRun: new Date().toISOString()
               } : j));
+
+              if (payload.repoId) {
+                  const repo = reposRef.current.find(r => r.id === payload.repoId);
+                  if (repo) {
+                      const startTime = repo.backupStartTime;
+                      const durationMs = typeof startTime === 'number' ? Date.now() - startTime : undefined;
+                      finishRepoBackup(repo, success ? 'success' : 'error', durationMs);
+                  }
+              }
           };
 
           const handleActivityLog = (_: any, log: ActivityLogEntry) => {
@@ -278,7 +307,7 @@ const App: React.FC = () => {
   }, [repos]);
 
   // --- MODAL STATES FOR DASHBOARD ACCESS ---
-  const [backupRepo, setBackupRepo] = useState<Repository | null>(null);
+    const [backupModal, setBackupModal] = useState<{ repo: Repository; isOpen: boolean } | null>(null);
 
   // Helper to add activity
   const addActivity = (title: string, detail: string, status: 'success' | 'warning' | 'error' | 'info', cmd?: string) => {
@@ -631,6 +660,100 @@ const App: React.FC = () => {
           setTimeout(() => checkRepoLock(repo), 1000);
       }
   };
+
+  const loadEstimatedBackupDurationMs = (repoId: string): number | undefined => {
+      try {
+          const raw = localStorage.getItem('winborg_backup_duration_ms');
+          if (!raw) return 10 * 60 * 1000; // default 10 minutes
+          const parsed = JSON.parse(raw);
+          const val = parsed?.[repoId];
+          if (typeof val === 'number' && isFinite(val) && val > 0) return val;
+
+          // Fallback: average across any known repos, else a sane default.
+          const nums = Object.values(parsed || {}).filter(v => typeof v === 'number' && isFinite(v as any) && (v as any) > 0) as number[];
+          if (nums.length > 0) {
+              const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+              return Math.round(avg);
+          }
+
+          return 10 * 60 * 1000;
+      } catch {
+          return 10 * 60 * 1000;
+      }
+  };
+
+  const recordBackupDurationMs = (repoId: string, durationMs: number) => {
+      if (!isFinite(durationMs) || durationMs <= 0) return;
+      try {
+          const raw = localStorage.getItem('winborg_backup_duration_ms');
+          const parsed = raw ? JSON.parse(raw) : {};
+          const prev = typeof parsed?.[repoId] === 'number' ? parsed[repoId] : undefined;
+          // Exponential smoothing so ETA doesn't jump around too much.
+          const next = typeof prev === 'number' && isFinite(prev) && prev > 0
+              ? Math.round(prev * 0.7 + durationMs * 0.3)
+              : Math.round(durationMs);
+          parsed[repoId] = next;
+          localStorage.setItem('winborg_backup_duration_ms', JSON.stringify(parsed));
+      } catch {
+          // ignore
+      }
+  };
+
+  const startRepoBackup = (repo: Repository, commandId: string, jobId?: string) => {
+      const estimated = loadEstimatedBackupDurationMs(repo.id);
+      setRepos(prev => prev.map(r => r.id === repo.id ? {
+          ...r,
+          backupStatus: 'running',
+          backupStartTime: Date.now(),
+          backupEstimatedDurationMs: estimated,
+          activeBackupCommandId: commandId,
+          activeBackupJobId: jobId
+      } : r));
+  };
+
+  const finishRepoBackup = (repo: Repository, result: 'success' | 'error', durationMs?: number) => {
+      if (typeof durationMs === 'number' && durationMs > 0 && result === 'success') {
+          recordBackupDurationMs(repo.id, durationMs);
+      }
+      setRepos(prev => prev.map(r => r.id === repo.id ? {
+          ...r,
+          backupStatus: 'idle',
+          backupStartTime: undefined,
+          backupEstimatedDurationMs: undefined,
+          activeBackupCommandId: undefined,
+          activeBackupJobId: undefined
+      } : r));
+  };
+
+  const cancelRepoBackup = (repo: Repository) => {
+      setRepos(prev => prev.map(r => r.id === repo.id ? {
+          ...r,
+          backupStatus: 'aborted',
+          backupStartTime: undefined,
+          backupEstimatedDurationMs: undefined,
+          activeBackupCommandId: undefined,
+          activeBackupJobId: undefined
+      } : r));
+  };
+
+  const handleAbortBackup = async (repo: Repository) => {
+      const commandId = repo.activeBackupCommandId;
+      const jobId = repo.activeBackupJobId;
+
+      cancelRepoBackup(repo);
+      addActivity('Backup Cancelled', `Cancelled backup for ${repo.name}`, 'warning');
+      toast.info(`Backup cancelled for ${repo.name}`);
+
+      // If it was a job backup, mark it as errored.
+      if (jobId) {
+          setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
+      }
+
+      if (commandId) {
+          await borgService.stopCommand(commandId);
+          setTimeout(() => checkRepoLock(repo), 1000);
+      }
+  };
   
   const handleBreakLock = async (repo: Repository) => {
       if(!window.confirm(`FORCE UNLOCK REPO?\n\nThis will run 'borg break-lock'.`)) return;
@@ -734,6 +857,10 @@ const App: React.FC = () => {
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'running' } : j));
       addActivity('Backup Job Started', `Job: ${job.name} (Repo: ${repo.name})`, 'info');
 
+    const commandId = `job-${job.id}-${Date.now()}`;
+    const startTime = Date.now();
+    startRepoBackup(repo, commandId, job.id);
+
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10);
       const timeStr = now.toTimeString().slice(0, 5).replace(':', '');
@@ -752,7 +879,7 @@ const App: React.FC = () => {
               archiveName,
               effectiveSourcePaths,
               logCollector,
-              { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath },
+              { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath, commandId },
               { excludePatterns: job.excludePatterns }
           );
 
@@ -777,12 +904,15 @@ const App: React.FC = () => {
 
               setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'success', lastRun: new Date().toISOString() } : j));
               if (repo.status === 'connected') handleConnect(repo); // Refresh archive list
+              finishRepoBackup(repo, 'success', Date.now() - startTime);
           } else {
+              finishRepoBackup(repo, 'error', Date.now() - startTime);
               setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
               addActivity('Backup Job Failed', `Job: ${job.name} failed`, 'error');
               toast.error(`Job '${job.name}' failed. Check activity log.`);
           }
       } catch (e: any) {
+          finishRepoBackup(repo, 'error', Date.now() - startTime);
           setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
           addActivity('Backup Job Error', e.message, 'error');
           toast.error(`Job '${job.name}' error: ${e.message}`);
@@ -809,6 +939,9 @@ const App: React.FC = () => {
                         onUpdateJob={handleUpdateJob}
             onDeleteJob={handleDeleteJob}
             onRunJob={handleRunJob}
+                        onBackupStarted={startRepoBackup}
+                        onBackupFinished={finishRepoBackup}
+                        onBackupCancelled={cancelRepoBackup}
           />
         );
       case View.MOUNTS:
@@ -855,10 +988,11 @@ const App: React.FC = () => {
               onQuickMount={handleQuickMount}
               onConnect={handleConnect}
               onCheck={handleCheckIntegrity}
+                  onAbortBackup={handleAbortBackup}
               onChangeView={setCurrentView}
               onViewDetails={(repo) => { setDetailRepo(repo); setCurrentView(View.REPO_DETAILS); }}
               onAbortCheck={handleAbortCheck}
-              onOneOffBackup={(r) => setBackupRepo(r)}
+                  onOneOffBackup={(r) => setBackupModal({ repo: r, isOpen: true })}
               isDarkMode={isDarkMode}
               toggleTheme={toggleTheme}
               isLoading={!isLoaded}
@@ -899,14 +1033,24 @@ const App: React.FC = () => {
 
         {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
 
-        {backupRepo && (
+        {backupModal && (
           <CreateBackupModal 
-              initialRepo={backupRepo}
+              initialRepo={backupModal.repo}
               repos={repos} 
-              isOpen={!!backupRepo}
-              onClose={() => setBackupRepo(null)}
+              isOpen={backupModal.isOpen}
+              onClose={() => setBackupModal(prev => prev ? { ...prev, isOpen: false } : prev)}
               onLog={() => {}}
-              onSuccess={() => { if(backupRepo) handleConnect(backupRepo); }}
+              onSuccess={() => { /* handled via onBackupFinished */ }}
+              onBackupStarted={(repo, commandId) => startRepoBackup(repo, commandId)}
+              onBackupFinished={(repo, result, durationMs) => {
+                  finishRepoBackup(repo, result, durationMs);
+                  if (result === 'success') handleConnect(repo);
+                  setBackupModal(null);
+              }}
+              onBackupCancelled={(repo) => {
+                  cancelRepoBackup(repo);
+                  setBackupModal(null);
+              }}
           />
         )}
 

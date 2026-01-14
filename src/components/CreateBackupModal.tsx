@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Folder, Save, X, Clock, Terminal, Loader2, Server } from 'lucide-react';
@@ -13,9 +13,14 @@ interface CreateBackupModalProps {
   onClose: () => void;
   onLog: (title: string, logs: string[]) => void;
   onSuccess: () => void;
+
+    // Optional lifecycle hooks so parent can show global running state/ETA
+    onBackupStarted?: (repo: Repository, commandId: string) => void;
+    onBackupFinished?: (repo: Repository, result: 'success' | 'error', durationMs?: number) => void;
+    onBackupCancelled?: (repo: Repository) => void;
 }
 
-const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repos = [], isOpen, onClose, onLog, onSuccess }) => {
+const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repos = [], isOpen, onClose, onLog, onSuccess, onBackupStarted, onBackupFinished, onBackupCancelled }) => {
   const [selectedRepoId, setSelectedRepoId] = useState(initialRepo.id);
   const [sourcePath, setSourcePath] = useState('');
     const [excludePatternsText, setExcludePatternsText] = useState('');
@@ -29,12 +34,29 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentLog, setCurrentLog] = useState('');
+    const [activeCommandId, setActiveCommandId] = useState<string | null>(null);
+    const [isCancelling, setIsCancelling] = useState(false);
+
+  const isMountedRef = useRef(false);
+  const cancelledRef = useRef(false);
+
+  useEffect(() => {
+      isMountedRef.current = true;
+      return () => {
+          isMountedRef.current = false;
+      };
+  }, []);
 
   // Update selected repo if initialRepo changes when opening
   useEffect(() => {
       if (isOpen) {
           setSelectedRepoId(initialRepo.id);
           setExcludePatternsText('');
+          setIsProcessing(false);
+          setIsCancelling(false);
+          setCurrentLog('');
+          setActiveCommandId(null);
+          cancelledRef.current = false;
       }
   }, [isOpen, initialRepo]);
 
@@ -54,13 +76,20 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   const handleBackup = async () => {
       if (!sourcePath || !archiveName) return;
 
+      const commandId = `oneoff-${activeRepo.id}-${Date.now()}`;
+      const startTime = Date.now();
+
+      cancelledRef.current = false;
+
       setIsProcessing(true);
       setCurrentLog('Initializing backup process...');
+      setActiveCommandId(commandId);
+      onBackupStarted?.(activeRepo, commandId);
       
       const logs: string[] = [];
       const logCollector = (l: string) => {
           logs.push(l);
-          setCurrentLog(l);
+          if (isMountedRef.current) setCurrentLog(l);
       };
 
       try {
@@ -74,22 +103,67 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
               archiveName,
               [sourcePath],
               logCollector,
-              { repoId: activeRepo.id, disableHostCheck: activeRepo.trustHost, remotePath: activeRepo.remotePath },
+              { repoId: activeRepo.id, disableHostCheck: activeRepo.trustHost, remotePath: activeRepo.remotePath, commandId },
               ...(excludePatterns.length ? [{ excludePatterns }] : [])
           );
 
+          // If the user cancelled, don't treat it as an error/success.
+          if (cancelledRef.current) return;
+
           if (success) {
               toast.success(`Backup '${archiveName}' created successfully!`);
+              onBackupFinished?.(activeRepo, 'success', Date.now() - startTime);
               onSuccess();
               onClose();
           } else {
               toast.error("Backup failed. See logs for details.");
               onLog(`Backup Failed: ${archiveName}`, logs);
+              onBackupFinished?.(activeRepo, 'error', Date.now() - startTime);
           }
       } catch (e: any) {
-          toast.error(`Error: ${e.message}`);
+          if (!cancelledRef.current) {
+              toast.error(`Error: ${e.message}`);
+              onBackupFinished?.(activeRepo, 'error', Date.now() - startTime);
+          }
       } finally {
+          if (isMountedRef.current) {
+              setIsProcessing(false);
+              setIsCancelling(false);
+              setActiveCommandId(null);
+          }
+      }
+  };
+
+  const handleCloseWindow = () => {
+      onClose();
+  };
+
+  const handleCancelBackup = async () => {
+      if (!activeCommandId) {
+          // Should be rare, but avoid dead UI.
+          cancelledRef.current = true;
           setIsProcessing(false);
+          onBackupCancelled?.(activeRepo);
+          onClose();
+          return;
+      }
+
+      cancelledRef.current = true;
+      setIsCancelling(true);
+      setCurrentLog('Cancelling backup...');
+      try {
+          await borgService.stopCommand(activeCommandId);
+          toast.info('Backup cancelled.');
+      } catch (e: any) {
+          toast.error(`Cancel failed: ${e.message}`);
+      } finally {
+          if (isMountedRef.current) {
+              setIsCancelling(false);
+              setIsProcessing(false);
+              setActiveCommandId(null);
+          }
+          onBackupCancelled?.(activeRepo);
+          onClose();
       }
   };
 
@@ -107,7 +181,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                        {availableRepos.length > 1 ? 'Select target repository below' : `Upload to ${activeRepo.name}`}
                    </p>
                </div>
-               <button onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50">
+                                                         <button onClick={handleCloseWindow} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" disabled={isCancelling}>
                  <X size={20} />
                </button>
            </div>
@@ -194,7 +268,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                {isProcessing && (
                    <div className="bg-slate-900 rounded p-3 border border-slate-700">
                        <div className="flex items-center gap-2 text-green-400 text-xs font-bold mb-2">
-                           <Loader2 className="w-3 h-3 animate-spin" /> Processing Backup...
+                           <Loader2 className="w-3 h-3 animate-spin" /> {isCancelling ? 'Cancelling…' : 'Processing Backup...'}
                        </div>
                        <div className="font-mono text-xs text-slate-400 truncate flex items-center gap-2">
                            <Terminal className="w-3 h-3" /> {currentLog}
@@ -205,7 +279,14 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
            </div>
 
            <div className="px-6 py-4 bg-gray-50 dark:bg-slate-900/50 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-3">
-               <Button variant="secondary" onClick={onClose} disabled={isProcessing}>Cancel</Button>
+               {isProcessing ? (
+                   <>
+                       <Button variant="secondary" onClick={handleCloseWindow} disabled={isCancelling}>Close</Button>
+                       <Button variant="danger" onClick={handleCancelBackup} disabled={isCancelling}>Cancel Backup</Button>
+                   </>
+               ) : (
+                   <Button variant="secondary" onClick={handleCloseWindow} disabled={isCancelling}>Cancel</Button>
+               )}
                <Button 
                     onClick={handleBackup} 
                     disabled={!sourcePath || !archiveName || isProcessing}

@@ -27,11 +27,16 @@ interface RepositoriesViewProps {
     onUpdateJob: (job: BackupJob) => void;
   onDeleteJob: (jobId: string) => void;
   onRunJob: (jobId: string) => void;
+
+    // Backup lifecycle hooks (for global running state / ETA)
+    onBackupStarted?: (repo: Repository, commandId: string, jobId?: string) => void;
+    onBackupFinished?: (repo: Repository, result: 'success' | 'error', durationMs?: number) => void;
+    onBackupCancelled?: (repo: Repository) => void;
 }
 
 const RepositoriesView: React.FC<RepositoriesViewProps> = ({ 
     repos, jobs, onAddRepo, onEditRepo, onConnect, onMount, onCheck, onDelete, onBreakLock,
-        onAddJob, onUpdateJob, onDeleteJob, onRunJob
+                onAddJob, onUpdateJob, onDeleteJob, onRunJob, onBackupStarted, onBackupFinished, onBackupCancelled
 }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -99,7 +104,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [deleteRepo, setDeleteRepo] = useState<Repository | null>(null);
   
   // Backup Modal
-  const [backupRepo, setBackupRepo] = useState<Repository | null>(null);
+    const [backupModal, setBackupModal] = useState<{ repo: Repository; isOpen: boolean } | null>(null);
   
   // Jobs Modal
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
@@ -529,13 +534,23 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           />
       )}
       
-      {backupRepo && (
+      {backupModal && (
           <CreateBackupModal 
-              initialRepo={backupRepo}
-              isOpen={!!backupRepo}
-              onClose={() => setBackupRepo(null)}
+              initialRepo={backupModal.repo}
+              isOpen={backupModal.isOpen}
+              onClose={() => setBackupModal(prev => prev ? { ...prev, isOpen: false } : prev)}
               onLog={(title, logs) => setLocalLogData({ title, logs })}
-              onSuccess={() => onConnect(backupRepo)}
+              onSuccess={() => { /* handled via onBackupFinished */ }}
+              onBackupStarted={(repo, commandId) => onBackupStarted?.(repo, commandId)}
+              onBackupFinished={(repo, result, durationMs) => {
+                  onBackupFinished?.(repo, result, durationMs);
+                  if (result === 'success') onConnect(repo);
+                  setBackupModal(null);
+              }}
+              onBackupCancelled={(repo) => {
+                  onBackupCancelled?.(repo);
+                  setBackupModal(null);
+              }}
           />
       )}
       
@@ -1161,7 +1176,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             onEdit={() => handleOpenEdit(repo)} 
             onMaintenance={() => { setMaintenanceRepo(repo); setIsMaintenanceOpen(true); }}
             onExportKey={() => setExportKeyRepo(repo)}
-            onBackup={(r) => setBackupRepo(r)}
+                        onBackup={(r) => setBackupModal({ repo: r, isOpen: true })}
             onManageJobs={(r) => setJobsRepo(r)}
           />
         ))}

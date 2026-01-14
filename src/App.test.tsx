@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import App from './App';
 
@@ -16,13 +16,28 @@ vi.mock('./components/TitleBar', () => ({
         <div data-testid="titlebar">TitleBar</div>
     )
 }));
-vi.mock('./views/DashboardView', () => ({ 
-    default: ({ toggleTheme }: any) => (
+vi.mock('./views/DashboardView', () => ({
+    default: ({ toggleTheme, repos = [], jobs = [] }: any) => (
         <div data-testid="view-dashboard">
             Dashboard
             <button onClick={toggleTheme} title="Toggle Theme">Toggle Theme</button>
+            <div data-testid="repos-props">
+                {repos.map((r: any) => (
+                    <div key={r.id} data-testid={`repo-${r.id}`}>
+                        <span data-testid={`repo-${r.id}-backupStatus`}>{String(r.backupStatus ?? 'unset')}</span>
+                        <span data-testid={`repo-${r.id}-activeCommandId`}>{String(r.activeBackupCommandId ?? '')}</span>
+                    </div>
+                ))}
+            </div>
+            <div data-testid="jobs-props">
+                {jobs.map((j: any) => (
+                    <div key={j.id} data-testid={`job-${j.id}`}>
+                        <span data-testid={`job-${j.id}-status`}>{String(j.status ?? 'unset')}</span>
+                    </div>
+                ))}
+            </div>
         </div>
-    ) 
+    )
 }));
 vi.mock('./views/RepositoriesView', () => ({ default: () => <div data-testid="view-repos">Repositories</div> }));
 vi.mock('./views/MountsView', () => ({ default: () => <div data-testid="view-mounts">Mounts</div> }));
@@ -48,6 +63,8 @@ const mockRequire = vi.fn((module) => {
 });
 
 describe('App', () => {
+    let listeners: Record<string, any>;
+
     beforeAll(() => {
         Object.defineProperty(window, 'require', {
             value: mockRequire,
@@ -58,6 +75,14 @@ describe('App', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.localStorage.clear();
+
+        listeners = {};
+        mockIpcRenderer.on.mockImplementation((channel: string, cb: any) => {
+            listeners[channel] = cb;
+        });
+        mockIpcRenderer.removeListener.mockImplementation((channel: string) => {
+            delete listeners[channel];
+        });
         
         // Default Mock Responses
         mockIpcRenderer.invoke.mockImplementation((channel) => {
@@ -66,6 +91,10 @@ describe('App', () => {
             if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
             return Promise.resolve(null);
         });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('renders loading state initially', async () => {
@@ -204,5 +233,82 @@ describe('App', () => {
         await waitFor(() => {
             expect(screen.getByTestId('onboarding-modal')).toBeInTheDocument();
         });
+    });
+
+    it('updates repo backup state from scheduled job IPC payloads', async () => {
+        const t0 = 1735689600000; // 2025-01-01T00:00:00.000Z
+        const t1 = t0 + 5000;
+        const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => t0);
+
+        mockIpcRenderer.invoke.mockImplementation((channel) => {
+            if (channel === 'get-db') {
+                return Promise.resolve({
+                    repos: [{ id: 'r1', name: 'Repo1' }],
+                    jobs: [{ id: 'j1', repoId: 'r1', name: 'Job 1', status: 'idle' }],
+                    archives: [],
+                    activityLogs: []
+                });
+            }
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
+            return Promise.resolve(null);
+        });
+
+        render(<App />);
+        await waitFor(() => expect(screen.getByTestId('view-dashboard')).toBeInTheDocument());
+
+        expect(listeners['job-started']).toBeTypeOf('function');
+        expect(listeners['job-complete']).toBeTypeOf('function');
+
+        await act(async () => {
+            listeners['job-started'](null, { jobId: 'j1', repoId: 'r1', commandId: 'job-j1-123' });
+        });
+
+        expect(screen.getByTestId('job-j1-status')).toHaveTextContent('running');
+        expect(screen.getByTestId('repo-r1-backupStatus')).toHaveTextContent('running');
+        expect(screen.getByTestId('repo-r1-activeCommandId')).toHaveTextContent('job-j1-123');
+
+        nowSpy.mockImplementation(() => t1);
+
+        await act(async () => {
+            listeners['job-complete'](null, { jobId: 'j1', repoId: 'r1', commandId: 'job-j1-123', success: true });
+        });
+
+        expect(screen.getByTestId('job-j1-status')).toHaveTextContent('success');
+        expect(screen.getByTestId('repo-r1-backupStatus')).toHaveTextContent('idle');
+
+        const raw = window.localStorage.getItem('winborg_backup_duration_ms');
+        expect(raw).toBeTruthy();
+        const parsed = raw ? JSON.parse(raw) : {};
+        expect(parsed.r1).toBe(5000);
+
+        nowSpy.mockRestore();
+    });
+
+    it('still supports legacy job-started payload (jobId string)', async () => {
+        mockIpcRenderer.invoke.mockImplementation((channel) => {
+            if (channel === 'get-db') {
+                return Promise.resolve({
+                    repos: [{ id: 'r1', name: 'Repo1' }],
+                    jobs: [{ id: 'j1', repoId: 'r1', name: 'Job 1', status: 'idle' }],
+                    archives: [],
+                    activityLogs: []
+                });
+            }
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
+            return Promise.resolve(null);
+        });
+
+        render(<App />);
+        await waitFor(() => expect(screen.getByTestId('view-dashboard')).toBeInTheDocument());
+
+        await act(async () => {
+            listeners['job-started'](null, 'j1');
+        });
+
+        expect(screen.getByTestId('job-j1-status')).toHaveTextContent('running');
+        // Legacy payload doesn't provide repo context, so repo backup state remains untouched.
+        expect(screen.getByTestId('repo-r1-backupStatus')).toHaveTextContent('unset');
     });
 });
