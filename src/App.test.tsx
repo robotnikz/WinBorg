@@ -235,6 +235,29 @@ describe('App', () => {
         });
     });
 
+    it('shows update notification modal and toggles changelog', async () => {
+        render(<App />);
+        await waitFor(() => expect(screen.getByTestId('view-dashboard')).toBeInTheDocument());
+
+        expect(listeners['update-available']).toBeTypeOf('function');
+
+        await act(async () => {
+            listeners['update-available'](null, {
+                version: '1.2.3',
+                releaseNotes: '- Added feature A\n- Fixed bug B'
+            });
+        });
+
+        expect(screen.getByText(/update available/i)).toBeInTheDocument();
+        expect(screen.getByText(/version 1\.2\.3/i)).toBeInTheDocument();
+
+        // Changelog hidden by default
+        expect(screen.queryByText(/Added feature A/i)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /changelog/i }));
+        expect(screen.getByText(/Added feature A/i)).toBeInTheDocument();
+    });
+
     it('updates repo backup state from scheduled job IPC payloads', async () => {
         const t0 = 1735689600000; // 2025-01-01T00:00:00.000Z
         const t1 = t0 + 5000;
