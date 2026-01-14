@@ -29,48 +29,167 @@ function createSystemHandlers(deps) {
         checkWsl: async () => {
             const status = await spawnCapture('wsl', ['--status'], { encoding: 'utf16le', timeoutMs: 15000 });
             if (status.error || status.code !== 0) {
-                return { installed: false, error: 'WSL is not enabled on this machine.' };
+                const detail = (status.stderr || status.stdout || status.error || '').toString();
+                const lower = detail.toLowerCase();
+
+                // Common in VMs: nested virtualization disabled
+                if (lower.includes('virtual machine platform') || lower.includes('enable virtualization') || lower.includes('hypervisor') || lower.includes('0x80370102')) {
+                    return {
+                        installed: false,
+                        reason: 'virtualization-missing',
+                        error:
+                            'WSL is present but cannot start because virtualization is not available. In VirtualBox, enable nested virtualization (VT-x/AMD-V) for the VM, then try again.',
+                    };
+                }
+
+                return {
+                    installed: false,
+                    reason: 'wsl-missing',
+                    error: detail.trim() || 'WSL is not enabled on this machine.',
+                };
+            }
+
+            // Some systems return exit code 0 but still indicate missing/disabled WSL in stdout/stderr.
+            // Be defensive to avoid mis-classifying WSL as enabled.
+            {
+                const detail = (status.stderr || status.stdout || '').toString();
+                const lower = detail.toLowerCase();
+                if (
+                    lower.includes('optional component is not enabled') ||
+                    lower.includes('not enabled') ||
+                    lower.includes('is not installed') ||
+                    lower.includes('wsl is not installed') ||
+                    lower.includes('windows-subsystem für linux ist nicht aktiviert') ||
+                    lower.includes('windows-subsystem für linux wurde nicht aktiviert')
+                ) {
+                    return {
+                        installed: false,
+                        reason: 'wsl-missing',
+                        error: detail.trim() || 'WSL is not enabled on this machine.',
+                    };
+                }
             }
 
             const list = await spawnCapture('wsl', ['--list', '--verbose'], { encoding: 'utf16le', timeoutMs: 15000 });
-            const stdout = list.stdout || '';
-            let hasUbuntu = false;
+            if (list.error || list.code !== 0) {
+                const detail = (list.stderr || list.stdout || list.error || '').toString();
+                return {
+                    installed: false,
+                    reason: 'wsl-list-failed',
+                    error: detail.trim() || 'WSL is enabled but listing distributions failed.',
+                };
+            }
+
+            const stdout = (list.stdout || '').toString();
             let defaultDistro = '';
+            const distros = [];
+            const ubuntuOrDebian = [];
 
             if (stdout) {
-                const lines = stdout.split('\n').slice(1);
+                const lines = stdout.split(/\r?\n/);
                 for (const line of lines) {
-                    const cleanLine = line.trim();
+                    const cleanLine = (line || '').trim();
                     if (!cleanLine) continue;
-                    const parts = cleanLine.split(/\s+/);
-                    const isDefault = cleanLine.startsWith('*');
-                    const nameIndex = isDefault ? 1 : 0;
-                    const name = parts[nameIndex];
 
+                    // Only accept lines that look like: "* Ubuntu Running 2" or "Ubuntu Stopped 2".
+                    // This avoids mis-parsing localized "no distributions installed" messages.
+                    const m = cleanLine.match(/^\*?\s*([^\s]+)\s+([^\s]+)\s+(\d+)\s*$/);
+                    if (!m) continue;
+
+                    const isDefault = cleanLine.startsWith('*');
+                    const name = m[1];
+                    if (!name) continue;
+
+                    distros.push(name);
                     if (isDefault) defaultDistro = name;
-                    if (name && (name.toLowerCase().includes('ubuntu') || name.toLowerCase().includes('debian'))) {
-                        hasUbuntu = true;
+                    if (name.toLowerCase().includes('ubuntu') || name.toLowerCase().includes('debian')) {
+                        ubuntuOrDebian.push(name);
                     }
                 }
             }
 
-            if ((defaultDistro || '').toLowerCase().includes('docker') && !hasUbuntu) {
-                logger.warn('WSL Default is Docker, no Ubuntu found.');
-                return { installed: false, error: `Default distro is '${defaultDistro}'. We need Ubuntu/Debian.` };
+            if (distros.length === 0) {
+                // WSL is enabled, but there's no distro installed/initialized.
+                return {
+                    installed: false,
+                    reason: 'no-distro',
+                    error:
+                        'WSL is enabled but no Linux distribution is installed yet. Install Ubuntu and complete the first-run user setup (username/password), then retry.',
+                };
             }
 
-            const echo = await spawnCapture('wsl', ['--exec', 'echo', 'wsl_active'], { timeoutMs: 15000 });
+            // WinBorg needs a Debian-based distro (Ubuntu/Debian) for apt-get and borg install.
+            // If none exists, we should offer installing Ubuntu even if some other distro is present.
+            if (ubuntuOrDebian.length === 0) {
+                // IMPORTANT: Only claim "WSL is enabled" if WSL can actually execute commands.
+                // Systems can have registered distros (e.g. docker-desktop) even if WSL features aren't enabled.
+                const probe = await spawnCapture('wsl', ['--exec', 'echo', 'wsl_core_active'], { timeoutMs: 15000 });
+                const probeOut = (probe.stdout || '').toString().trim();
+                if (probe.error || probe.code !== 0 || probeOut !== 'wsl_core_active') {
+                    const detail = (probe.stderr || probe.stdout || probe.error || '').toString();
+                    const lower = detail.toLowerCase();
+                    if (
+                        lower.includes('virtual machine platform') ||
+                        lower.includes('enable virtualization') ||
+                        lower.includes('hypervisor') ||
+                        lower.includes('0x80370102')
+                    ) {
+                        return {
+                            installed: false,
+                            reason: 'virtualization-missing',
+                            error:
+                                'WSL is present but cannot start because virtualization is not available. Enable virtualization (VT-x/AMD-V) and the Windows features "Virtual Machine Platform" + "Windows Subsystem for Linux", then retry.',
+                        };
+                    }
+
+                    return {
+                        installed: false,
+                        reason: 'wsl-missing',
+                        error: detail.trim() || 'WSL is not enabled on this machine.',
+                    };
+                }
+
+                const lowerDefault = (defaultDistro || '').toLowerCase();
+                if (lowerDefault.includes('docker')) {
+                    logger.warn('WSL Default is Docker, no Ubuntu found.');
+                    return {
+                        installed: false,
+                        reason: 'docker-default',
+                        error: `Default distro is '${defaultDistro}'. We need Ubuntu/Debian.`,
+                    };
+                }
+
+                const hintDefault = defaultDistro ? ` Default is '${defaultDistro}'.` : '';
+                return {
+                    installed: false,
+                    reason: 'no-supported-distro',
+                    error: `No Ubuntu/Debian WSL distribution found.${hintDefault} Install Ubuntu (WSL) and complete the first-run setup.`,
+                };
+            }
+
+            const preferredDistro = ubuntuOrDebian[0] || defaultDistro || '';
+            const execArgs = preferredDistro ? ['-d', preferredDistro, '--exec', 'echo', 'wsl_active'] : ['--exec', 'echo', 'wsl_active'];
+            const echo = await spawnCapture('wsl', execArgs, { timeoutMs: 15000 });
             const cleanStdout = (echo.stdout || '').toString().trim();
             if (echo.error || cleanStdout !== 'wsl_active') {
-                return { installed: false, error: 'WSL installed but cannot execute commands (No distro?)' };
+                const detail = (echo.stderr || echo.stdout || echo.error || '').toString();
+                return {
+                    installed: false,
+                    reason: 'distro-not-ready',
+                    distro: preferredDistro || null,
+                    error:
+                        detail.trim() || 'WSL is enabled but cannot execute commands. The distro may not be initialized yet.',
+                };
             }
 
-            return { installed: true, details: `Default: ${defaultDistro}` };
+            return { installed: true, distro: preferredDistro || defaultDistro || null, details: `Default: ${defaultDistro}` };
         },
 
         installWsl: async () => {
             return new Promise((resolve) => {
-                const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install -d Ubuntu" -Wait';
+                // Install/enable WSL features as admin, but avoid installing a distro in the elevated context.
+                // Distro installation is per-user, so we do that in a separate step (see installUbuntu).
+                const cmd = 'Start-Process powershell -Verb RunAs -ArgumentList "wsl --install --no-distribution" -Wait';
                 const child = spawn('powershell.exe', ['-Command', cmd], { windowsHide: true });
                 registerManagedChild({
                     map: activeProcesses,
@@ -83,6 +202,44 @@ function createSystemHandlers(deps) {
                         resolve({
                             success: false,
                             error: meta?.timedOut ? 'WSL install timed out.' : err.message,
+                        }),
+                });
+            });
+        },
+
+        installUbuntu: async () => {
+            return new Promise((resolve) => {
+                // Run as the current user so Ubuntu is installed for the correct account.
+                // We still open a visible PowerShell window so the user can complete the first-run username/password prompt.
+                const cmd = 'Start-Process powershell -ArgumentList "wsl --install -d Ubuntu" -Wait';
+                const child = spawn('powershell.exe', ['-Command', cmd], { windowsHide: true });
+                registerManagedChild({
+                    map: activeProcesses,
+                    id: `sys-install-ubuntu-${Date.now()}`,
+                    child,
+                    kind: 'process',
+                    timeoutMs: 30 * 60 * 1000,
+                    onExit: (code) => {
+                        if (code !== 0) return resolve({ success: false });
+                        (async () => {
+                            try {
+                                const distro = await getPreferredWslDistro();
+                                if (distro) {
+                                    await spawnCapture('wsl', ['--set-default', distro], {
+                                        encoding: 'utf16le',
+                                        timeoutMs: 15000,
+                                    });
+                                }
+                            } catch (e) {
+                                logger.warn('[Setup] Failed to set default WSL distro after Ubuntu install:', e);
+                            }
+                            resolve({ success: true });
+                        })();
+                    },
+                    onError: (err, meta) =>
+                        resolve({
+                            success: false,
+                            error: meta?.timedOut ? 'Ubuntu install timed out.' : err.message,
                         }),
                 });
             });

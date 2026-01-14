@@ -1322,6 +1322,7 @@ ipcMain.handle('borg-unmount', async (event, { mountId, localPath, useWsl, execu
 ipcMain.handle('system-reboot', systemHandlers.reboot);
 ipcMain.handle('system-check-wsl', systemHandlers.checkWsl);
 ipcMain.handle('system-install-wsl', systemHandlers.installWsl);
+ipcMain.handle('system-install-ubuntu', systemHandlers.installUbuntu);
 ipcMain.handle('system-check-borg', systemHandlers.checkBorg);
 ipcMain.handle('system-install-borg', systemHandlers.installBorg);
 

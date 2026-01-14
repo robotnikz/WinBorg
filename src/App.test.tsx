@@ -62,8 +62,8 @@ describe('App', () => {
         // Default Mock Responses
         mockIpcRenderer.invoke.mockImplementation((channel) => {
             if (channel === 'get-db') return Promise.resolve({ repos: [], jobs: [], archives: [], activityLogs: [] });
-            if (channel === 'system-check-wsl') return Promise.resolve({ success: true, isInstalled: true });
-            if (channel === 'system-check-borg') return Promise.resolve({ success: true, isInstalled: true });
+            if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
             return Promise.resolve(null);
         });
     });
@@ -95,7 +95,7 @@ describe('App', () => {
         // Empty DB
         mockIpcRenderer.invoke.mockImplementation((c) => {
             if (c === 'get-db') return Promise.resolve({ repos: [], jobs: [] });
-            if (c === 'system-check-wsl') return Promise.resolve({ success: true, isInstalled: true });
+            if (c === 'system-check-wsl') return Promise.resolve({ installed: true });
             return Promise.resolve({ success: true });
         });
 
@@ -121,8 +121,8 @@ describe('App', () => {
         // Empty DB
         mockIpcRenderer.invoke.mockImplementation((c) => {
             if (c === 'get-db') return Promise.resolve({ repos: [], jobs: [] });
-            if (c === 'system-check-wsl') return Promise.resolve({ success: true, isInstalled: true });
-            if (c === 'system-check-borg') return Promise.resolve({ success: true, isInstalled: true });
+            if (c === 'system-check-wsl') return Promise.resolve({ installed: true });
+            if (c === 'system-check-borg') return Promise.resolve({ installed: true });
             return Promise.resolve({ success: true });
         });
 
@@ -194,8 +194,8 @@ describe('App', () => {
     it('shows onboarding modal if system checks fail', async () => {
         mockIpcRenderer.invoke.mockImplementation((c) => {
              if (c === 'get-db') return Promise.resolve({ repos: [], jobs: [] });
-             if (c === 'system-check-wsl') return Promise.resolve({ success: false, isInstalled: false });
-             if (c === 'system-check-borg') return Promise.resolve({ success: false, isInstalled: false });
+               if (c === 'system-check-wsl') return Promise.resolve({ installed: false });
+               if (c === 'system-check-borg') return Promise.resolve({ installed: false });
              return Promise.resolve(null);
         });
 

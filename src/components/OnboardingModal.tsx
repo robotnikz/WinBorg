@@ -9,27 +9,43 @@ interface OnboardingModalProps {
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   const [step, setStep] = useState<'checking' | 'wsl-missing' | 'wsl-installing' | 'restart-required' | 'borg-missing' | 'installing' | 'success'>('checking');
   const [errorDetails, setErrorDetails] = useState('');
+    const [wslAction, setWslAction] = useState<'install-wsl' | 'install-ubuntu'>('install-wsl');
+    const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     checkPrerequisites();
   }, []);
 
   const checkPrerequisites = async () => {
+        // Clear any stale error (e.g. from previous WSL check) before re-checking.
+        setErrorDetails('');
+        setShowDetails(false);
     try {
         const { ipcRenderer } = (window as any).require('electron');
         
         // 1. Check WSL
         const wslRes = await ipcRenderer.invoke('system-check-wsl');
         if (!wslRes.installed) {
+            // WSL can be enabled without having any distro installed yet.
+            if (wslRes.reason === 'no-distro' || wslRes.reason === 'docker-default' || wslRes.reason === 'no-supported-distro') {
+                setWslAction('install-ubuntu');
+            } else {
+                setWslAction('install-wsl');
+            }
             setStep('wsl-missing');
             setErrorDetails(wslRes.error || 'WSL command failed');
+            setShowDetails(false);
             return;
         }
+
+        // WSL is OK now; ensure any previous WSL error is cleared.
+        setErrorDetails('');
 
         // 2. Check Borg
         const borgRes = await ipcRenderer.invoke('system-check-borg');
         if (!borgRes.installed) {
             setStep('borg-missing');
+            setErrorDetails('');
             return;
         }
 
@@ -45,18 +61,25 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
 
   const handleInstallWSL = async () => {
         setStep('wsl-installing'); // Show instructions state
+        setShowDetails(false);
         try {
             const { ipcRenderer } = (window as any).require('electron');
-            const res = await ipcRenderer.invoke('system-install-wsl');
+            const res = await ipcRenderer.invoke(wslAction === 'install-ubuntu' ? 'system-install-ubuntu' : 'system-install-wsl');
             if (res.success) {
-                setStep('restart-required');
+                if (wslAction === 'install-ubuntu') {
+                    await checkPrerequisites();
+                } else {
+                    setStep('restart-required');
+                }
             } else {
-               setErrorDetails("Failed to launch WSL installer: " + res.error);
+               setErrorDetails("Failed to launch installer: " + res.error);
                setStep('wsl-missing');
+               setShowDetails(true);
             }
         } catch(e: any) {
             setErrorDetails(e.message);
             setStep('wsl-missing');
+            setShowDetails(true);
         }
   };
 
@@ -111,19 +134,45 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                     <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex gap-3 text-red-700 dark:text-red-400">
                         <XCircle className="w-5 h-5 shrink-0" />
                         <div className="text-sm">
-                            <p className="font-bold">WSL Not Found</p>
-                            <p>WinBorg requires Windows Subsystem for Linux.</p>
+                            <p className="font-bold">WSL Setup Required</p>
+                            <p>
+                                {wslAction === 'install-ubuntu'
+                                    ? 'WSL is enabled, but Ubuntu/Debian is not installed yet.'
+                                    : 'WinBorg requires Windows Subsystem for Linux.'}
+                            </p>
                         </div>
                     </div>
+                    {errorDetails && (
+                        <div className="space-y-2">
+                            <button
+                                type="button"
+                                className="text-xs text-slate-500 dark:text-slate-400 underline hover:text-slate-700 dark:hover:text-slate-200"
+                                onClick={() => setShowDetails(v => !v)}
+                            >
+                                {showDetails ? 'Hide details' : 'Show details'}
+                            </button>
+                            {showDetails && (
+                                <div className="max-h-32 overflow-y-auto bg-red-50 dark:bg-red-900/10 p-2 rounded border border-red-100 dark:border-red-900">
+                                    <pre className="text-[10px] text-red-600 dark:text-red-400 whitespace-pre-wrap font-mono break-all leading-tight">{errorDetails}</pre>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                        WinBorg can install WSL automatically. You will need to accept the <b>administrator prompt</b>.
+                        {wslAction === 'install-ubuntu' ? (
+                            <>WinBorg can install Ubuntu automatically. You may need to complete the first-run setup (username/password).</>
+                        ) : (
+                            <>WinBorg can install WSL automatically. You will need to accept the <b>administrator prompt</b>.</>
+                        )}
                     </p>
                     <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded border border-amber-100 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs">
-                        ⚠️ A computer restart will be required after installation.
+                        ⚠️ A computer restart may be required after installation.
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                         <Button variant="secondary" onClick={checkPrerequisites}>Retry Check</Button>
-                        <Button variant="primary" onClick={handleInstallWSL}>Install WSL (Admin)</Button>
+                        <Button variant="primary" onClick={handleInstallWSL}>
+                            {wslAction === 'install-ubuntu' ? 'Install Ubuntu (WSL)' : 'Install WSL (Admin)'}
+                        </Button>
                     </div>
                 </div>
             )}
@@ -139,10 +188,18 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                         <p className="font-semibold mb-2">Instructions:</p>
                         <ol className="list-decimal list-inside space-y-1 text-slate-600 dark:text-slate-300">
                             <li>Wait for the <b>PowerShell</b> window to open.</li>
-                            <li>Accept the Windows Admin prompt (Yes).</li>
-                            <li>Wait for Ubuntu to download and install.</li>
-                            <li>Enter a <b>new username</b> and password when asked.</li>
-                            <li>Once you see the green command prompt - <b>close the window</b> manually.</li>
+                            {wslAction === 'install-wsl' ? (
+                                <li>Accept the Windows Admin prompt (Yes).</li>
+                            ) : null}
+                            <li>Wait for the installer to finish.</li>
+                            {wslAction === 'install-ubuntu' ? (
+                                <>
+                                    <li>Enter a <b>new username</b> and password when asked.</li>
+                                    <li>Once you see the shell prompt - <b>close the window</b> manually.</li>
+                                </>
+                            ) : (
+                                <li>Restart Windows when prompted.</li>
+                            )}
                         </ol>
                     </div>
 

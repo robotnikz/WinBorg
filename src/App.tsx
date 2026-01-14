@@ -26,6 +26,7 @@ const App: React.FC = () => {
   // --- ONBOARDING STATE ---
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasCheckedSystem, setHasCheckedSystem] = useState(false);
+    const systemCheckedRef = useRef(false);
 
   // --- THEME STATE (Keep simple in localstorage for UI pref only) ---
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -103,6 +104,32 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const dataLoadedRef = useRef(false);
 
+  // --- EARLY SYSTEM CHECK (BLOCK UI UNTIL DONE) ---
+  useEffect(() => {
+      if (systemCheckedRef.current) return;
+      systemCheckedRef.current = true;
+
+      const run = async () => {
+          try {
+              const { ipcRenderer } = (window as any).require('electron');
+              const [wsl, borg] = await Promise.all([
+                  ipcRenderer.invoke('system-check-wsl'),
+                  ipcRenderer.invoke('system-check-borg'),
+              ]);
+
+              if (!wsl?.installed || !borg?.installed) {
+                  setShowOnboarding(true);
+              }
+          } catch (e) {
+              // Browser/mock mode: no-op, don't block the UI.
+          } finally {
+              setHasCheckedSystem(true);
+          }
+      };
+
+      run();
+  }, []);
+
   // --- LOAD DATA FROM BACKEND (PERSISTENCE) ---
   useEffect(() => {
       if (dataLoadedRef.current) return;
@@ -178,17 +205,10 @@ const App: React.FC = () => {
                   });
               }
 
-              // --- SYSTEM CHECK ---
-              const wsl = await ipcRenderer.invoke('system-check-wsl');
-              const borg = await ipcRenderer.invoke('system-check-borg');
-              if (!wsl.installed || !borg.installed) {
-                  setShowOnboarding(true);
-              }
-              setHasCheckedSystem(true);
-
           } catch (e) {
               console.warn("Could not load backend data (Browser Mode?)", e);
               setIsLoaded(true);
+              setHasCheckedSystem(true);
           }
       };
       load();
@@ -867,6 +887,15 @@ const App: React.FC = () => {
             progress={updateProgress}
             readyToInstall={isUpdateReady}
         />
+
+        {!hasCheckedSystem && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+                <div className="flex items-center gap-3 rounded-lg bg-white/90 dark:bg-[#1e1e1e]/90 px-4 py-3 shadow-lg border border-gray-200 dark:border-[#333]">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                    <span className="text-sm text-slate-700 dark:text-slate-200">Checking system…</span>
+                </div>
+            </div>
+        )}
 
         {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
 
