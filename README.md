@@ -74,17 +74,37 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 
 ## 🚀 Installation & Getting Started
 
-WinBorg is designed to be usable by everyone, not just sysadmins. It automatically handles the installation of the underlying Linux database (Windows Subsystem for Linux) for you.
+WinBorg is designed to be usable by everyone, not just sysadmins. It automatically guides you through installing the required Windows + Linux components (WSL2 + Ubuntu + BorgBackup).
 ### 1. Simple Installation
 1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
 2.  **Run Installer:** Double-click the downloaded file. Windows might ask for permission; click "Yes".
 3.  **Launch:** Open "WinBorg Manager" from your desktop or Start Menu.
 
 ### 2. Automatic Onboarding
-When you first open WinBorg, it will check your system health:
-1.  **WSL Check:** If you don't have the Linux subsystem installed, WinBorg will offer to install it with one click. 
-    *   *Note: You must restart your computer after this step if prompted!*
-2.  **Borg Installation:** After the restart, launch WinBorg again. It will automatically download and install the Borg engine effectively creating a "Backup Engine" in the background.
+When you open WinBorg for the first time, it will check your system and guide you through these steps:
+
+1.  **Enable WSL (Admin step)**
+  - If WSL2 is missing/disabled, WinBorg shows **"WSL Setup Required"**.
+  - Click **"Install WSL (Admin)"** and accept the Windows administrator prompt.
+  - When it finishes, WinBorg will tell you a **restart is required**.
+
+2.  **Restart Windows**
+  - Click **"Restart Computer Now"** (or restart manually).
+  - After reboot, launch WinBorg again.
+
+3.  **Install Ubuntu (WSL) (User step)**
+  - If WSL is enabled but no supported distro exists yet, WinBorg offers **"Install Ubuntu (WSL)"**.
+  - This step is intentionally **not** run as admin: WSL distros are installed *per Windows user account*.
+  - A PowerShell window will open. If Ubuntu asks for a **new username + password**, complete it.
+  - Once you see the Ubuntu shell prompt, close the window and return to WinBorg.
+
+4.  **Install BorgBackup inside Ubuntu**
+  - If BorgBackup is missing, WinBorg shows **"BorgBackup Not Found"**.
+  - Click **"Install Borg (Auto)"**. WinBorg will run `apt-get update` + `apt-get install borgbackup` inside Ubuntu.
+
+If anything goes wrong, use **"Retry Check"** / **"Check Again"** in the dialog. WinBorg also provides a **"Show details"** toggle for advanced troubleshooting output.
+
+> Tip: In some environments (especially VMs), WSL2 requires virtualization support (VT-x/AMD-V / nested virtualization). If WinBorg reports virtualization issues, enable virtualization in BIOS/UEFI or your VM settings.
 
 ### 3. Creating your First Backup
 1.  Click **"Add Repository"**.
@@ -98,22 +118,28 @@ When you first open WinBorg, it will check your system health:
 ### 🔧 Manual Details (For Advanced Users)
 If you prefer tight control over your system environment, you can install the dependencies manually before running WinBorg. This allows you to skip parts of the auto-onboarding flow.
 
-**1. Install WSL (Ubuntu/Debian)**
-WinBorg requires a Debian-based distribution (Ubuntu is recommended).
+**1. Enable WSL (no distro yet) [Admin]**
+This enables the required Windows features. Run in PowerShell **as Administrator**:
 ```powershell
-# Open PowerShell as Administrator
-wsl --install -d Ubuntu
-# RESTART YOUR COMPUTER after this finishes!
+wsl --install --no-distribution
+# Restart Windows after this finishes.
 ```
 
-**2. Install BorgBackup**
-After restarting, open your WSL terminal (search "Ubuntu" in Start menu) and run:
+**2. Install Ubuntu for your Windows user [Non-Admin]**
+After reboot, run in a normal (non-admin) PowerShell:
+```powershell
+wsl --install -d Ubuntu
+```
+If prompted, create a new Ubuntu username/password.
+
+**3. Install BorgBackup inside Ubuntu**
+Open the Ubuntu terminal (Start Menu → "Ubuntu") and run:
 ```bash
 sudo apt update
 sudo apt install -y borgbackup
 ```
 
-**3. Verify Installation**
+**4. Verify Installation**
 WinBorg automatically looks for the binary. Verify it exists:
 ```bash
 which borg

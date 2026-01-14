@@ -7,7 +7,7 @@ interface OnboardingModalProps {
 }
 
 const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
-  const [step, setStep] = useState<'checking' | 'wsl-missing' | 'wsl-installing' | 'restart-required' | 'borg-missing' | 'installing' | 'success'>('checking');
+    const [step, setStep] = useState<'checking' | 'wsl-missing' | 'wsl-installing' | 'restart-required' | 'borg-missing' | 'installing' | 'success'>('checking');
   const [errorDetails, setErrorDetails] = useState('');
     const [wslAction, setWslAction] = useState<'install-wsl' | 'install-ubuntu'>('install-wsl');
     const [showDetails, setShowDetails] = useState(false);
@@ -160,13 +160,15 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                     )}
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                         {wslAction === 'install-ubuntu' ? (
-                            <>WinBorg can install Ubuntu automatically. You may need to complete the first-run setup (username/password).</>
+                            <>WinBorg can install Ubuntu automatically for your Windows user. You may need to complete the first-run setup (create username/password).</>
                         ) : (
-                            <>WinBorg can install WSL automatically. You will need to accept the <b>administrator prompt</b>.</>
+                            <>WinBorg can enable WSL automatically. You will need to accept the <b>administrator prompt</b>, and then restart Windows.</>
                         )}
                     </p>
                     <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded border border-amber-100 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs">
-                        ⚠️ A computer restart may be required after installation.
+                        {wslAction === 'install-wsl'
+                            ? <>⚠️ A computer restart will be required after enabling WSL.</>
+                            : <>⚠️ No restart is usually needed, but you must complete the Ubuntu first-run setup.</>}
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                         <Button variant="secondary" onClick={checkPrerequisites}>Retry Check</Button>
@@ -194,17 +196,17 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                             <li>Wait for the installer to finish.</li>
                             {wslAction === 'install-ubuntu' ? (
                                 <>
-                                    <li>Enter a <b>new username</b> and password when asked.</li>
-                                    <li>Once you see the shell prompt - <b>close the window</b> manually.</li>
+                                    <li>When asked, create a <b>new Ubuntu username</b> and password.</li>
+                                    <li>Once you see the Ubuntu shell prompt, type <b>exit</b> or close the window.</li>
                                 </>
                             ) : (
-                                <li>Restart Windows when prompted.</li>
+                                <li>Restart Windows when prompted (or when WinBorg asks you to).</li>
                             )}
                         </ol>
                     </div>
 
                     <p className="text-xs text-center text-slate-400">
-                        Waiting for terminal to close...
+                        When the PowerShell window closes, return here.
                     </p>
                 </div>
             )}
@@ -262,7 +264,7 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
                  <div className="flex flex-col items-center justify-center py-8 space-y-4 text-gray-500">
                     <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
                     <p>Installing BorgBackup...</p>
-                    <span className="text-xs text-center max-w-xs">Running: apt-get upgrade & install borgbackup... (This may take a while)</span>
+                    <span className="text-xs text-center max-w-xs">Running: apt-get update & install borgbackup... (This may take a while)</span>
                 </div>
             )}
 
