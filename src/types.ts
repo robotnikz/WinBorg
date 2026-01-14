@@ -49,6 +49,13 @@ export interface Repository {
   
   // To allow aborting
   activeCommandId?: string;
+
+  // Backup Run State (One-off or Job)
+  backupStatus?: 'idle' | 'running' | 'success' | 'error' | 'aborted';
+  backupStartTime?: number; // Timestamp in ms
+  backupEstimatedDurationMs?: number; // Used for ETA/progress bar (heuristic)
+  activeBackupCommandId?: string; // For cancelling a running backup
+  activeBackupJobId?: string; // If the running backup was triggered by a job
 }
 
 export interface BackupJob {

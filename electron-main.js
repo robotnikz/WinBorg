@@ -547,12 +547,17 @@ async function executeBackgroundJob(job) {
     if (!repo) {
         return;
     }
+
+    // Provide a stable, renderer-visible id so scheduled jobs can be surfaced (ETA/status)
+    // and cancelled through the existing borg-stop pathway.
+    const commandId = `job-${job.id}-${Date.now()}`;
+
     new Notification({ 
         title: 'Backup Started', 
         body: `Job: ${job.name}`,
         icon: getIconPath() || undefined
     }).show();
-    safeSendToRenderer('job-started', job.id);
+    safeSendToRenderer('job-started', { jobId: job.id, repoId: repo.id, commandId });
 
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
@@ -575,7 +580,7 @@ async function executeBackgroundJob(job) {
             body: `Job '${job.name}' has no source paths configured.`,
             icon: getIconPath() || undefined
         }).show();
-        safeSendToRenderer('job-complete', { jobId: job.id, success: false });
+        safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: false });
         return;
     }
 
@@ -612,15 +617,41 @@ async function executeBackgroundJob(job) {
         }
     }
 
-    const createArgs = ['create', '--stats', ...excludeArgs, `${repo.url}::${archiveName}`, ...sourcePathsForCreate];
+    let createArgs = ['create', '--stats', ...excludeArgs, `${repo.url}::${archiveName}`, ...sourcePathsForCreate];
+
+    // Common options (e.g. custom borg path on the remote)
+    if (repo.remotePath && repo.remotePath !== 'borg') {
+        createArgs = ['--remote-path', repo.remotePath, ...createArgs];
+    }
+
+    // Command-specific options must come AFTER the subcommand.
+    // (Putting --compression before 'create' makes borg interpret the codec name as the command.)
     if (job.compression && job.compression !== 'auto') {
-        createArgs.unshift(job.compression);
-        createArgs.unshift('--compression');
+        const idx = createArgs.indexOf('create');
+        const insertAt = idx >= 0 ? idx + 1 : 0;
+        createArgs.splice(insertAt, 0, '--compression', job.compression);
+    }
+
+    // Prefer a distro that actually has borg installed (Ubuntu/Debian)
+    let detectedDistro = null;
+    if (useWsl) {
+        try {
+            detectedDistro = await getPreferredWslDistro();
+        } catch (e) {
+            detectedDistro = null;
+        }
     }
 
     let createResult;
     try {
-        createResult = await runBorgInternal(createArgs, repo.id, useWsl, job.name);
+        createResult = await runBorgInternal(createArgs, {
+            repo,
+            repoId: repo.id,
+            useWsl,
+            wslDistro: detectedDistro,
+            jobName: job.name,
+            commandId,
+        });
     } catch (e) {
         throw e;
     }
@@ -628,13 +659,24 @@ async function executeBackgroundJob(job) {
     if (createResult.success) {
         let pruneSummary = '';
         if (job.pruneEnabled) {
-            const pruneArgs = ['prune', '-v', '--list', repo.url];
+            let pruneArgs = ['prune', '-v', '--list', repo.url];
             if (job.keepDaily) pruneArgs.push('--keep-daily', job.keepDaily.toString());
             if (job.keepWeekly) pruneArgs.push('--keep-weekly', job.keepWeekly.toString());
             if (job.keepMonthly) pruneArgs.push('--keep-monthly', job.keepMonthly.toString());
             if (job.keepYearly) pruneArgs.push('--keep-yearly', job.keepYearly.toString());
+
+            if (repo.remotePath && repo.remotePath !== 'borg') {
+                pruneArgs = ['--remote-path', repo.remotePath, ...pruneArgs];
+            }
             
-            const pruneResult = await runBorgInternal(pruneArgs, repo.id, useWsl, job.name + " (Prune)");
+            const pruneResult = await runBorgInternal(pruneArgs, {
+                repo,
+                repoId: repo.id,
+                useWsl,
+                wslDistro: detectedDistro,
+                jobName: job.name + " (Prune)",
+                commandId,
+            });
             pruneSummary = pruneResult.success ? "\nPrune: Success" : "\nPrune: Failed";
         }
         
@@ -644,7 +686,7 @@ async function executeBackgroundJob(job) {
             icon: getIconPath() || undefined
         }).show();
         dispatchNotifications(job.name, true, `Archive created: ${archiveName}${pruneSummary}\n\n${getLastLines(createResult.output, 10)}`);
-        safeSendToRenderer('job-complete', { jobId: job.id, success: true });
+        safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: true });
         
     } else {
         new Notification({ 
@@ -654,7 +696,7 @@ async function executeBackgroundJob(job) {
         }).show();
         const logSnippet = getLastLines(createResult.output, 25);
         dispatchNotifications(job.name, false, `The Borg command exited with a non-zero status code.\n\nError Log:\n${logSnippet}`);
-        safeSendToRenderer('job-complete', { jobId: job.id, success: false });
+        safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: false });
     }
 
     } finally {
@@ -668,19 +710,45 @@ function getLastLines(text, count) {
     return lines.slice(-count).join('\n');
 }
 
-function runBorgInternal(args, repoId, useWsl, jobName) {
+function extractBorgErrorSummary(output) {
+    try {
+        if (!output) return '';
+        const lines = String(output).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        // Prefer common borg error patterns.
+        const candidates = lines.filter(l =>
+            /^borg\b/i.test(l) ||
+            /\bERROR\b/i.test(l) ||
+            /Permission denied/i.test(l) ||
+            /Repository .* not found/i.test(l) ||
+            /Connection (refused|timed out)/i.test(l) ||
+            /No such file/i.test(l) ||
+            /not found/i.test(l)
+        );
+        return (candidates[0] || lines[lines.length - 1] || '').slice(0, 240);
+    } catch {
+        return '';
+    }
+}
+
+function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, commandId } = {}) {
     return new Promise((resolve) => {
-        const internalId = `bg-${Date.now()}`;
+        const internalId = commandId || `bg-${Date.now()}`;
         activeProcesses.set(internalId, { kill: () => {} });
         updatePowerBlocker();
 
         let bin = 'borg';
         let finalArgs = args;
+        const disableHostCheck = !!(repo && repo.trustHost);
+        let sshCmd = 'ssh -o BatchMode=yes';
+        if (disableHostCheck) {
+            sshCmd += ' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null';
+        }
+
         const envVars = {
             BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: 'yes',
             BORG_RELOCATED_REPO_ACCESS_IS_OK: 'yes',
             BORG_DISPLAY_PASSPHRASE: 'no',
-            BORG_RSH: 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no'
+            BORG_RSH: sshCmd
         };
 
         const secret = getDecryptedPassword(repoId);
@@ -688,12 +756,21 @@ function runBorgInternal(args, repoId, useWsl, jobName) {
 
         if (useWsl) {
             bin = 'wsl';
-            if (process.env.WSLENV) {
-                 envVars.WSLENV = process.env.WSLENV + ':BORG_PASSPHRASE:BORG_RSH';
-            } else {
-                 envVars.WSLENV = 'BORG_PASSPHRASE:BORG_RSH';
+
+            // Export vars into WSL. /u = pass to WSL only (no path translation needed).
+            const keys = ['BORG_RSH/u'];
+            if (secret) keys.push('BORG_PASSPHRASE/u');
+            envVars.WSLENV = process.env.WSLENV
+                ? `${process.env.WSLENV}:${keys.join(':')}`
+                : keys.join(':');
+
+            const wslBaseArgs = [];
+            if (wslDistro) {
+                wslBaseArgs.push('-d', wslDistro);
             }
-            finalArgs = ['--exec', 'borg', ...args];
+
+            // Use a stable path for borg inside WSL (PATH can differ across distros).
+            finalArgs = [...wslBaseArgs, '--exec', '/usr/bin/borg', ...args];
         }
 
         const child = spawn(bin, finalArgs, { env: { ...process.env, ...envVars } });
@@ -709,13 +786,16 @@ function runBorgInternal(args, repoId, useWsl, jobName) {
         child.stderr.on('data', d => output += d);
 
         child.once('close', (code) => {
+            const isWarning = code === 1;
+            const success = code === 0 || isWarning;
+            const summary = extractBorgErrorSummary(output);
             safeSendToRenderer('activity-log', {
-                title: code === 0 ? 'Scheduled Backup Success' : 'Scheduled Backup Failed',
-                detail: `${jobName} - Code ${code}`,
-                status: code === 0 ? 'success' : 'error',
+                title: success ? 'Scheduled Backup Success' : 'Scheduled Backup Failed',
+                detail: summary ? `${jobName} - Code ${code}: ${summary}` : `${jobName} - Code ${code}`,
+                status: success ? (isWarning ? 'warning' : 'success') : 'error',
                 cmd: output
             });
-            resolve({ success: code === 0, output: output });
+            resolve({ success, output: output });
         });
     });
 }

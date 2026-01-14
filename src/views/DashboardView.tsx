@@ -41,6 +41,7 @@ interface DashboardViewProps {
   onChangeView: (view: any) => void;
   onViewDetails?: (repo: Repository) => void;
   onAbortCheck?: (repo: Repository) => void;
+    onAbortBackup?: (repo: Repository) => void;
   onOneOffBackup?: (repo: Repository) => void;
   isDarkMode?: boolean;
   toggleTheme?: () => void;
@@ -48,7 +49,7 @@ interface DashboardViewProps {
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({ 
-    repos, mounts, jobs, activityLogs, onQuickMount, onConnect, onCheck, onChangeView, onViewDetails, onAbortCheck, onOneOffBackup, isDarkMode, toggleTheme, isLoading 
+    repos, mounts, jobs, activityLogs, onQuickMount, onConnect, onCheck, onChangeView, onViewDetails, onAbortCheck, onAbortBackup, onOneOffBackup, isDarkMode, toggleTheme, isLoading 
 }) => {
   
   // Real-time Current File Logic
@@ -88,12 +89,32 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   // Force update for ETA
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-      const hasRunningCheck = repos.some(r => r.checkStatus === 'running');
-      if (hasRunningCheck) {
+      const hasRunningOp = repos.some(r => r.checkStatus === 'running' || r.backupStatus === 'running');
+      if (hasRunningOp) {
           const interval = setInterval(() => setNow(Date.now()), 1000);
           return () => clearInterval(interval);
       }
   }, [repos]);
+
+  const getBackupProgress = (repo: Repository): { pct?: number; etaLabel: string } => {
+      if (repo.backupStatus !== 'running' || !repo.backupStartTime) return { pct: undefined, etaLabel: '' };
+
+      const elapsedMs = Math.max(0, now - repo.backupStartTime);
+      const est = repo.backupEstimatedDurationMs;
+
+      if (!est || !isFinite(est) || est < 5_000) {
+          return { pct: undefined, etaLabel: 'Estimating…' };
+      }
+
+      const ratio = elapsedMs / est;
+      const pct = Math.max(0, Math.min(99, Math.round(ratio * 100)));
+      const remainingMs = est - elapsedMs;
+      const etaLabel = remainingMs > 0
+          ? `ETA ${formatDuration(Math.round(remainingMs / 1000))}`
+          : 'Overdue';
+
+      return { pct, etaLabel };
+  };
 
   // --- NEW LOGIC: STATUS CALCULATION ---
   const getRepoHealth = (repo: Repository) => {
@@ -319,6 +340,45 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                           )}
                                       </div>
                                   </div>
+
+                                  {/* Backup ETA + Cancel */}
+                                  {repo.backupStatus === 'running' && (
+                                      <div className="mb-5">
+                                          <div className="flex items-center justify-between mb-1">
+                                              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Backup Running</div>
+                                              {onAbortBackup && (
+                                                  <button
+                                                      onClick={() => onAbortBackup(repo)}
+                                                      className="text-[10px] font-bold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                                  >
+                                                      Cancel
+                                                  </button>
+                                              )}
+                                          </div>
+
+                                          {(() => {
+                                              const { pct, etaLabel } = getBackupProgress(repo);
+                                              return (
+                                                  <>
+                                                      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                                          {typeof pct === 'number' ? (
+                                                              <div
+                                                                  className="h-full bg-green-500 transition-all"
+                                                                  style={{ width: `${pct}%` }}
+                                                              />
+                                                          ) : (
+                                                              <div className="h-full bg-green-500/70 animate-pulse w-full" />
+                                                          )}
+                                                      </div>
+                                                      <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                                          <span>{etaLabel}</span>
+                                                          {typeof pct === 'number' && <span>{pct}%</span>}
+                                                      </div>
+                                                  </>
+                                              );
+                                          })()}
+                                      </div>
+                                  )}
 
                                   {/* Action Footer */}
                                   <div className="pt-4 border-t border-gray-100 dark:border-slate-700 flex gap-2">

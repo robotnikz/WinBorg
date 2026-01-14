@@ -698,7 +698,7 @@ export const borgService = {
       archiveName: string, 
       sourcePaths: string[], 
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string },
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string, commandId?: string },
       options?: { excludePatterns?: string[] }
   ): Promise<boolean> => {
       const config = getBorgConfig();
