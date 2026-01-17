@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+
 import UpdateModal from './UpdateModal';
 
 vi.mock('./Button', () => ({
@@ -51,5 +51,29 @@ describe('UpdateModal', () => {
         );
 
         expect(screen.queryByRole('button', { name: /Changelog/i })).not.toBeInTheDocument();
+    });
+
+    it('normalizes array release notes and renders as plain text (no HTML tags)', () => {
+        const { container } = render(
+            <UpdateModal
+                isOpen={true}
+                onClose={() => {}}
+                onUpdate={() => {}}
+                version="1.2.3"
+                downloading={false}
+                readyToInstall={false}
+                releaseNotes={[
+                    { version: '1.2.3', note: '<b>Added</b> feature A' },
+                    { version: '1.2.3', notes: 'Fixed bug B' },
+                ]}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /Changelog/i }));
+
+        // HTML tags are stripped to plain text
+        expect(screen.getByText(/Added feature A/i)).toBeInTheDocument();
+        expect(container.textContent).not.toContain('<b>');
+        expect(container.querySelector('b')).toBeNull();
     });
 });

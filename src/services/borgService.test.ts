@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
+
 
 // Types
 import type { borgService as BorgServiceType } from './borgService';
@@ -177,6 +177,55 @@ describe('borgService', () => {
              const params = call[1];
              expect(params.envVars.WSLENV).toContain('MY_VAR');
         });
+
+        it('prepends --remote-path and sets BORG_REMOTE_PATH + WSLENV when remotePath override is provided', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+            mockInvoke.mockResolvedValue({ success: true });
+
+            await borgService.runCommand(['list', 'repo1'], vi.fn(), { remotePath: '/usr/local/bin/borg-alt' });
+
+            expect(mockInvoke).toHaveBeenCalledWith('borg-spawn', expect.objectContaining({
+                args: ['--remote-path', '/usr/local/bin/borg-alt', 'list', 'repo1'],
+                envVars: expect.objectContaining({
+                    BORG_REMOTE_PATH: '/usr/local/bin/borg-alt',
+                }),
+            }));
+
+            const params = mockInvoke.mock.calls[0][1];
+            expect(params.envVars.WSLENV).toContain('BORG_REMOTE_PATH/u');
+        });
+
+        it('adds StrictHostKeyChecking=no to BORG_RSH when disableHostCheck override is true', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+            mockInvoke.mockResolvedValue({ success: true });
+
+            await borgService.runCommand(['info', 'repo1'], vi.fn(), { disableHostCheck: true });
+
+            const params = mockInvoke.mock.calls[0][1];
+            expect(String(params.envVars.BORG_RSH || '')).toContain('StrictHostKeyChecking=no');
+            expect(String(params.envVars.BORG_RSH || '')).toContain('UserKnownHostsFile=/dev/null');
+        });
+
+        it('does not set WSLENV when WSL is disabled (even with custom env)', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'false';
+                return null;
+            });
+            mockInvoke.mockResolvedValue({ success: true });
+
+            await borgService.runCommand(['list', 'repo1'], vi.fn(), { env: { MY_VAR: '123' } });
+
+            const params = mockInvoke.mock.calls[0][1];
+            expect(params.useWsl).toBe(false);
+            expect(params.envVars.MY_VAR).toBe('123');
+            expect(params.envVars.WSLENV).toBeUndefined();
+        });
     });
 
     describe('createArchive', () => {
@@ -283,6 +332,52 @@ describe('borgService', () => {
             const res = await borgService.checkBorgInstalledRemote('user@host', '2222');
             expect(mockInvoke).toHaveBeenCalledWith('ssh-check-borg', { target: 'user@host', port: '2222' });
             expect(res).toEqual({ success: true, version: 'borg 1.2.7', path: '/usr/bin/borg' });
+        });
+    });
+
+    describe('Filesystem helpers', () => {
+        it('getDownloadsPath returns the string provided by IPC', async () => {
+            mockInvoke.mockResolvedValue('C:\\Users\\me\\Downloads');
+            const res = await borgService.getDownloadsPath();
+            expect(mockInvoke).toHaveBeenCalledWith('get-downloads-path');
+            expect(res).toBe('C:\\Users\\me\\Downloads');
+        });
+
+        it('createDirectory returns the boolean provided by IPC', async () => {
+            mockInvoke.mockResolvedValue(true);
+            const res = await borgService.createDirectory('C:\\Temp\\X');
+            expect(mockInvoke).toHaveBeenCalledWith('create-directory', 'C:\\Temp\\X');
+            expect(res).toBe(true);
+        });
+
+        it('selectDirectory returns filePaths when not canceled', async () => {
+            mockInvoke.mockResolvedValue({ canceled: false, filePaths: ['C:\\Temp'] });
+            const res = await borgService.selectDirectory();
+            expect(mockInvoke).toHaveBeenCalledWith('select-directory');
+            expect(res).toEqual(['C:\\Temp']);
+        });
+
+        it('selectDirectory returns null when canceled', async () => {
+            mockInvoke.mockResolvedValue({ canceled: true, filePaths: ['C:\\Temp'] });
+            const res = await borgService.selectDirectory();
+            expect(res).toBeNull();
+        });
+
+        it('selectDirectory returns null when IPC throws', async () => {
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            mockInvoke.mockRejectedValue(new Error('boom'));
+            const res = await borgService.selectDirectory();
+            expect(res).toBeNull();
+            errorSpy.mockRestore();
+        });
+    });
+
+    describe('Cancellation helpers', () => {
+        it('stopCommand calls borg-stop and returns result.success', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const res = await borgService.stopCommand('cmd-1');
+            expect(mockInvoke).toHaveBeenCalledWith('borg-stop', { commandId: 'cmd-1' });
+            expect(res).toBe(true);
         });
     });
 });

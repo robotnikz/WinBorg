@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+
 import { toast } from './eventBus';
 
 describe('eventBus (toast)', () => {

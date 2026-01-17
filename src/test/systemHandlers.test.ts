@@ -1,10 +1,54 @@
 // @vitest-environment node
 
-import { describe, it, expect, vi } from 'vitest';
+
 
 const { createSystemHandlers } = require('../../main/systemHandlers');
 
 describe('systemHandlers (main-process logic)', () => {
+    it('checkWsl returns installed=false with reason=virtualization-missing when status indicates virtualization issue', async () => {
+        const spawnCapture = vi
+            .fn()
+            .mockResolvedValueOnce({
+                code: 1,
+                stderr: 'WslRegisterDistribution failed with error: 0x80370102. Please enable Virtual Machine Platform.',
+            });
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn(),
+            exec: vi.fn(),
+            registerManagedChild: vi.fn(),
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn(),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.checkWsl();
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('virtualization-missing');
+        expect(res.error).toContain('virtualization');
+    });
+
+    it('checkWsl returns installed=false when status exits 0 but output indicates WSL is disabled', async () => {
+        const spawnCapture = vi.fn().mockResolvedValueOnce({
+            code: 0,
+            stdout: 'The optional component is not enabled. Please enable the Virtual Machine Platform and Windows Subsystem for Linux.',
+        });
+        const handlers = createSystemHandlers({
+            spawnCapture,
+            spawn: vi.fn(),
+            exec: vi.fn(),
+            registerManagedChild: vi.fn(),
+            activeProcesses: new Map(),
+            getPreferredWslDistro: vi.fn(),
+            logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        });
+
+        const res = await handlers.checkWsl();
+        expect(res.installed).toBe(false);
+        expect(res.reason).toBe('wsl-missing');
+        expect(spawnCapture).toHaveBeenCalledTimes(1);
+    });
+
     it('checkWsl returns installed=false when wsl is not available', async () => {
         const spawnCapture = vi.fn().mockResolvedValueOnce({ code: 1, error: new Error('no wsl') });
         const handlers = createSystemHandlers({

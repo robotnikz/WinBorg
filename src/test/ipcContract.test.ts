@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, it, expect } from 'vitest';
+
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -21,6 +21,7 @@ describe('IPC contract (renderer <-> main)', () => {
     // Onboarding / system checks & installs
     'system-check-wsl',
     'system-install-wsl',
+    'system-install-ubuntu',
     'system-check-borg',
     'system-install-borg',
     'system-reboot',
@@ -34,6 +35,16 @@ describe('IPC contract (renderer <-> main)', () => {
 
     // Borg command execution
     'borg-spawn',
+    'borg-stop',
+
+    // Filesystem helpers (used by archive extraction + job folder picking)
+    'get-downloads-path',
+    'create-directory',
+    'select-directory',
+
+    // Mounting
+    'borg-mount',
+    'borg-unmount',
 
     // Secrets
     'save-secret',
@@ -64,6 +75,12 @@ describe('IPC contract (renderer <-> main)', () => {
       'ssh-test-connection',
       'ssh-check-borg',
       'borg-spawn',
+      'borg-stop',
+      'get-downloads-path',
+      'create-directory',
+      'select-directory',
+      'borg-mount',
+      'borg-unmount',
       'save-secret',
       'delete-secret',
       'has-secret',

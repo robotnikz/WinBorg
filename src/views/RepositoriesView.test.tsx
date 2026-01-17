@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+
 import RepositoriesView from './RepositoriesView';
 import { Repository } from '../types';
 import { borgService } from '../services/borgService';
