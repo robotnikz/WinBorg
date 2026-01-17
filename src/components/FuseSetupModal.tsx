@@ -29,6 +29,9 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose }) => {
                         <p className="text-sm text-slate-600 mt-2 leading-relaxed">
                             To allow Windows Explorer to access the mounted archive, we need to enable <code>allow_other</code> in WSL FUSE settings.
                         </p>
+                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                            WinBorg will try to auto-fix this during mounting. If it still fails, run the command below once in your WSL terminal.
+                        </p>
                     </div>
                 </div>
 

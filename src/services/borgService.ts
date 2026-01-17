@@ -339,6 +339,7 @@ export const borgService = {
       onLog("[Auto-Setup] Checking FUSE permissions in WSL...");
             const fixCmd = `
                 set -e;
+                export DEBIAN_FRONTEND=noninteractive;
                 touch /etc/fuse.conf;
                 sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf || true;
                 if ! grep -q "^user_allow_other" /etc/fuse.conf; then
@@ -354,14 +355,37 @@ export const borgService = {
                 chmod 666 /dev/fuse 2>/dev/null || true;
 
                 # Borg mount needs python FUSE bindings (llfuse or pyfuse3) in the distro.
-                if command -v python3 >/dev/null 2>&1; then
-                        python3 -c "import llfuse" >/dev/null 2>&1 \
-                            || python3 -c "import pyfuse3" >/dev/null 2>&1 \
-                            || {
-                                        echo "Missing Python FUSE bindings for borg mount (llfuse/pyfuse3).";
-                                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y";
-                                        exit 22;
-                                 };
+                have_python=0;
+                if command -v python3 >/dev/null 2>&1; then have_python=1; fi;
+
+                have_bindings=0;
+                if [ "$have_python" = "1" ]; then
+                    python3 -c "import llfuse" >/dev/null 2>&1 && have_bindings=1;
+                    if [ "$have_bindings" != "1" ]; then
+                        python3 -c "import pyfuse3" >/dev/null 2>&1 && have_bindings=1;
+                    fi;
+                fi;
+
+                if [ "$have_bindings" != "1" ]; then
+                    echo "[Auto-Setup] Missing Python FUSE bindings for borg mount (llfuse/pyfuse3). Attempting to install...";
+
+                    # Try to auto-install dependencies (best-effort). This is safe to re-run.
+                    /usr/bin/apt-get update --allow-releaseinfo-change || true;
+                    /usr/bin/apt-get install -y --no-install-recommends --fix-missing fuse3 libfuse2 python3 python3-llfuse python3-pyfuse3 || true;
+
+                    # Re-check after install attempt
+                    if command -v python3 >/dev/null 2>&1; then
+                        python3 -c "import llfuse" >/dev/null 2>&1 && have_bindings=1;
+                        if [ "$have_bindings" != "1" ]; then
+                            python3 -c "import pyfuse3" >/dev/null 2>&1 && have_bindings=1;
+                        fi;
+                    fi;
+
+                    if [ "$have_bindings" != "1" ]; then
+                        echo "Missing Python FUSE bindings for borg mount (llfuse/pyfuse3).";
+                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y";
+                        exit 22;
+                    fi;
                 fi;
 
                 echo "FUSE prerequisites verified.";
