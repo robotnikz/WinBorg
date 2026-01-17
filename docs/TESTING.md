@@ -12,6 +12,31 @@ For the overall approach and risk mapping, see [docs/TEST_STRATEGY.md](TEST_STRA
 npm install
 ```
 
+### Windows PowerShell note (npm.ps1 blocked)
+
+On some Windows setups, PowerShell script execution is disabled and running `npm` may fail with an error about `npm.ps1` and `Execution_Policies`.
+
+Workarounds (pick one):
+
+1) Use the Windows CMD shim explicitly:
+
+```powershell
+npm.cmd run test:pr
+```
+
+2) Run npm via Node directly (bypasses PowerShell scripts entirely):
+
+```powershell
+node "$env:ProgramFiles\nodejs\node_modules\npm\bin\npm-cli.js" run test:pr
+```
+
+3) (Optional) Adjust PowerShell execution policy for your user.
+Only do this if you understand the security implications:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
 ```bash
 # Typecheck
 npm run typecheck

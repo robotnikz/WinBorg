@@ -9,7 +9,9 @@ Thanks for your interest in contributing to WinBorg.
 ## Quick start
 
 ### Prereqs
-- Node.js (use the version from the CI workflow in `.github/workflows/cicd.yml`)
+- Node.js
+  - For day-to-day development + tests, use the Node version from the **test** job in `.github/workflows/cicd.yml` (currently Node 20).
+  - For release automation, note the **release** job uses a newer Node version (currently Node 22) due to `semantic-release` requirements.
 - Git
 
 ### Install
