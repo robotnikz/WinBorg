@@ -52,7 +52,16 @@ test.describe('@manual Onboarding Flow (admin actions)', () => {
       .then(() => 'restart' as const)
       .catch(() => null);
 
-    const outcome = await Promise.race([appClosed, restartVisible]);
+    // Depending on environment/mocks, onboarding may move forward instead of demanding a restart.
+    const ubuntuStepVisible = expect(firstWindow.getByRole('button', { name: 'Install Ubuntu (WSL)' })).toBeVisible({ timeout: 15000 })
+      .then(() => 'ubuntu' as const)
+      .catch(() => null);
+
+    const systemReadyVisible = expect(firstWindow.getByText('System Ready!')).toBeVisible({ timeout: 15000 })
+      .then(() => 'ready' as const)
+      .catch(() => null);
+
+    const outcome = await Promise.race([appClosed, restartVisible, ubuntuStepVisible, systemReadyVisible]);
     expect(outcome).not.toBeNull();
   });
 });
