@@ -20,62 +20,6 @@
       }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f3f3f3; /* Windows 11 Light Gray Background */
-        overflow: hidden; /* App-like feel */
-      }
-      /* Dark mode body override handled by tailwind classes in App structure usually, 
-         but we ensure base is dark when class is present on html */
-      html.dark body {
-        background-color: #0f172a;
-      }
-
-      /* Custom Scrollbar for Windows 11 feel */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #ccc;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #999;
-      }
-      
-      html.dark ::-webkit-scrollbar-thumb {
-        background: #475569;
-      }
-      html.dark ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-      }
-
-      .mica-effect {
-        background-color: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(20px);
-      }
-      .acrylic-panel {
-        background-color: rgba(243, 243, 243, 0.6);
-        backdrop-filter: blur(15px);
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
-  }
-}
-</script>
 </head>
   <body>
     <div id="root"></div>

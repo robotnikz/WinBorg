@@ -16,6 +16,20 @@ const { createSystemHandlers } = require('./main/systemHandlers');
 const { resolveSshKeyInstallOptions } = require('./main/sshHelpers');
 const { createMountPreflight } = require('./main/mountPreflight');
 
+// --- TEST MODE: isolate userData so repeated E2E launches don't fight the single-instance lock.
+// This runs before requestSingleInstanceLock() and is intentionally best-effort.
+if (process.env.NODE_ENV === 'test') {
+    try {
+        const uniqueUserDataDir = path.join(
+            os.tmpdir(),
+            `winborg-test-userdata-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        );
+        app.setPath('userData', uniqueUserDataDir);
+    } catch (e) {
+        // best-effort
+    }
+}
+
 // --- SINGLE INSTANCE LOCK ---
 const gotTheLock = app.requestSingleInstanceLock();
 
