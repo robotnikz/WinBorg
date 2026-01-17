@@ -374,6 +374,7 @@ const App: React.FC = () => {
   const [terminalTitle, setTerminalTitle] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showFuseHelp, setShowFuseHelp] = useState(false);
+    const [fuseOfferRepair, setFuseOfferRepair] = useState(false);
 
   // Helper to run commands
   const runCommand = async (
@@ -454,6 +455,7 @@ const App: React.FC = () => {
         setIsTerminalOpen(true);
 
         if (result.error === 'FUSE_MISSING') {
+            setFuseOfferRepair(!!(result as any)?.offerWslRepair);
             setTimeout(() => {
                 setIsTerminalOpen(false);
                 setShowFuseHelp(true);
@@ -1064,7 +1066,14 @@ const App: React.FC = () => {
                   updateAvailable={updateAvailable}
               />
               <TerminalModal isOpen={isTerminalOpen} title={terminalTitle} logs={terminalLogs} onClose={() => setIsTerminalOpen(false)} isProcessing={isProcessing} />
-              <FuseSetupModal isOpen={showFuseHelp} onClose={() => setShowFuseHelp(false)} />
+            <FuseSetupModal
+                isOpen={showFuseHelp}
+                showRepairButton={fuseOfferRepair}
+                onClose={() => {
+                    setShowFuseHelp(false);
+                    setFuseOfferRepair(false);
+                }}
+            />
               <main className="flex-1 flex flex-col h-full overflow-hidden relative">
                 <div className="flex-1 overflow-y-auto p-8 pt-4">
                    {renderContent()}

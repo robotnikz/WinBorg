@@ -6,10 +6,14 @@ import Button from './Button';
 interface FuseSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
+    showRepairButton?: boolean;
 }
 
-const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose }) => {
+const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRepairButton = false }) => {
   if (!isOpen) return null;
+
+    const [isRepairing, setIsRepairing] = React.useState(false);
+    const [repairMessage, setRepairMessage] = React.useState<string | null>(null);
 
   // This one-liner does two things:
   // 1. Installs dependencies
@@ -28,6 +32,9 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose }) => {
                         <h3 className="text-lg font-bold text-slate-900">WSL Configuration Required</h3>
                         <p className="text-sm text-slate-600 mt-2 leading-relaxed">
                             To allow Windows Explorer to access the mounted archive, we need to enable <code>allow_other</code> in WSL FUSE settings.
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                            WinBorg will try to auto-fix this during mounting. If it still fails, run the command below once in your WSL terminal.
                         </p>
                     </div>
                 </div>
@@ -55,6 +62,35 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose }) => {
             </div>
             
             <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end">
+                {showRepairButton && (
+                    <div className="flex-1 flex items-center gap-3">
+                        <Button
+                            onClick={async () => {
+                                setIsRepairing(true);
+                                setRepairMessage(null);
+                                try {
+                                    const { ipcRenderer } = (window as any).require('electron');
+                                    const res = await ipcRenderer.invoke('system-fix-wsl-fuse');
+                                    if (res?.success) {
+                                        setRepairMessage('Repair finished. Please retry mounting the archive.');
+                                    } else {
+                                        setRepairMessage(res?.error || 'Repair ran, but the issue is still present. A Windows restart and enabling WSL2/Virtual Machine Platform may be required.');
+                                    }
+                                } catch (e: any) {
+                                    setRepairMessage(e?.message || 'Failed to run repair.');
+                                } finally {
+                                    setIsRepairing(false);
+                                }
+                            }}
+                            disabled={isRepairing}
+                        >
+                            {isRepairing ? 'Repairing…' : 'Repair WSL (Auto)'}
+                        </Button>
+                        {repairMessage && (
+                            <span className="text-xs text-slate-600">{repairMessage}</span>
+                        )}
+                    </div>
+                )}
                 <Button onClick={onClose}>Done</Button>
             </div>
         </div>

@@ -23,6 +23,7 @@ describe('IPC contract (renderer <-> main)', () => {
     'system-install-wsl',
     'system-check-borg',
     'system-install-borg',
+    'system-fix-wsl-fuse',
     'system-reboot',
 
     // SSH / remote operations (key selling points)
@@ -64,6 +65,9 @@ describe('IPC contract (renderer <-> main)', () => {
       'ssh-test-connection',
       'ssh-check-borg',
       'borg-spawn',
+
+      // WSL repair helper (called from borgService when mount prerequisites are missing)
+      'system-fix-wsl-fuse',
       'save-secret',
       'delete-secret',
       'has-secret',
