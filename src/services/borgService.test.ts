@@ -303,7 +303,7 @@ describe('borgService', () => {
 
             const onLog = vi.fn();
             const res = await borgService.mount('ssh://repo', 'arch1', '/mnt/wsl/winborg/arch1', onLog, { repoId: 'r1' });
-            expect(res).toEqual({ success: false, error: 'FUSE_MISSING' });
+            expect(res).toMatchObject({ success: false, error: 'FUSE_MISSING' });
             expect(mockInvoke).toHaveBeenCalledWith('borg-spawn', expect.objectContaining({
                 commandId: 'fuse-setup',
                 useWsl: true,

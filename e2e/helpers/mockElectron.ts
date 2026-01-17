@@ -249,6 +249,8 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
           case 'system-install-wsl':
           case 'system-install-borg':
             return { success: true };
+          case 'system-fix-wsl-fuse':
+            return { success: true };
           case 'system-reboot':
             return { success: true };
 

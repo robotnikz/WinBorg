@@ -332,9 +332,9 @@ export const borgService = {
       return await borgService.runCommand(['key', 'export', repoUrl], onLog, overrides);
   },
 
-  ensureFuseConfig: async (onLog: (text: string) => void): Promise<boolean> => {
+  ensureFuseConfig: async (onLog: (text: string) => void): Promise<{ ok: boolean; offerRepairButton?: boolean; repairAttempted?: boolean; repairResult?: any }> => {
       const config = getBorgConfig();
-      if (!config.useWsl) return true;
+      if (!config.useWsl) return { ok: true };
 
       onLog("[Auto-Setup] Checking FUSE permissions in WSL...");
       let fuseLog = '';
@@ -412,7 +412,7 @@ export const borgService = {
         };
 
         let res: any = await runPreflight();
-        if (res?.success) return true;
+                if (res?.success) return { ok: true };
 
         // If /dev/fuse is missing, this is typically WSL2/kernel/feature related.
         // Try a best-effort host-side repair (update WSL, set default version 2, shutdown), then retry once.
@@ -420,21 +420,26 @@ export const borgService = {
         const looksLikeMissingDevFuse = fuseLogLower.includes('/dev/fuse') && fuseLogLower.includes('missing');
         if (looksLikeMissingDevFuse) {
             onLog('[Auto-Setup] /dev/fuse missing. Attempting WSL repair (update + restart)...');
+            let repairResult: any = null;
             try {
-                await ipcRenderer.invoke('system-fix-wsl-fuse');
+                repairResult = await ipcRenderer.invoke('system-fix-wsl-fuse');
             } catch (e: any) {
                 onLog(`[Auto-Setup] WSL repair failed to run: ${e?.message || String(e)}`);
             }
 
             fuseLog = '';
             res = await runPreflight();
-            if (res?.success) return true;
+            if (res?.success) return { ok: true, repairAttempted: true, repairResult };
+
+            // Auto repair already ran and didn't fix /dev/fuse. Offer an explicit UI button so the user
+            // can re-run after enabling required Windows features / reboot.
+            return { ok: false, offerRepairButton: true, repairAttempted: true, repairResult };
         }
 
-        return false;
+        return { ok: false };
       } catch (e: any) {
           onLog(`[Setup Error] ${e.message}`);
-          return false;
+          return { ok: false };
       } finally {
           ipcRenderer.removeListener('terminal-log', logListener);
       }
@@ -717,10 +722,10 @@ export const borgService = {
 
     try {
         if (config.useWsl) {
-            const fuseOk = await borgService.ensureFuseConfig(onLog);
-            if (!fuseOk) {
+            const fuseCheck = await borgService.ensureFuseConfig(onLog);
+            if (!fuseCheck.ok) {
                 onLog('[Setup] FUSE setup incomplete. Aborting mount.');
-                return { success: false, error: 'FUSE_MISSING' };
+                return { success: false, error: 'FUSE_MISSING', offerWslRepair: !!fuseCheck.offerRepairButton };
             }
             
             // FIX: Ensure the mountpoint directory exists in WSL before mounting
