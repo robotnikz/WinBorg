@@ -337,6 +337,7 @@ export const borgService = {
       if (!config.useWsl) return true;
 
       onLog("[Auto-Setup] Checking FUSE permissions in WSL...");
+      let fuseLog = '';
             const fixCmd = `
                 set -e;
                 export DEBIAN_FRONTEND=noninteractive;
@@ -391,19 +392,46 @@ export const borgService = {
                 echo "FUSE prerequisites verified.";
             `;
       const logListener = (_: any, msg: { id: string, text: string }) => {
-        if (msg.id === 'fuse-setup') onLog(`[Setup] ${msg.text}`);
+        if (msg.id === 'fuse-setup') {
+            onLog(`[Setup] ${msg.text}`);
+            fuseLog += `\n${msg.text}`;
+        }
       };
       ipcRenderer.on('terminal-log', logListener);
 
       try {
-        return await ipcRenderer.invoke('borg-spawn', { 
+        const runPreflight = async () => {
+            return await ipcRenderer.invoke('borg-spawn', { 
             commandId: 'fuse-setup', 
             useWsl: true,
             envVars: {},
             forceBinary: 'bash',
             wslUser: 'root', 
             args: ['-c', fixCmd]
-        }).then((res: any) => res.success);
+            });
+        };
+
+        let res: any = await runPreflight();
+        if (res?.success) return true;
+
+        // If /dev/fuse is missing, this is typically WSL2/kernel/feature related.
+        // Try a best-effort host-side repair (update WSL, set default version 2, shutdown), then retry once.
+        const fuseLogLower = (fuseLog || '').toLowerCase();
+        const looksLikeMissingDevFuse = fuseLogLower.includes('/dev/fuse') && fuseLogLower.includes('missing');
+        if (looksLikeMissingDevFuse) {
+            onLog('[Auto-Setup] /dev/fuse missing. Attempting WSL repair (update + restart)...');
+            try {
+                await ipcRenderer.invoke('system-fix-wsl-fuse');
+            } catch (e: any) {
+                onLog(`[Auto-Setup] WSL repair failed to run: ${e?.message || String(e)}`);
+            }
+
+            fuseLog = '';
+            res = await runPreflight();
+            if (res?.success) return true;
+        }
+
+        return false;
       } catch (e: any) {
           onLog(`[Setup Error] ${e.message}`);
           return false;

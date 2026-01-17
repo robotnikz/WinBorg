@@ -402,6 +402,74 @@ function createSystemHandlers(deps) {
                 });
             });
         },
+
+        fixWslFuse: async () => {
+            const targetDistro = await getPreferredWslDistro();
+
+            // /dev/fuse being missing usually indicates a WSL/Kernel/version issue (e.g. WSL1 or outdated WSL).
+            // We can attempt a best-effort host-side remediation:
+            // - update WSL
+            // - set default WSL version to 2
+            // - convert the preferred distro to WSL2 (if it is WSL1)
+            // - shutdown WSL so the kernel/device nodes refresh
+            // If Windows features / virtualization are missing, we cannot fully repair without admin + reboot.
+
+            const run = async (args, opts = {}) => {
+                return await spawnCapture('wsl', args, { timeoutMs: 30 * 60 * 1000, encoding: 'utf16le', ...opts });
+            };
+
+            try {
+                logger.log('[Setup] Attempting WSL FUSE repair...');
+
+                // 1) Ensure WSL is up to date
+                await run(['--update']).catch(() => null);
+
+                // 2) Prefer WSL2 going forward
+                await run(['--set-default-version', '2']).catch(() => null);
+
+                // 3) If the preferred distro is WSL1, attempt conversion to WSL2
+                if (targetDistro) {
+                    const list = await run(['--list', '--verbose'], { timeoutMs: 30000 }).catch(() => null);
+                    const text = (list?.stdout || list?.stderr || '').toString();
+                    const lines = text.split(/\r?\n/);
+                    const targetLower = targetDistro.toLowerCase();
+                    const targetLine = lines.find((l) => (l || '').toLowerCase().includes(targetLower));
+                    // Lines typically contain: "* Ubuntu Running 2" or "Ubuntu Stopped 1"
+                    const m = targetLine ? targetLine.match(/\s(\d+)\s*$/) : null;
+                    const version = m ? m[1] : null;
+                    if (version === '1') {
+                        logger.log(`[Setup] Converting distro '${targetDistro}' to WSL2...`);
+                        await run(['--set-version', targetDistro, '2']).catch(() => null);
+                    }
+                }
+
+                // 4) Restart WSL to refresh kernel/device nodes
+                await run(['--shutdown'], { timeoutMs: 30000 }).catch(() => null);
+
+                // 5) Probe /dev/fuse if we have a distro
+                if (targetDistro) {
+                    const probe = await spawnCapture(
+                        'wsl',
+                        ['-d', targetDistro, '-u', 'root', '--exec', 'sh', '-c', 'test -e /dev/fuse && echo ok || echo missing'],
+                        { timeoutMs: 15000 }
+                    );
+                    const out = (probe.stdout || '').toString().trim();
+                    if (probe.code === 0 && out === 'ok') {
+                        return { success: true };
+                    }
+                    return {
+                        success: false,
+                        error:
+                            "WSL repair ran, but /dev/fuse is still missing. This usually requires enabling WSL2 + Virtual Machine Platform and rebooting Windows.",
+                    };
+                }
+
+                return { success: true };
+            } catch (e) {
+                logger.warn('[Setup] WSL FUSE repair failed:', e);
+                return { success: false, error: e?.message || String(e) };
+            }
+        },
     };
 }
 

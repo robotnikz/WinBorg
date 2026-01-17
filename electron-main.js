@@ -1418,6 +1418,7 @@ ipcMain.handle('system-install-wsl', systemHandlers.installWsl);
 ipcMain.handle('system-install-ubuntu', systemHandlers.installUbuntu);
 ipcMain.handle('system-check-borg', systemHandlers.checkBorg);
 ipcMain.handle('system-install-borg', systemHandlers.installBorg);
+ipcMain.handle('system-fix-wsl-fuse', systemHandlers.fixWslFuse);
 
 ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
     // type default = 'ed25519' (could be rsa)
