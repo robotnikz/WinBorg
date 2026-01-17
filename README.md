@@ -15,6 +15,13 @@
   [![Downloads](https://img.shields.io/github/downloads/robotnikz/WinBorg/total?style=for-the-badge&label=Downloads&color=brightgreen)](https://github.com/robotnikz/WinBorg/releases)
   [![License](https://img.shields.io/github/license/robotnikz/WinBorg?style=for-the-badge)](LICENSE)
   [![Tech Stack](https://img.shields.io/badge/Stack-Electron%20%7C%20React%20%7C%20TS-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
+
+  **Quick links:**
+  [Download (Installer)](https://github.com/robotnikz/WinBorg/releases/latest) •
+  [All Releases](https://github.com/robotnikz/WinBorg/releases) •
+  [Docs](docs/README.md) •
+  [Testing](docs/TESTING.md) •
+  [Security](SECURITY.md)
   
 </div>
 
@@ -27,6 +34,41 @@ WinBorg Manager is a modern GUI that brings the power of **BorgBackup** to Windo
 By leveraging **WSL2 (Windows Subsystem for Linux)**, it runs the official, unmodified Linux binaries of BorgBackup for maximum stability and performance, while presenting you with a completely native, polished Windows 11-style interface.
 
 Whether you're backing up your local Documents to a NAS, or your entire dev environment to BorgBase or Hetzner StorageBox, WinBorg makes it simple.
+
+## 🚀 Quickstart (TL;DR)
+
+1. Download the latest Windows installer from the [Releases page](https://github.com/robotnikz/WinBorg/releases/latest).
+2. Launch WinBorg and follow the onboarding for **WSL2 + Ubuntu + BorgBackup**.
+3. Add a repository (e.g. Hetzner Storage Box / BorgBase), create a job, and run your first backup.
+
+If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [OPERATIONS.md](OPERATIONS.md), and [SECURITY.md](SECURITY.md).
+
+## 📌 Contents
+
+- [Requirements](#-requirements)
+- [Key Features](#-key-features)
+- [Gallery](#-gallery)
+- [Installation & Getting Started](#-installation--getting-started)
+- [Troubleshooting (FAQ)](#-troubleshooting-faq)
+- [Project Structure](#-project-structure)
+- [Testing](#-testing)
+- [Contributing](#-contributing)
+
+## ✅ Requirements
+
+- Windows 10/11 with **WSL2** support (virtualization enabled in BIOS/UEFI or VM settings)
+- An Ubuntu WSL distro (WinBorg can install this during onboarding)
+- BorgBackup inside Ubuntu (WinBorg can install this during onboarding)
+- For remote repos: SSH access to your backup target (StorageBox/BorgBase/VPS/NAS)
+- For **Mounts**: WinBorg automatically checks/repairs common FUSE prerequisites inside WSL during the mount flow (bindings, permissions). If `/dev/fuse` is missing, this typically requires WSL2 + `wsl --update` + reboot/shutdown (see [OPERATIONS.md](OPERATIONS.md)).
+
+## 🧩 Troubleshooting (FAQ)
+
+- **“WSL Setup Required” / WSL install fails:** ensure virtualization (VT-x/AMD-V) is enabled; reboot after `wsl --install --no-distribution`.
+- **Ubuntu install prompts for username/password:** that’s expected; finish the Ubuntu first-run setup, then return to WinBorg.
+- **“BorgBackup Not Found”:** open Ubuntu and run `sudo apt update` + `sudo apt install -y borgbackup` (or use WinBorg’s auto-install).
+- **SSH “Permission denied (publickey)” / can’t connect:** use WinBorg’s **Install SSH Key** flow; double-check host, user, and port (Hetzner Storage Box often uses port 23).
+- **Mounts don’t show up / fail:** WinBorg auto-fixes most FUSE issues during mount; if it still fails, check whether `/dev/fuse` exists in your WSL distro and follow [OPERATIONS.md](OPERATIONS.md).
 
 ## ✨ Key Features
 
@@ -146,7 +188,7 @@ which borg
 # Should return: /usr/bin/borg
 ```
 
-### 2. Your First Backup
+### 5. Your First Backup (Manual Path)
 1.  Go to the **Repositories** tab and click `+ Add Repository`.
 2.  Enter your SSH URL (e.g., `ssh://u123@your-provider.com/./backups`) or a local path.
 3.  Once connected, go to **Dashboard**, create a Job ("Backup Documents"), and hit Run ▶️.
