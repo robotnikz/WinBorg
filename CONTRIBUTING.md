@@ -39,9 +39,23 @@ npm test
 npx vitest run
 ```
 
+### PR gate (recommended before opening a PR)
+```bash
+npm run test:pr
+```
+
 ### E2E tests (Electron)
 ```bash
 npm run test:e2e
+
+# Fast subset used in PR gate
+npm run test:e2e:smoke
+
+# Full suite (recommended before releases)
+npm run test:e2e:full
+
+# Manual suite (may trigger admin prompts / app close)
+npm run test:e2e:manual
 ```
 
 ## Branching & PRs
@@ -75,3 +89,22 @@ Changes here should include:
 Renderer <-> Main communication is based on IPC channel names.
 There is a minimal contract test that ensures key channels remain consistent.
 If you rename an IPC channel, update both sides and the test in `src/test/ipcContract.test.ts`.
+
+## More documentation
+
+Start at [docs/README.md](docs/README.md).
+
+Additional supporting docs:
+- `TESTPLAN.md` (actionable plan)
+- `FUNCTIONAL_TEST_MATRIX.md` (use-cases → coverage map)
+- `COMPATIBILITY.md` (environment matrix)
+
+## Merge-ready guidance (for large changes)
+
+If you are preparing a PR that touches tests + docs + CI together, keep it reviewable by splitting into logical commits:
+
+1. `docs:` documentation-only changes (README, docs/, root checklists)
+2. `test:` unit/contract/E2E changes (Vitest + Playwright)
+3. `ci:` workflow adjustments (GitHub Actions)
+
+Always keep `npm run test:pr` green after each step when possible.

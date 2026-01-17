@@ -156,12 +156,23 @@ which borg
 ## 🛠 Project Structure
 
 WinBorg is built with:
-*   **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS.
+*   **Frontend:** React + TypeScript + Vite.
 *   **Desktop App:** Electron (main process in `electron-main.js`).
 *   **Main-process modules:** `main/` contains dependency-injected helpers used by the Electron main process (keeps logic unit-testable).
 *   **WSL/Borg Integration:** Borg runs inside WSL2 using the official Linux binaries.
 *   **Testing:** Vitest (unit) + Playwright (Electron E2E with deterministic IPC mocks).
 *   **CI:** GitHub Actions runs typecheck, unit tests with coverage, build, and E2E.
+
+Developer docs: see [docs/README.md](docs/README.md).
+
+Supporting docs:
+- [TESTPLAN.md](TESTPLAN.md)
+- [FUNCTIONAL_TEST_MATRIX.md](FUNCTIONAL_TEST_MATRIX.md)
+- [COMPATIBILITY.md](COMPATIBILITY.md)
+- [OPERATIONS.md](OPERATIONS.md)
+- [AUDIT.md](AUDIT.md)
+- [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
+- [UX_CHECKLIST.md](UX_CHECKLIST.md)
 
 ## ✅ Testing
 
@@ -178,6 +189,12 @@ npm run test:e2e
 
 # Fast smoke subset
 npm run test:e2e:smoke
+
+# Full E2E suite
+npm run test:e2e:full
+
+# Manual E2E (may trigger admin prompts / app close)
+npm run test:e2e:manual
 ```
 
 More details: see [docs/TESTING.md](docs/TESTING.md).

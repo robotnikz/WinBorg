@@ -1,39 +1,70 @@
-# Installation & Testing Guide
+# Testing
 
-## 1. Automated Test Suite
+WinBorg uses **Vitest** for unit tests and **Playwright** for Electron E2E tests.
 
-We use **Vitest** for unit testing and **Playwright** for End-to-End (E2E) testing.
+For the overall approach and risk mapping, see [docs/TEST_STRATEGY.md](TEST_STRATEGY.md).
 
-### Running Tests Locally
+## Automated tests
 
-1.  **Install Dependencies:**
-    ```bash
-    npm install
-    ```
-2.  **Run Unit Tests:**
-    ```bash
-    npm test
-    ```
-3.  **Run Unit Tests with Coverage:**
-    ```bash
-    npm run test:coverage
-    ```
-4.  **Run E2E Tests (Launches App):**
-    ```bash
-    npm run test:e2e
-    ```
+### Local quick start
 
-5.  **Run E2E Smoke Tests (fast subset):**
-    ```bash
-    npm run test:e2e:smoke
-    ```
+```bash
+npm install
+```
 
-### CI/CD Pipeline
-Tests are automatically run via GitHub Actions on every push (all branches) and on pull requests targeting `main`. See `.github/workflows/cicd.yml`.
+```bash
+# Typecheck
+npm run typecheck
+
+# Unit tests
+npm test
+
+# Unit tests with coverage (threshold gated)
+npm run test:coverage
+
+# E2E (Playwright launches Electron)
+npm run test:e2e
+
+# Fast smoke subset
+npm run test:e2e:smoke
+
+# Full E2E suite
+npm run test:e2e:full
+
+# Manual E2E (may trigger admin prompts / app close)
+npm run test:e2e:manual
+```
+
+### PR gate
+
+```bash
+npm run test:pr
+```
+
+This runs `typecheck` + unit tests (coverage) + E2E smoke.
+
+CI note:
+- PRs run the smoke suite.
+- Nightly and `main` run the full suite.
+
+### Notes about E2E determinism
+
+- E2E tests run with `NODE_ENV=test` to enable isolated Electron `userData` per run.
+- IPC is mocked in E2E so CI does not require real WSL/SSH/Borg.
+
+### Notes about manual E2E
+
+- `test:e2e:manual` is intentionally **not** part of the PR gate.
+- `test:e2e` and `test:e2e:full` intentionally **exclude** `@manual` tests by default.
+- These tests can click onboarding actions that may lead to UAC prompts and/or app termination on some setups.
+
+## CI/CD pipeline
+
+Tests are executed via GitHub Actions on pushes and pull requests. See `.github/workflows/cicd.yml`.
 
 ---
 
-## 2. Installation Verification (Manual Test Case)
+## Manual verification (release-focused)
 
 This test case is designed to verify the experience of a new user on a fresh Windows 11 machine.
 
@@ -70,7 +101,7 @@ This test case is designed to verify the experience of a new user on a fresh Win
     *   Run Job.
     *   **Pass:** Activity log shows "Success".
 
-## 4. Functional Test Scenarios
+## Functional test scenarios
 
 Execute these tests manually to certify a release.
 
@@ -100,3 +131,19 @@ Execute these tests manually to certify a release.
 | **S1** | **Change Theme** | 1. Open Settings.<br>2. Toggle "Dark Mode". | UI switches instantly between Light/Dark mode. Setting persists after restart. |
 | **S2** | **Notifications** | 1. Settings > Notifications.<br>2. Enter Discord Webhook.<br>3. Click "Test". | Discord receives a "Test Notification" message. |
 | **S3** | **General Settings** | 1. Toggle "Start with Windows".<br>2. Restart App. | Registry keys are set (check Task Manager > Startup). |
+
+---
+
+## Release checklist
+
+See [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+## Supporting docs
+
+- Test plan: [TESTPLAN.md](../TESTPLAN.md)
+- Functional test matrix: [FUNCTIONAL_TEST_MATRIX.md](../FUNCTIONAL_TEST_MATRIX.md)
+- Compatibility matrix: [COMPATIBILITY.md](../COMPATIBILITY.md)
+- Operations: [OPERATIONS.md](../OPERATIONS.md)
+- Audit notes: [AUDIT.md](../AUDIT.md)
+- Security checklist: [SECURITY_CHECKLIST.md](../SECURITY_CHECKLIST.md)
+- UX checklist: [UX_CHECKLIST.md](../UX_CHECKLIST.md)
