@@ -24,6 +24,7 @@ describe('IPC contract (renderer <-> main)', () => {
     'system-install-ubuntu',
     'system-check-borg',
     'system-install-borg',
+    'system-fix-wsl-fuse',
     'system-reboot',
 
     // SSH / remote operations (key selling points)
@@ -81,6 +82,7 @@ describe('IPC contract (renderer <-> main)', () => {
       'select-directory',
       'borg-mount',
       'borg-unmount',
+      'system-fix-wsl-fuse',
       'save-secret',
       'delete-secret',
       'has-secret',

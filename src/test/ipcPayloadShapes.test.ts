@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -259,6 +258,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'system-install-ubuntu',
       'system-check-borg',
       'system-install-borg',
+      'system-fix-wsl-fuse',
       'system-reboot',
     ]) {
       expect(

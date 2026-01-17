@@ -348,6 +348,8 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
           case 'system-install-borg':
             state.system.borgInstalled = true;
             return { success: true };
+          case 'system-fix-wsl-fuse':
+            return { success: true };
           case 'system-reboot':
             return { success: true };
 

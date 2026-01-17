@@ -332,37 +332,114 @@ export const borgService = {
       return await borgService.runCommand(['key', 'export', repoUrl], onLog, overrides);
   },
 
-  ensureFuseConfig: async (onLog: (text: string) => void): Promise<boolean> => {
+  ensureFuseConfig: async (onLog: (text: string) => void): Promise<{ ok: boolean; offerRepairButton?: boolean; repairAttempted?: boolean; repairResult?: any }> => {
       const config = getBorgConfig();
-      if (!config.useWsl) return true;
+      if (!config.useWsl) return { ok: true };
 
       onLog("[Auto-Setup] Checking FUSE permissions in WSL...");
-      const fixCmd = `
-        touch /etc/fuse.conf && 
-        sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf &&
-        if ! grep -q "^user_allow_other" /etc/fuse.conf; then 
-            echo "user_allow_other" >> /etc/fuse.conf; 
-        fi && 
-        chmod 666 /dev/fuse &&
-        echo "FUSE permissions verified."
-      `;
+      let fuseLog = '';
+            const fixCmd = `
+                set -e;
+                export DEBIAN_FRONTEND=noninteractive;
+                touch /etc/fuse.conf;
+                sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf || true;
+                if ! grep -q "^user_allow_other" /etc/fuse.conf; then
+                        echo "user_allow_other" >> /etc/fuse.conf;
+                fi;
+
+                if [ ! -e /dev/fuse ]; then
+                        echo "FUSE device missing: /dev/fuse";
+                        echo "Hint: Ensure you are using WSL2 and run 'wsl --update' then 'wsl --shutdown' in Windows.";
+                        exit 21;
+                fi;
+
+                chmod 666 /dev/fuse 2>/dev/null || true;
+
+                # Borg mount needs python FUSE bindings (llfuse or pyfuse3) in the distro.
+                have_python=0;
+                if command -v python3 >/dev/null 2>&1; then have_python=1; fi;
+
+                have_bindings=0;
+                if [ "$have_python" = "1" ]; then
+                    python3 -c "import llfuse" >/dev/null 2>&1 && have_bindings=1;
+                    if [ "$have_bindings" != "1" ]; then
+                        python3 -c "import pyfuse3" >/dev/null 2>&1 && have_bindings=1;
+                    fi;
+                fi;
+
+                if [ "$have_bindings" != "1" ]; then
+                    echo "[Auto-Setup] Missing Python FUSE bindings for borg mount (llfuse/pyfuse3). Attempting to install...";
+
+                    # Try to auto-install dependencies (best-effort). This is safe to re-run.
+                    /usr/bin/apt-get update --allow-releaseinfo-change || true;
+                    /usr/bin/apt-get install -y --no-install-recommends --fix-missing fuse3 libfuse2 python3 python3-llfuse python3-pyfuse3 || true;
+
+                    # Re-check after install attempt
+                    if command -v python3 >/dev/null 2>&1; then
+                        python3 -c "import llfuse" >/dev/null 2>&1 && have_bindings=1;
+                        if [ "$have_bindings" != "1" ]; then
+                            python3 -c "import pyfuse3" >/dev/null 2>&1 && have_bindings=1;
+                        fi;
+                    fi;
+
+                    if [ "$have_bindings" != "1" ]; then
+                        echo "Missing Python FUSE bindings for borg mount (llfuse/pyfuse3).";
+                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y";
+                        exit 22;
+                    fi;
+                fi;
+
+                echo "FUSE prerequisites verified.";
+            `;
       const logListener = (_: any, msg: { id: string, text: string }) => {
-        if (msg.id === 'fuse-setup') onLog(`[Setup] ${msg.text}`);
+        if (msg.id === 'fuse-setup') {
+            onLog(`[Setup] ${msg.text}`);
+            fuseLog += `\n${msg.text}`;
+        }
       };
       ipcRenderer.on('terminal-log', logListener);
 
       try {
-        return await ipcRenderer.invoke('borg-spawn', { 
+        const runPreflight = async () => {
+            return await ipcRenderer.invoke('borg-spawn', { 
             commandId: 'fuse-setup', 
             useWsl: true,
             envVars: {},
             forceBinary: 'bash',
             wslUser: 'root', 
             args: ['-c', fixCmd]
-        }).then((res: any) => res.success);
+            });
+        };
+
+        let res: any = await runPreflight();
+                if (res?.success) return { ok: true };
+
+        // If /dev/fuse is missing, this is typically WSL2/kernel/feature related.
+        // Try a best-effort host-side repair (update WSL, set default version 2, shutdown), then retry once.
+        const fuseLogLower = (fuseLog || '').toLowerCase();
+        const looksLikeMissingDevFuse = fuseLogLower.includes('/dev/fuse') && fuseLogLower.includes('missing');
+        if (looksLikeMissingDevFuse) {
+            onLog('[Auto-Setup] /dev/fuse missing. Attempting WSL repair (update + restart)...');
+            let repairResult: any = null;
+            try {
+                repairResult = await ipcRenderer.invoke('system-fix-wsl-fuse');
+            } catch (e: any) {
+                onLog(`[Auto-Setup] WSL repair failed to run: ${e?.message || String(e)}`);
+            }
+
+            fuseLog = '';
+            res = await runPreflight();
+            if (res?.success) return { ok: true, repairAttempted: true, repairResult };
+
+            // Auto repair already ran and didn't fix /dev/fuse. Offer an explicit UI button so the user
+            // can re-run after enabling required Windows features / reboot.
+            return { ok: false, offerRepairButton: true, repairAttempted: true, repairResult };
+        }
+
+        return { ok: false };
       } catch (e: any) {
           onLog(`[Setup Error] ${e.message}`);
-          return false;
+          return { ok: false };
       } finally {
           ipcRenderer.removeListener('terminal-log', logListener);
       }
@@ -645,7 +722,11 @@ export const borgService = {
 
     try {
         if (config.useWsl) {
-            await borgService.ensureFuseConfig(onLog);
+            const fuseCheck = await borgService.ensureFuseConfig(onLog);
+            if (!fuseCheck.ok) {
+                onLog('[Setup] FUSE setup incomplete. Aborting mount.');
+                return { success: false, error: 'FUSE_MISSING', offerWslRepair: !!fuseCheck.offerRepairButton };
+            }
             
             // FIX: Ensure the mountpoint directory exists in WSL before mounting
             onLog(`[Setup] Creating mount point: ${mountPoint}`);

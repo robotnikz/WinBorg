@@ -380,4 +380,31 @@ describe('borgService', () => {
             expect(res).toBe(true);
         });
     });
+
+    describe('mount', () => {
+        it('returns FUSE_MISSING when ensureFuseConfig fails (WSL enabled)', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+
+            // ensureFuseConfig uses borg-spawn (root bash) and expects { success }
+            mockInvoke.mockImplementation(async (channel: string) => {
+                if (channel === 'borg-spawn') return { success: false };
+                // should not attempt borg-mount when fuse setup fails
+                if (channel === 'borg-mount') throw new Error('borg-mount should not be called');
+                return { success: true };
+            });
+
+            const onLog = vi.fn();
+            const res = await borgService.mount('ssh://repo', 'arch1', '/mnt/wsl/winborg/arch1', onLog, { repoId: 'r1' });
+            expect(res).toMatchObject({ success: false, error: 'FUSE_MISSING' });
+            expect(mockInvoke).toHaveBeenCalledWith('borg-spawn', expect.objectContaining({
+                commandId: 'fuse-setup',
+                useWsl: true,
+                forceBinary: 'bash',
+                wslUser: 'root',
+            }));
+        });
+    });
 });
