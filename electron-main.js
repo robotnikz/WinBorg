@@ -934,7 +934,10 @@ app.whenReady().then(() => {
             icon: getIconPath() || undefined
         }).show();
     }
-    setTimeout(() => checkForUpdates(false), 3000);
+    // Avoid auto-updater network checks during deterministic Playwright runs.
+    if (!isTestMode) {
+        setTimeout(() => checkForUpdates(false), 3000);
+    }
 });
 
 app.on('before-quit', () => { isQuitting = true; });
