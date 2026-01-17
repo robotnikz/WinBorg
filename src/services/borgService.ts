@@ -337,15 +337,35 @@ export const borgService = {
       if (!config.useWsl) return true;
 
       onLog("[Auto-Setup] Checking FUSE permissions in WSL...");
-      const fixCmd = `
-        touch /etc/fuse.conf && 
-        sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf &&
-        if ! grep -q "^user_allow_other" /etc/fuse.conf; then 
-            echo "user_allow_other" >> /etc/fuse.conf; 
-        fi && 
-        chmod 666 /dev/fuse &&
-        echo "FUSE permissions verified."
-      `;
+            const fixCmd = `
+                set -e;
+                touch /etc/fuse.conf;
+                sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf || true;
+                if ! grep -q "^user_allow_other" /etc/fuse.conf; then
+                        echo "user_allow_other" >> /etc/fuse.conf;
+                fi;
+
+                if [ ! -e /dev/fuse ]; then
+                        echo "FUSE device missing: /dev/fuse";
+                        echo "Hint: Ensure you are using WSL2 and run 'wsl --update' then 'wsl --shutdown' in Windows.";
+                        exit 21;
+                fi;
+
+                chmod 666 /dev/fuse 2>/dev/null || true;
+
+                # Borg mount needs python FUSE bindings (llfuse or pyfuse3) in the distro.
+                if command -v python3 >/dev/null 2>&1; then
+                        python3 -c "import llfuse" >/dev/null 2>&1 \
+                            || python3 -c "import pyfuse3" >/dev/null 2>&1 \
+                            || {
+                                        echo "Missing Python FUSE bindings for borg mount (llfuse/pyfuse3).";
+                                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y";
+                                        exit 22;
+                                 };
+                fi;
+
+                echo "FUSE prerequisites verified.";
+            `;
       const logListener = (_: any, msg: { id: string, text: string }) => {
         if (msg.id === 'fuse-setup') onLog(`[Setup] ${msg.text}`);
       };
@@ -645,7 +665,11 @@ export const borgService = {
 
     try {
         if (config.useWsl) {
-            await borgService.ensureFuseConfig(onLog);
+            const fuseOk = await borgService.ensureFuseConfig(onLog);
+            if (!fuseOk) {
+                onLog('[Setup] FUSE setup incomplete. Aborting mount.');
+                return { success: false, error: 'FUSE_MISSING' };
+            }
             
             // FIX: Ensure the mountpoint directory exists in WSL before mounting
             onLog(`[Setup] Creating mount point: ${mountPoint}`);

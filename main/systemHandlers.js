@@ -294,8 +294,21 @@ function createSystemHandlers(deps) {
                 logger.log('[Setup] Installing Borg via WSL (root)...');
                 if (targetDistro) logger.log(`[Setup] Targeted distro: '${targetDistro}'`);
 
+                // Borg mount requires user-space FUSE + python bindings (llfuse/pyfuse3) in the distro.
+                // On fresh WSL installs, borgbackup alone is not enough and `borg mount` fails with
+                // "borg mount not available: no FUSE support, BORG_FUSE_IMPL=pyfuse3,llfuse."
+                // We install the baseline deps and then try llfuse/pyfuse3 (tolerate if one isn't available).
                 const script =
-                    'export DEBIAN_FRONTEND=noninteractive && /usr/bin/apt-get update --allow-releaseinfo-change && /usr/bin/apt-get install -y --no-install-recommends --fix-missing borgbackup';
+                    'set -e; '
+                    + 'export DEBIAN_FRONTEND=noninteractive; '
+                    + '/usr/bin/apt-get update --allow-releaseinfo-change; '
+                    + '/usr/bin/apt-get install -y --no-install-recommends --fix-missing borgbackup fuse3 libfuse2; '
+                    + '(/usr/bin/apt-get install -y --no-install-recommends --fix-missing python3-llfuse || '
+                    + ' /usr/bin/apt-get install -y --no-install-recommends --fix-missing python3-pyfuse3 || true); '
+                    + 'touch /etc/fuse.conf; '
+                    + "sed -i 's/^#\\s*user_allow_other/user_allow_other/' /etc/fuse.conf || true; "
+                    + 'grep -q "^user_allow_other" /etc/fuse.conf || echo "user_allow_other" >> /etc/fuse.conf; '
+                    + 'chmod 666 /dev/fuse 2>/dev/null || true; ';
 
                 const wslArgs = ['-u', 'root'];
                 if (targetDistro) {

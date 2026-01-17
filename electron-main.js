@@ -1325,6 +1325,19 @@ ipcMain.handle('borg-mount', async (event, { args, mountId, useWsl, executablePa
         child.on('close', (code) => {
             hasExited = true;
             clearTimeout(timeout);
+            const logLower = (startupLog || '').toLowerCase();
+            const looksLikeFuseMissing =
+                logLower.includes('no fuse support')
+                || logLower.includes('borg mount not available')
+                || logLower.includes('borg mount is not available')
+                || logLower.includes('pyfuse3')
+                || logLower.includes('llfuse');
+
+            if (looksLikeFuseMissing) {
+                resolve({ success: false, error: 'FUSE_MISSING' });
+                return;
+            }
+
             resolve({ success: false, error: `Exited with code ${code}. Log: ${startupLog}` });
         });
     });
