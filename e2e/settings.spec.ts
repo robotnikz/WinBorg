@@ -26,7 +26,10 @@ test.describe('Settings flow', () => {
   });
 
   test.afterEach(async () => {
-    await electronApp.close();
+    if (electronApp) {
+      await electronApp.close().catch(() => {});
+      electronApp = null;
+    }
   });
 
   test('notifications test + export/import settings', async () => {
