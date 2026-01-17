@@ -7,6 +7,7 @@ This checklist is the practical “ship it” procedure for WinBorg.
 - `npm run test:pr`
 - `npm run test:e2e:full` (recommended before tagging/releases)
 - `npm run dist` (packaging)
+- `npm audit --omit=dev --audit-level=high` (production deps; see `AUDIT.md` for known dev-tooling-only alerts)
 
 ## Manual verification (high-value)
 

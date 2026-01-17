@@ -32,5 +32,6 @@ Practical security checklist for WinBorg releases.
 
 ## Dependencies
 
-- Run `npm audit` (or equivalent) before release.
+- Run `npm audit --omit=dev --audit-level=high` before release (production dependency focus).
+- If GitHub/Dependabot reports a high severity issue only under `node_modules/npm/node_modules/*`, treat it as **dev tooling** and document the acceptance rationale in `AUDIT.md`.
 - Confirm no new critical vulnerabilities without a mitigation plan.

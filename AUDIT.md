@@ -37,6 +37,28 @@ WinBorg is an Electron app that orchestrates backups via WSL2 + Borg.
 
 - See [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md).
 
+## Known dependency audit notes
+
+### Dev-tooling-only Dependabot alerts (npm bundle)
+
+In some cases, `npm audit` / Dependabot may report high-severity issues in:
+
+- `node_modules/npm/node_modules/tar`
+- `node_modules/npm/node_modules/diff`
+
+These are **bundled dependencies inside the `npm` package** that is pulled in by the release toolchain (e.g. `semantic-release` / `@semantic-release/npm`).
+
+Risk assessment:
+
+- Scope is **dev tooling only** (release/CI helpers), not WinBorg runtime.
+- WinBorg does not ship the `npm` package to end users.
+- Verify with: `npm audit --omit=dev --audit-level=high` (should be clean for production dependencies).
+
+Disposition (Option A):
+
+- Accept/monitor until upstream toolchain ships patched bundles.
+- Dismiss the alert in GitHub Dependabot UI with reason: **"Vulnerable dependency is used in development"** and add a short note linking back to this section.
+
 ## Notes
 
 This is not a formal third-party audit report; it is the project’s living security notes.
