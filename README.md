@@ -176,6 +176,8 @@ Supporting docs:
 
 ## ✅ Testing
 
+Windows note: if PowerShell blocks `npm` due to `npm.ps1` execution policy, see `docs/TESTING.md` for workarounds.
+
 ```bash
 # Unit tests
 npm test
