@@ -214,18 +214,33 @@ export const borgService = {
         }
     }
 
+    const queueMsg = 'Another operation is already running for this repository';
     let queuedNotified = false;
+    let dequeuedNotified = false;
 
     const logListener = (_: any, msg: { id: string, text: string }) => {
       if (msg.id !== commandId) return;
 
       // Main-process queue emits this line when a repo-scoped operation is already running.
       // Bubble it up as a global event so UI can show a toast even if the terminal modal is closed.
-      if (!queuedNotified && typeof msg.text === 'string' && msg.text.includes('Another operation is already running for this repository')) {
+      if (!queuedNotified && typeof msg.text === 'string' && msg.text.includes(queueMsg)) {
           queuedNotified = true;
           try {
               if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
                   window.dispatchEvent(new CustomEvent('winborg:borg-queued', { detail: { commandId } }));
+              }
+          } catch {
+              // ignore
+          }
+      }
+
+      // Once we see any non-queue output for this commandId, the command is no longer waiting.
+      // Signal the UI so it can dismiss the persistent queue toast.
+      if (queuedNotified && !dequeuedNotified && typeof msg.text === 'string' && !msg.text.includes(queueMsg)) {
+          dequeuedNotified = true;
+          try {
+              if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                  window.dispatchEvent(new CustomEvent('winborg:borg-dequeued', { detail: { commandId } }));
               }
           } catch {
               // ignore
@@ -250,6 +265,17 @@ export const borgService = {
       });
       return result.success;
     } finally {
+            // Fallback: if we showed a queue toast but never saw any further output,
+            // ensure it gets dismissed when the command finishes.
+            if (queuedNotified && !dequeuedNotified) {
+                    try {
+                            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                                    window.dispatchEvent(new CustomEvent('winborg:borg-dequeued', { detail: { commandId } }));
+                            }
+                    } catch {
+                            // ignore
+                    }
+            }
       ipcRenderer.removeListener('terminal-log', logListener);
     }
   },
