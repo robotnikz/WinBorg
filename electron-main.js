@@ -73,6 +73,54 @@ const expectedMountExitIds = new Set();
 const activeProcesses = new Map();
 let powerBlockerId = null;
 
+// Borg operations against the same repository/cache should not overlap.
+// Borg uses repo + local cache locks; serializing per repo avoids flaky lock timeouts.
+const borgQueueByKey = new Map();
+
+function inferBorgQueueKey(args, repoId) {
+    if (repoId) return String(repoId);
+    const list = Array.isArray(args) ? args : [];
+
+    // Prefer explicit repo/archive specs.
+    for (const arg of list) {
+        if (typeof arg !== 'string') continue;
+        if (arg.includes('::')) {
+            // repo::archive -> use repo part for key
+            return arg.split('::')[0] || arg;
+        }
+        if (arg.startsWith('ssh://')) return arg;
+        // scp-ish: user@host:/path
+        if (/^[^\s@]+@[^\s:]+:.+/.test(arg)) return arg;
+    }
+
+    // Fallback: last non-flag argument (best-effort)
+    for (let i = list.length - 1; i >= 0; i--) {
+        const arg = list[i];
+        if (typeof arg !== 'string') continue;
+        if (arg.startsWith('-')) continue;
+        return arg;
+    }
+
+    return 'global';
+}
+
+function enqueueBorgByKey(queueKey, fn) {
+    const key = queueKey || 'global';
+    const prev = borgQueueByKey.get(key) || Promise.resolve();
+    const next = prev
+        .catch(() => {})
+        .then(fn);
+
+    borgQueueByKey.set(
+        key,
+        next.finally(() => {
+            if (borgQueueByKey.get(key) === next) borgQueueByKey.delete(key);
+        })
+    );
+
+    return next;
+}
+
 const processManager = createProcessManager({
     updatePowerBlocker,
     processMap: activeProcesses,
@@ -731,7 +779,8 @@ function extractBorgErrorSummary(output) {
 }
 
 function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, commandId } = {}) {
-    return new Promise((resolve) => {
+    const queueKey = inferBorgQueueKey(args, repoId) || (repo && repo.url) || 'global';
+    return enqueueBorgByKey(queueKey, () => new Promise((resolve) => {
         const internalId = commandId || `bg-${Date.now()}`;
         activeProcesses.set(internalId, { kill: () => {} });
         updatePowerBlocker();
@@ -748,6 +797,7 @@ function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, comma
             BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: 'yes',
             BORG_RELOCATED_REPO_ACCESS_IS_OK: 'yes',
             BORG_DISPLAY_PASSPHRASE: 'no',
+            BORG_LOCK_WAIT: '30',
             BORG_RSH: sshCmd
         };
 
@@ -758,7 +808,7 @@ function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, comma
             bin = 'wsl';
 
             // Export vars into WSL. /u = pass to WSL only (no path translation needed).
-            const keys = ['BORG_RSH/u'];
+            const keys = ['BORG_RSH/u', 'BORG_LOCK_WAIT/u'];
             if (secret) keys.push('BORG_PASSPHRASE/u');
             envVars.WSLENV = process.env.WSLENV
                 ? `${process.env.WSLENV}:${keys.join(':')}`
@@ -797,7 +847,7 @@ function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, comma
             });
             resolve({ success, output: output });
         });
-    });
+    }));
 }
 
 // --- UPDATER LOGIC ---
@@ -1161,93 +1211,105 @@ ipcMain.handle('select-directory', async () => {
 
 ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executablePath, envVars, forceBinary, repoId, cwd, wslUser }) => {
     args = Array.isArray(args) ? [...args] : [];
-    // WINBORG: Inject bandwidth limit if necessary
-    if (dbCache.settings.limitBandwidth && dbCache.settings.bandwidthLimit > 0) {
-        let repoArg = '';
-        // Find the argument that specifies the repository
-        for (const arg of args) {
-            if (arg.includes('::') || arg.includes('@') || arg.startsWith('ssh://')) {
-                repoArg = arg;
-                break;
-            }
-        }
-        // Fallback for commands like 'prune' where the repo is the last arg
-        if (!repoArg && args.length > 0) {
-            const lastArg = args[args.length - 1];
-            if (!lastArg.startsWith('-')) { // Simple check to avoid flags
-                repoArg = lastArg;
-            }
-        }
 
-        // Check if the repo path is remote
-        const isRemote = repoArg.includes('@') || repoArg.startsWith('ssh://');
-        if (isRemote) {
-            const limit = dbCache.settings.bandwidthLimit.toString();
-            // Inject the flag. Right after the subcommand is usually safe.
-            if (args.length > 1) {
-                args.splice(1, 0, '--remote-ratelimit', limit);
-            } else {
-                args.push('--remote-ratelimit', limit);
-            }
-            console.log(`[WinBorg] Bandwidth limit of ${limit} KB/s applied for remote operation.`);
-        }
+    const queueKey = inferBorgQueueKey(args, repoId);
+    if (borgQueueByKey.has(queueKey)) {
+        safeSendToRenderer('terminal-log', {
+            id: commandId,
+            text: `[WinBorg] Another operation is already running for this repository. Waiting...\n`
+        });
     }
 
-    // Resolve distro outside of the Promise executor to allow await
-    let detectedDistro = null;
-    if (useWsl) {
-        detectedDistro = await getPreferredWslDistro();
-    }
+    return enqueueBorgByKey(queueKey, async () => {
+        // WINBORG: Inject bandwidth limit if necessary
+        if (dbCache.settings.limitBandwidth && dbCache.settings.bandwidthLimit > 0) {
+            let repoArg = '';
+            // Find the argument that specifies the repository
+            for (const arg of args) {
+                if (typeof arg !== 'string') continue;
+                if (arg.includes('::') || arg.includes('@') || arg.startsWith('ssh://')) {
+                    repoArg = arg;
+                    break;
+                }
+            }
+            // Fallback for commands like 'prune' where the repo is the last arg
+            if (!repoArg && args.length > 0) {
+                const lastArg = args[args.length - 1];
+                if (typeof lastArg === 'string' && !lastArg.startsWith('-')) { // Simple check to avoid flags
+                    repoArg = lastArg;
+                }
+            }
 
-    return new Promise((resolve) => {
-        let bin = forceBinary || executablePath || 'borg';
-        let finalArgs = args;
-        let spawnEnv = { ...process.env, ...envVars };
-        if (repoId) {
-            const secret = getDecryptedPassword(repoId);
-            if (secret) {
-                spawnEnv.BORG_PASSPHRASE = secret;
-                if (useWsl) {
-                    if (spawnEnv.WSLENV) {
-                        // Ensure we append with the /u flag (Win32 -> WSL)
-                        spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE/u';
-                    } else {
-                        spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+            // Check if the repo path is remote
+            const isRemote = repoArg.includes('@') || repoArg.startsWith('ssh://');
+            if (isRemote) {
+                const limit = dbCache.settings.bandwidthLimit.toString();
+                // Inject the flag. Right after the subcommand is usually safe.
+                if (args.length > 1) {
+                    args.splice(1, 0, '--remote-ratelimit', limit);
+                } else {
+                    args.push('--remote-ratelimit', limit);
+                }
+                console.log(`[WinBorg] Bandwidth limit of ${limit} KB/s applied for remote operation.`);
+            }
+        }
+
+        // Resolve distro outside of the Promise executor to allow await
+        let detectedDistro = null;
+        if (useWsl) {
+            detectedDistro = await getPreferredWslDistro();
+        }
+
+        return new Promise((resolve) => {
+            let bin = forceBinary || executablePath || 'borg';
+            let finalArgs = args;
+            let spawnEnv = { ...process.env, ...envVars };
+            if (repoId) {
+                const secret = getDecryptedPassword(repoId);
+                if (secret) {
+                    spawnEnv.BORG_PASSPHRASE = secret;
+                    if (useWsl) {
+                        if (spawnEnv.WSLENV) {
+                            // Ensure we append with the /u flag (Win32 -> WSL)
+                            spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE/u';
+                        } else {
+                            spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
+                        }
                     }
                 }
             }
-        }
-        if (useWsl) {
-            bin = 'wsl';
-            
-            const linuxCmd = forceBinary || (executablePath === 'borg' ? '/usr/bin/borg' : executablePath) || '/usr/bin/borg';
-            let execArgs = [];
-            
-            // Target specific distro if we found one (Ubuntu/Debian) to avoid running in Docker/Default
-            if (detectedDistro) {
-                execArgs.push('-d', detectedDistro);
-            }
+            if (useWsl) {
+                bin = 'wsl';
+                
+                const linuxCmd = forceBinary || (executablePath === 'borg' ? '/usr/bin/borg' : executablePath) || '/usr/bin/borg';
+                let execArgs = [];
+                
+                // Target specific distro if we found one (Ubuntu/Debian) to avoid running in Docker/Default
+                if (detectedDistro) {
+                    execArgs.push('-d', detectedDistro);
+                }
 
-            if (wslUser) execArgs = [...execArgs, '-u', wslUser];
-            execArgs = [...execArgs, '--exec', linuxCmd, ...args];
-            finalArgs = execArgs;
-        }
-        console.log(`[Spawn] ${bin} ${finalArgs.join(' ')} (ID: ${commandId})`);
-        const child = spawn(bin, finalArgs, { env: spawnEnv, cwd: cwd || undefined });
-        registerManagedChild({
-            map: activeProcesses,
-            id: commandId,
-            child,
-            kind: 'process',
-            // Stability-first: do not enforce a default timeout here to avoid breaking long backups.
-            // Renderer may implement its own deadline logic and call borg-stop.
-            onStdout: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
-            onStderr: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
-            onExit: (code) => resolve({ success: code === 0 }),
-            onError: (err) => {
-                safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
-                resolve({ success: false, error: err.message });
+                if (wslUser) execArgs = [...execArgs, '-u', wslUser];
+                execArgs = [...execArgs, '--exec', linuxCmd, ...args];
+                finalArgs = execArgs;
             }
+            console.log(`[Spawn] ${bin} ${finalArgs.join(' ')} (ID: ${commandId})`);
+            const child = spawn(bin, finalArgs, { env: spawnEnv, cwd: cwd || undefined });
+            registerManagedChild({
+                map: activeProcesses,
+                id: commandId,
+                child,
+                kind: 'process',
+                // Stability-first: do not enforce a default timeout here to avoid breaking long backups.
+                // Renderer may implement its own deadline logic and call borg-stop.
+                onStdout: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
+                onStderr: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
+                onExit: (code) => resolve({ success: code === 0 }),
+                onError: (err) => {
+                    safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
+                    resolve({ success: false, error: err.message });
+                }
+            });
         });
     });
 });

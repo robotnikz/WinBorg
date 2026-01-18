@@ -47,7 +47,12 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean, remot
         // BORG_PASSPHRASE is now injected by the MAIN process securely
         BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK: 'yes',
         BORG_RELOCATED_REPO_ACCESS_IS_OK: 'yes',
-        BORG_DISPLAY_PASSPHRASE: 'no' 
+        BORG_DISPLAY_PASSPHRASE: 'no',
+
+        // Avoid flaky failures when multiple borg commands overlap briefly.
+        // Borg uses local cache locks (~/.cache/borg/...) in addition to repo locks.
+        // A small wait time improves UX without masking real deadlocks.
+        BORG_LOCK_WAIT: '30'
     };
     
     // Explicit Remote Path
@@ -71,7 +76,8 @@ const getEnvVars = (config: any, overrides?: { disableHostCheck?: boolean, remot
             'BORG_DISPLAY_PASSPHRASE/u',
             'BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK/u',
             'BORG_RELOCATED_REPO_ACCESS_IS_OK/u',
-            'BORG_RSH/u'
+            'BORG_RSH/u',
+            'BORG_LOCK_WAIT/u'
         ];
 
         if (env.BORG_REMOTE_PATH) {
@@ -208,8 +214,25 @@ export const borgService = {
         }
     }
 
+    let queuedNotified = false;
+
     const logListener = (_: any, msg: { id: string, text: string }) => {
-      if (msg.id === commandId) onLog(msg.text);
+      if (msg.id !== commandId) return;
+
+      // Main-process queue emits this line when a repo-scoped operation is already running.
+      // Bubble it up as a global event so UI can show a toast even if the terminal modal is closed.
+      if (!queuedNotified && typeof msg.text === 'string' && msg.text.includes('Another operation is already running for this repository')) {
+          queuedNotified = true;
+          try {
+              if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                  window.dispatchEvent(new CustomEvent('winborg:borg-queued', { detail: { commandId } }));
+              }
+          } catch {
+              // ignore
+          }
+      }
+
+      onLog(msg.text);
     };
 
     ipcRenderer.on('terminal-log', logListener);
