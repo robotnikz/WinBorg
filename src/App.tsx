@@ -38,7 +38,7 @@ const App: React.FC = () => {
         const handler = () => {
             // Shown when borg commands are queued in the main-process repo mutex.
             // Keep it short; the command will proceed automatically.
-            toast.info('Warte auf laufende Repo-Operation…');
+            toast.info('Waiting for an ongoing repository operation…');
         };
 
         try {
