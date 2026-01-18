@@ -35,15 +35,54 @@ const App: React.FC = () => {
   });
 
     useEffect(() => {
-        const handler = () => {
-            // Shown when borg commands are queued in the main-process repo mutex.
-            // Keep it short; the command will proceed automatically.
-            toast.info('Waiting for an ongoing repository operation…');
+        // Borg ops can get queued per repository. Avoid stacking multiple toasts:
+        // show a single persistent toast while ANY queued command is waiting.
+        const queuedCommandIds = new Set<string>();
+        let toastId: string | null = null;
+
+        const showIfNeeded = () => {
+            if (queuedCommandIds.size === 0) return;
+            if (toastId) return;
+            toastId = toast.loading('Waiting for an ongoing repository operation…');
+        };
+
+        const dismissIfDone = () => {
+            if (queuedCommandIds.size !== 0) return;
+            if (!toastId) return;
+            toast.dismiss(toastId);
+            toastId = null;
+        };
+
+        const onQueued = (e: any) => {
+            const commandId = e?.detail?.commandId;
+            if (typeof commandId === 'string' && commandId.length > 0) {
+                queuedCommandIds.add(commandId);
+            } else {
+                // Fallback: still show a single toast even if detail is missing.
+                queuedCommandIds.add('unknown');
+            }
+            showIfNeeded();
+        };
+
+        const onDequeued = (e: any) => {
+            const commandId = e?.detail?.commandId;
+            if (typeof commandId === 'string' && commandId.length > 0) {
+                queuedCommandIds.delete(commandId);
+            } else {
+                queuedCommandIds.clear();
+            }
+            dismissIfDone();
         };
 
         try {
-            window.addEventListener('winborg:borg-queued', handler as any);
-            return () => window.removeEventListener('winborg:borg-queued', handler as any);
+            window.addEventListener('winborg:borg-queued', onQueued as any);
+            window.addEventListener('winborg:borg-dequeued', onDequeued as any);
+            return () => {
+                window.removeEventListener('winborg:borg-queued', onQueued as any);
+                window.removeEventListener('winborg:borg-dequeued', onDequeued as any);
+                // Cleanup any persistent toast to avoid leaking UI on hot reload.
+                if (toastId) toast.dismiss(toastId);
+            };
         } catch {
             return;
         }
