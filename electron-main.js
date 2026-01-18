@@ -865,17 +865,17 @@ autoUpdater.on('update-available', (info) => {
     // Trigger Rules are global: if enabled, notify via the channels the user has enabled.
     if (notificationConfig.notifyOnUpdate) {
         new Notification({
-            title: 'Update verfügbar',
-            body: `Neue Version: ${info.version} steht zum Download bereit.`,
+            title: 'Update available',
+            body: `A new version (${info.version}) is available for download.`,
             icon: getIconPath() || undefined
         }).show();
 
         if (notificationConfig.discordEnabled && notificationConfig.discordWebhook) {
-            sendDiscordWebhook('Update verfügbar', `Neue Version: ${info.version} steht zum Download bereit.`, true);
+            sendDiscordWebhook('Update available', `A new version (${info.version}) is available for download.`, true);
         }
 
         if (notificationConfig.emailEnabled && notificationConfig.smtpHost) {
-            sendEmail('Update verfügbar', `Neue Version: ${info.version} steht zum Download bereit.`, true);
+            sendEmail('Update available', `A new version (${info.version}) is available for download.`, true);
         }
     }
 
