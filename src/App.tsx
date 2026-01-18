@@ -34,14 +34,29 @@ const App: React.FC = () => {
       return saved ? saved === 'dark' : true;
   });
 
-  useEffect(() => {
-      localStorage.setItem('winborg_theme', isDarkMode ? 'dark' : 'light');
-      if (isDarkMode) {
-          document.documentElement.classList.add('dark');
-      } else {
-          document.documentElement.classList.remove('dark');
-      }
-  }, [isDarkMode]);
+    useEffect(() => {
+        const handler = () => {
+            // Shown when borg commands are queued in the main-process repo mutex.
+            // Keep it short; the command will proceed automatically.
+            toast.info('Waiting for an ongoing repository operation…');
+        };
+
+        try {
+            window.addEventListener('winborg:borg-queued', handler as any);
+            return () => window.removeEventListener('winborg:borg-queued', handler as any);
+        } catch {
+            return;
+        }
+    }, []);
+
+    useEffect(() => {
+            localStorage.setItem('winborg_theme', isDarkMode ? 'dark' : 'light');
+            if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+            } else {
+                    document.documentElement.classList.remove('dark');
+            }
+    }, [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
