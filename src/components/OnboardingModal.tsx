@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, CheckCircle2, Download, Terminal, XCircle, Loader2 } from 'lucide-react';
 import Button from './Button';
+import { getIpcRendererOrNull } from '../services/electron';
 
 interface OnboardingModalProps {
   onComplete: () => void;
@@ -21,7 +22,13 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
         setErrorDetails('');
         setShowDetails(false);
     try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const ipcRenderer = getIpcRendererOrNull();
+        if (!ipcRenderer) {
+            // Browser/mock mode: skip onboarding checks.
+            setStep('success');
+            setTimeout(onComplete, 0);
+            return;
+        }
         
         // 1. Check WSL
         const wslRes = await ipcRenderer.invoke('system-check-wsl');
@@ -63,7 +70,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
         setStep('wsl-installing'); // Show instructions state
         setShowDetails(false);
         try {
-            const { ipcRenderer } = (window as any).require('electron');
+            const ipcRenderer = getIpcRendererOrNull();
+            if (!ipcRenderer) throw new Error('Electron not available');
             const res = await ipcRenderer.invoke(wslAction === 'install-ubuntu' ? 'system-install-ubuntu' : 'system-install-wsl');
             if (res.success) {
                 if (wslAction === 'install-ubuntu') {
@@ -86,7 +94,8 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   const handleInstallBorg = async () => {
       setStep('installing');
       try {
-          const { ipcRenderer } = (window as any).require('electron');
+          const ipcRenderer = getIpcRendererOrNull();
+          if (!ipcRenderer) throw new Error('Electron not available');
           const res = await ipcRenderer.invoke('system-install-borg');
           if (res.success) {
               setStep('success');
@@ -103,13 +112,12 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   };
 
   const handleReboot = () => {
-      const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.invoke('system-reboot');
+      getIpcRendererOrNull()?.invoke('system-reboot');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-gray-200 dark:border-[#333] overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-gray-200 dark:border-[#333] overflow-hidden" role="dialog" aria-modal="true" aria-label="System Setup">
         
         {/* Header */}
         <div className="bg-gray-50 dark:bg-[#252526] px-6 py-4 border-b border-gray-200 dark:border-[#333] flex items-center justify-between">

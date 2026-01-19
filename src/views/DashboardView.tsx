@@ -29,6 +29,7 @@ import {
 import Button from '../components/Button';
 import SystemStatusModal from '../components/SystemStatusModal';
 import { parseSizeString, formatBytes, formatDate, formatDuration, getNextRunForRepo } from '../utils/formatters';
+import { getIpcRendererOrNull } from '../services/electron';
 
 interface DashboardViewProps {
   repos: Repository[];
@@ -77,13 +78,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         }
     };
     
-    try {
-        const { ipcRenderer } = (window as any).require('electron');
-        ipcRenderer.on('terminal-log', handleTerminalLog);
-        return () => {
-            ipcRenderer.removeListener('terminal-log', handleTerminalLog);
-        };
-    } catch(e) {}
+    const ipcRenderer = getIpcRendererOrNull();
+    if (!ipcRenderer) return;
+    ipcRenderer.on('terminal-log', handleTerminalLog);
+    return () => {
+        ipcRenderer.removeListener('terminal-log', handleTerminalLog);
+    };
   }, []);
 
   // Force update for ETA

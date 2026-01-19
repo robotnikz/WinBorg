@@ -52,7 +52,9 @@ describe('IPC payload shapes (renderer <-> main)', () => {
     ).toBe(true);
 
     expect(
-      /ipcRenderer\.invoke\(\s*['"]borg-stop['"]\s*,\s*\{\s*commandId\s*\}\s*\)/m.test(rendererText),
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]borg-stop['"]\s*,\s*\{\s*commandId\s*\}\s*\)/m.test(
+        rendererText
+      ),
       'Expected borgService.stopCommand to invoke borg-stop with { commandId }'
     ).toBe(true);
   });
@@ -70,7 +72,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
 
     // runCommand path uses executablePath/envVars and may pass repoId/cwd overrides
     expect(
-      /ipcRenderer\.invoke\(\s*['"]borg-spawn['"]\s*,\s*\{[^}]*\bargs\b[^}]*\bcommandId\b[^}]*\buseWsl\b[^}]*\bexecutablePath\b[^}]*\benvVars\b[^}]*\bforceBinary\b[^}]*\brepoId\b[^}]*\bcwd\b[^}]*\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]borg-spawn['"]\s*,\s*\{[^}]*\bargs\b[^}]*\bcommandId\b[^}]*\buseWsl\b[^}]*\bexecutablePath\b[^}]*\benvVars\b[^}]*\bforceBinary\b[^}]*\brepoId\b[^}]*\bcwd\b[^}]*\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.runCommand to invoke borg-spawn with args/commandId/useWsl/executablePath/envVars/forceBinary/repoId/cwd'
@@ -78,7 +80,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
 
     // ensureFuseConfig path uses wslUser=\"root\" and forceBinary=\"bash\"
     expect(
-      /ipcRenderer\.invoke\(\s*['"]borg-spawn['"]\s*,\s*\{[\s\S]*?\bcommandId\b[\s\S]*?\buseWsl\b[\s\S]*?\benvVars\b[\s\S]*?\bforceBinary\b[\s\S]*?\bwslUser\b[\s\S]*?\bargs\b[\s\S]*?\}/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]borg-spawn['"]\s*,\s*\{[\s\S]*?\bcommandId\b[\s\S]*?\buseWsl\b[\s\S]*?\benvVars\b[\s\S]*?\bforceBinary\b[\s\S]*?\bwslUser\b[\s\S]*?\bargs\b[\s\S]*?\}/m.test(
         rendererText
       ),
       'Expected borgService.ensureFuseConfig to invoke borg-spawn with commandId/useWsl/envVars/forceBinary/wslUser/args'
@@ -111,17 +113,23 @@ describe('IPC payload shapes (renderer <-> main)', () => {
 
     // renderer usage
     expect(
-      /ipcRenderer\.invoke\(\s*['"]get-downloads-path['"]\s*\)/m.test(rendererText),
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]get-downloads-path['"]\s*\)/m.test(
+        rendererText
+      ),
       'Expected borgService.getDownloadsPath to invoke get-downloads-path'
     ).toBe(true);
 
     expect(
-      /ipcRenderer\.invoke\(\s*['"]create-directory['"]\s*,\s*path\s*\)/m.test(rendererText),
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]create-directory['"]\s*,\s*path\s*\)/m.test(
+        rendererText
+      ),
       'Expected borgService.createDirectory to invoke create-directory with a path argument'
     ).toBe(true);
 
     expect(
-      /ipcRenderer\.invoke\(\s*['"]select-directory['"]\s*\)/m.test(rendererText),
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]select-directory['"]\s*\)/m.test(
+        rendererText
+      ),
       'Expected borgService.selectDirectory to invoke select-directory without args'
     ).toBe(true);
   });
@@ -138,7 +146,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected ssh-key-manage handler to destructure action/type'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]ssh-key-manage['"]\s*,\s*\{[\s\S]*?\baction\b[\s\S]*?\btype\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]ssh-key-manage['"]\s*,\s*\{[\s\S]*?\baction\b[\s\S]*?\btype\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.manageSSHKey to invoke ssh-key-manage with action/type'
@@ -152,7 +160,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected ssh-key-install handler to destructure target/password/port'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]ssh-key-install['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bpassword\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]ssh-key-install['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bpassword\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.installSSHKey to invoke ssh-key-install with target/password/port'
@@ -166,7 +174,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected ssh-install-borg handler to destructure target/password/port'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]ssh-install-borg['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bpassword\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]ssh-install-borg['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bpassword\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.installBorg to invoke ssh-install-borg with target/password/port'
@@ -180,7 +188,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected ssh-test-connection handler to destructure target/port'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]ssh-test-connection['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]ssh-test-connection['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.testSshConnection to invoke ssh-test-connection with target/port'
@@ -194,7 +202,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected ssh-check-borg handler to destructure target/port'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]ssh-check-borg['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]ssh-check-borg['"]\s*,\s*\{[\s\S]*?\btarget\b[\s\S]*?\bport\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.checkBorgInstalledRemote to invoke ssh-check-borg with target/port'
@@ -212,7 +220,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected save-secret handler to destructure repoId/passphrase'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]save-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\bpassphrase\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]save-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\bpassphrase\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.savePassphrase to invoke save-secret with repoId/passphrase'
@@ -225,7 +233,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected delete-secret handler to destructure repoId'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]delete-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]delete-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.deletePassphrase to invoke delete-secret with repoId'
@@ -239,7 +247,7 @@ describe('IPC payload shapes (renderer <-> main)', () => {
       'Expected has-secret handler to destructure repoId'
     ).toBe(true);
     expect(
-      /ipcRenderer\.invoke\(\s*['"]has-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\}\s*\)/m.test(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]has-secret['"]\s*,\s*\{[\s\S]*?\brepoId\b[\s\S]*?\}\s*\)/m.test(
         rendererText
       ),
       'Expected borgService.hasPassphrase to invoke has-secret with repoId'

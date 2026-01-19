@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { getAppVersion } from '../utils/appVersion';
+import { getIpcRendererOrNull } from '../services/electron';
 
 // Helper component for Section Cards
 const SettingsCard: React.FC<{
@@ -90,13 +91,8 @@ const SettingsView: React.FC = () => {
     const [transferStatus, setTransferStatus] = useState<'idle' | 'exporting' | 'importing' | 'success' | 'error'>('idle');
     const [transferMessage, setTransferMessage] = useState('');
 
-  // Helper to access Electron
-  const getElectron = () => {
-      try { return (window as any).require('electron'); } catch (e) { return null; }
-  };
-
   useEffect(() => {
-    const ipc = getElectron()?.ipcRenderer;
+    const ipc = getIpcRendererOrNull();
     if (ipc) {
         // Load General Settings from DB
         ipc.invoke('get-db').then((db: any) => {
@@ -143,7 +139,7 @@ const SettingsView: React.FC = () => {
     }, []);
 
   useEffect(() => {
-      const ipc = getElectron()?.ipcRenderer;
+      const ipc = getIpcRendererOrNull();
       if (!ipc || typeof ipc.on !== 'function' || typeof ipc.removeListener !== 'function') return;
 
       const onImported = () => {
@@ -158,7 +154,7 @@ const SettingsView: React.FC = () => {
   }, []);
 
   const handleExportAppData = async () => {
-      const ipc = getElectron()?.ipcRenderer;
+      const ipc = getIpcRendererOrNull();
       if (!ipc) {
           alert('Export is only available in the packaged Electron app.');
           return;
@@ -187,7 +183,7 @@ const SettingsView: React.FC = () => {
   };
 
   const handleImportAppData = async () => {
-      const ipc = getElectron()?.ipcRenderer;
+      const ipc = getIpcRendererOrNull();
       if (!ipc) {
           alert('Import is only available in the packaged Electron app.');
           return;
@@ -223,7 +219,7 @@ const SettingsView: React.FC = () => {
   };
 
   const handleSave = () => {
-    const ipc = getElectron()?.ipcRenderer;
+    const ipc = getIpcRendererOrNull();
     if (ipc) {
         ipc.invoke('save-db', {
             settings: {
@@ -264,7 +260,7 @@ const SettingsView: React.FC = () => {
 
   const handleTestNotification = async (type: 'discord' | 'email') => {
       setNotifyTestStatus('loading');
-      const ipc = getElectron()?.ipcRenderer;
+      const ipc = getIpcRendererOrNull();
       if (ipc) {
           try {
               // Save temp config first so backend uses current values
@@ -280,7 +276,7 @@ const SettingsView: React.FC = () => {
   };
 
   const handleCheckUpdate = async () => {
-      const ipc = getElectron()?.ipcRenderer;
+      const ipc = getIpcRendererOrNull();
       if (ipc) {
           await ipc.invoke('check-for-updates');
       } else {
@@ -374,7 +370,7 @@ const SettingsView: React.FC = () => {
                                       onChange={(checked) => {
                                           setStartWithWindows(checked);
                                           if (!checked) setStartMinimized(false);
-                                          getElectron()?.ipcRenderer?.send('settings:toggleAutoStart', checked);
+                                          getIpcRendererOrNull()?.send('settings:toggleAutoStart', checked);
                                       }}
                                    />
                                </div>

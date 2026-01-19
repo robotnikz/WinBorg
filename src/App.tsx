@@ -19,6 +19,7 @@ import { toast } from './utils/eventBus';
 import { Loader2 } from 'lucide-react';
 import OnboardingModal from './components/OnboardingModal';
 import UpdateModal from './components/UpdateModal';
+import { getIpcRendererOrNull } from './services/electron';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -101,7 +102,8 @@ const App: React.FC = () => {
 
   // --- AUTO UPDATE LISTENERS ---
   useEffect(() => {
-    const { ipcRenderer } = (window as any).require('electron');
+        const ipcRenderer = getIpcRendererOrNull();
+        if (!ipcRenderer) return;
 
     ipcRenderer.on('update-available', (event: any, info: any) => {
         setUpdateAvailable(true);
@@ -165,7 +167,8 @@ const App: React.FC = () => {
 
       const run = async () => {
           try {
-              const { ipcRenderer } = (window as any).require('electron');
+              const ipcRenderer = getIpcRendererOrNull();
+              if (!ipcRenderer) return;
               const [wsl, borg] = await Promise.all([
                   ipcRenderer.invoke('system-check-wsl'),
                   ipcRenderer.invoke('system-check-borg'),
@@ -190,7 +193,13 @@ const App: React.FC = () => {
       
       const load = async () => {
           try {
-              const { ipcRenderer } = (window as any).require('electron');
+              const ipcRenderer = getIpcRendererOrNull();
+              if (!ipcRenderer) {
+                  // Browser/mock mode: allow the UI to render without persistence.
+                  setIsLoaded(true);
+                  dataLoadedRef.current = true;
+                  return;
+              }
               const db = await ipcRenderer.invoke('get-db');
               
               // MIGRATION LOGIC: If DB is empty but LocalStorage has data, migrate it!
@@ -272,7 +281,8 @@ const App: React.FC = () => {
   useEffect(() => {
       if (!isLoaded) return;
       try {
-          const { ipcRenderer } = (window as any).require('electron');
+          const ipcRenderer = getIpcRendererOrNull();
+          if (!ipcRenderer) return;
           // We save essentially everything except mounts (ephemeral)
           ipcRenderer.invoke('save-db', { repos, jobs, archives, activityLogs });
       } catch(e) {}
@@ -281,7 +291,8 @@ const App: React.FC = () => {
   // --- BACKGROUND LISTENER ---
   useEffect(() => {
       try {
-          const { ipcRenderer } = (window as any).require('electron');
+          const ipcRenderer = getIpcRendererOrNull();
+          if (!ipcRenderer) return;
           
           type JobStartedPayload =
               | string
@@ -351,7 +362,8 @@ const App: React.FC = () => {
   useEffect(() => {
       const runningRepo = repos.find(r => r.checkStatus === 'running');
       try {
-          const { ipcRenderer } = (window as any).require('electron');
+          const ipcRenderer = getIpcRendererOrNull();
+          if (!ipcRenderer) return;
           if (runningRepo && runningRepo.checkProgress !== undefined) {
               ipcRenderer.send('set-progress', runningRepo.checkProgress / 100);
           } else {
@@ -391,7 +403,8 @@ const App: React.FC = () => {
   // Mount Listener
   useEffect(() => {
     try {
-        const { ipcRenderer } = (window as any).require('electron');
+        const ipcRenderer = getIpcRendererOrNull();
+        if (!ipcRenderer) return;
         const handleMountExited = (
             _: any,
             { mountId, code, expected }: { mountId: string, code: number, expected?: boolean }
@@ -499,8 +512,7 @@ const App: React.FC = () => {
         setCurrentView(View.MOUNTS);
         
         try {
-            const { ipcRenderer } = (window as any).require('electron');
-            ipcRenderer.send('open-path', path);
+            getIpcRendererOrNull()?.send('open-path', path);
         } catch(e) { console.error("Could not auto-open explorer"); }
         
     } else {
@@ -1065,7 +1077,8 @@ const App: React.FC = () => {
             isOpen={showUpdateModal} 
             onClose={() => setShowUpdateModal(false)}
             onUpdate={() => {
-                const { ipcRenderer } = (window as any).require('electron');
+                const ipcRenderer = getIpcRendererOrNull();
+                if (!ipcRenderer) return;
                 if (isUpdateReady) {
                     ipcRenderer.send('install-update'); 
                 } else {
@@ -1081,7 +1094,7 @@ const App: React.FC = () => {
 
         {!hasCheckedSystem && (
             <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                <div className="flex items-center gap-3 rounded-lg bg-white/90 dark:bg-[#1e1e1e]/90 px-4 py-3 shadow-lg border border-gray-200 dark:border-[#333]">
+                <div className="flex items-center gap-3 rounded-lg bg-white/90 dark:bg-[#1e1e1e]/90 px-4 py-3 shadow-lg border border-gray-200 dark:border-[#333]" role="status" aria-live="polite" aria-label="Checking system">
                     <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                     <span className="text-sm text-slate-700 dark:text-slate-200">Checking system…</span>
                 </div>

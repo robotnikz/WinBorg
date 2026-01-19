@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Key, X, Copy, Check, ShieldAlert, AlertTriangle } from 'lucide-react';
@@ -15,12 +15,25 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isOpen) {
         fetchKey();
+        setTimeout(() => closeButtonRef.current?.focus(), 0);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+      if (!isOpen) return;
+
+      const onKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') onClose();
+      };
+
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   const fetchKey = async () => {
       setLoading(true);
@@ -55,8 +68,19 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label={`Repository Key Recovery for ${repo.name}`}
+             >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div className="flex items-center gap-3">
@@ -68,7 +92,7 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
                        <p className="text-xs text-slate-500 dark:text-slate-400">Export for {repo.name}</p>
                    </div>
                </div>
-               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                             <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
                  <X size={20} />
                </button>
            </div>
@@ -101,6 +125,7 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
                        <button 
                            onClick={handleCopy}
                            className="absolute top-3 right-3 p-2 bg-slate-800 text-slate-300 hover:text-white rounded border border-slate-600 transition-colors shadow-sm flex items-center gap-2 text-xs font-medium"
+                           aria-label="Copy key to clipboard"
                        >
                            {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                            {copied ? "Copied" : "Copy"}

@@ -39,6 +39,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
 
   const isMountedRef = useRef(false);
   const cancelledRef = useRef(false);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
       isMountedRef.current = true;
@@ -57,8 +58,20 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
           setCurrentLog('');
           setActiveCommandId(null);
           cancelledRef.current = false;
+          setTimeout(() => closeButtonRef.current?.focus(), 0);
       }
   }, [isOpen, initialRepo]);
+
+  useEffect(() => {
+      if (!isOpen || isProcessing || isCancelling) return;
+
+      const onKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') onClose();
+      };
+
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isProcessing, isCancelling, onClose]);
 
   if (!isOpen) return null;
 
@@ -168,8 +181,19 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!isProcessing && !isCancelling) onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label="Create New Backup"
+             >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div>
@@ -181,7 +205,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                        {availableRepos.length > 1 ? 'Select target repository below' : `Upload to ${activeRepo.name}`}
                    </p>
                </div>
-                                                         <button onClick={handleCloseWindow} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" disabled={isCancelling}>
+                                                                                                                 <button ref={closeButtonRef} onClick={handleCloseWindow} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" disabled={isCancelling} aria-label="Close">
                  <X size={20} />
                </button>
            </div>

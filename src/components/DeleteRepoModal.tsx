@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { AlertTriangle, Trash2, Eraser, X, Loader2, Terminal } from 'lucide-react';
@@ -21,8 +21,26 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
   const [currentLog, setCurrentLog] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [fullLogs, setFullLogs] = useState<string[]>([]);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  if (!isOpen) return null;
+    useEffect(() => {
+        if (isOpen && !isProcessing) {
+            closeButtonRef.current?.focus();
+        }
+    }, [isOpen, isProcessing]);
+
+    useEffect(() => {
+            if (!isOpen || isProcessing) return;
+
+            const onKeyDown = (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') onClose();
+            };
+
+            window.addEventListener('keydown', onKeyDown);
+            return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, isProcessing, onClose]);
+
+    if (!isOpen) return null;
 
   const handleAction = async () => {
       if (deleteMode === 'forget') {
@@ -82,15 +100,26 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!isProcessing) onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label={`Delete Repository: ${repo.name}`}
+             >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                    <AlertTriangle className="w-5 h-5" />
                    <h3 className="font-bold">Delete Repository</h3>
                </div>
-               <button onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                             <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
                  <X size={20} />
                </button>
            </div>

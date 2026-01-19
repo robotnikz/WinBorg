@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Copy, AlertTriangle } from 'lucide-react';
 import Button from './Button';
+import { getIpcRendererOrNull } from '../services/electron';
 
 interface FuseSetupModalProps {
   isOpen: boolean;
@@ -10,10 +11,24 @@ interface FuseSetupModalProps {
 }
 
 const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRepairButton = false }) => {
-  if (!isOpen) return null;
+    const [isRepairing, setIsRepairing] = useState(false);
+    const [repairMessage, setRepairMessage] = useState<string | null>(null);
+    const copyButtonRef = useRef<HTMLButtonElement>(null);
 
-    const [isRepairing, setIsRepairing] = React.useState(false);
-    const [repairMessage, setRepairMessage] = React.useState<string | null>(null);
+    useEffect(() => {
+        if (!isOpen || isRepairing) return;
+
+        setTimeout(() => copyButtonRef.current?.focus(), 0);
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, isRepairing, onClose]);
+
+    if (!isOpen) return null;
 
   // This one-liner does two things:
   // 1. Installs dependencies
@@ -21,8 +36,19 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
   const command = "sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y && echo 'user_allow_other' | sudo tee -a /etc/fuse.conf && sudo chmod 666 /dev/fuse";
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-xl shadow-2xl border border-red-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+                onMouseDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (!isRepairing) onClose();
+                }}
+        >
+                <div
+                    className="bg-white rounded-xl shadow-2xl border border-red-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="WSL Configuration Required"
+                >
             <div className="p-6">
                 <div className="flex items-start gap-4">
                     <div className="p-3 bg-red-100 rounded-full text-red-600">
@@ -45,12 +71,14 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                         {command}
                     </code>
                     <button 
+                        ref={copyButtonRef}
                         onClick={() => {
                             navigator.clipboard.writeText(command);
                             alert("Command copied to clipboard!");
                         }}
                         className="absolute top-8 right-3 p-2 bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
                         title="Copy to clipboard"
+                        aria-label="Copy command to clipboard"
                     >
                         <Copy className="w-4 h-4" />
                     </button>
@@ -69,7 +97,8 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                                 setIsRepairing(true);
                                 setRepairMessage(null);
                                 try {
-                                    const { ipcRenderer } = (window as any).require('electron');
+                                    const ipcRenderer = getIpcRendererOrNull();
+                                    if (!ipcRenderer) throw new Error('Electron not available');
                                     const res = await ipcRenderer.invoke('system-fix-wsl-fuse');
                                     if (res?.success) {
                                         setRepairMessage('Repair finished. Please retry mounting the archive.');
@@ -91,7 +120,7 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                         )}
                     </div>
                 )}
-                <Button onClick={onClose}>Done</Button>
+                                <Button onClick={onClose}>Done</Button>
             </div>
         </div>
     </div>
