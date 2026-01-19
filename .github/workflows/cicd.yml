@@ -76,6 +76,31 @@ jobs:
             test-results
           if-no-files-found: ignore
 
+  # JOB 2: Windows Dist Build (PR gate)
+  # Ensures packaging stays buildable before merge.
+  dist_windows:
+    name: Build Windows Dist (PR)
+    needs: test
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build dist (electron-builder)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist
+
   # JOB 2: Semantic Release
   # Only runs if tests pass AND we are on main branch (not PRs)
   release:
