@@ -1,8 +1,8 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Repository, BackupJob } from '../types';
 import Button from './Button';
-import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Copy, Pencil } from 'lucide-react';
+import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Copy, Pencil, Sparkles } from 'lucide-react';
 import { borgService } from '../services/borgService';
 
 interface JobsModalProps {
@@ -31,6 +31,80 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
     const [excludePatternsText, setExcludePatternsText] = useState('');
   const [archivePrefix, setArchivePrefix] = useState('');
   const [compression, setCompression] = useState<BackupJob['compression']>('zstd');
+
+  // Quick presets
+  type PresetId = 'userFolders' | 'userProfile' | 'documentsOnly' | '';
+  const [presetId, setPresetId] = useState<PresetId>('');
+  const [includeAppData, setIncludeAppData] = useState(false);
+
+  const windowsHome = useMemo(() => {
+      try {
+          const w = window as any;
+          const envHome = w?.process?.env?.USERPROFILE;
+          if (typeof envHome === 'string' && envHome.trim()) return envHome.trim();
+          if (typeof w?.require === 'function') {
+              const os = w.require('os');
+              const home = os?.homedir?.();
+              if (typeof home === 'string' && home.trim()) return home.trim();
+          }
+      } catch {
+          // ignore
+      }
+      return null;
+  }, []);
+
+  const applyPreset = (id: PresetId) => {
+      if (!id) return;
+
+      // If we can't determine the user's home directory (e.g. browser mode),
+      // keep the preset selection but avoid writing broken paths.
+      if (!windowsHome) {
+          setPresetId(id);
+          return;
+      }
+
+      const home = windowsHome.replace(/[\\/]+$/, '');
+
+      const defaultExcludes = () => {
+          const patterns: string[] = [
+              '**/node_modules',
+              '**/.git',
+              '**/.cache',
+              '**/Cache',
+              '**/Temp',
+              `${home}\\AppData\\Local\\Temp`,
+          ];
+          if (!includeAppData) {
+              patterns.push(`${home}\\AppData`);
+          }
+          return patterns;
+      };
+
+      if (id === 'userFolders') {
+          setJobName('My Documents');
+          setArchivePrefix('docs');
+          setSourcePaths([
+              `${home}\\Documents`,
+              `${home}\\Desktop`,
+              `${home}\\Pictures`,
+          ]);
+          setExcludePatternsText(defaultExcludes().join('\n'));
+      }
+
+      if (id === 'documentsOnly') {
+          setJobName('Documents');
+          setArchivePrefix('documents');
+          setSourcePaths([`${home}\\Documents`]);
+          setExcludePatternsText(defaultExcludes().join('\n'));
+      }
+
+      if (id === 'userProfile') {
+          setJobName('User Profile');
+          setArchivePrefix('home');
+          setSourcePaths([home]);
+          setExcludePatternsText(defaultExcludes().join('\n'));
+      }
+  };
   
   // Prune State
   const [pruneEnabled, setPruneEnabled] = useState(true);
@@ -132,6 +206,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
       setExcludePatternsText('');
       setArchivePrefix('');
       setCompression('zstd');
+      setPresetId('');
+      setIncludeAppData(false);
       setPruneEnabled(true);
       setKeepDaily(7);
       setKeepWeekly(4);
@@ -148,6 +224,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
       setView('create');
       setActiveTab('general');
       setJobName(job.name || '');
+      setPresetId('');
+      setIncludeAppData(false);
       const initialSources = (job.sourcePaths && job.sourcePaths.length)
           ? job.sourcePaths
           : (job.sourcePath ? [job.sourcePath] : []);
@@ -367,6 +445,60 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                        {/* --- GENERAL TAB --- */}
                        {activeTab === 'general' && (
                            <>
+                               <div className="p-4 bg-purple-50/60 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                                   <div className="flex items-start justify-between gap-3">
+                                       <div>
+                                           <h4 className="text-sm font-bold text-purple-900 dark:text-purple-200 flex items-center gap-2">
+                                               <Sparkles className="w-4 h-4" /> Quick Presets
+                                           </h4>
+                                           <p className="text-xs text-purple-900/80 dark:text-purple-200/80 mt-1">
+                                               One-click job templates to get your first backup running fast.
+                                           </p>
+                                       </div>
+                                       <div className="flex items-center gap-2">
+                                           <select
+                                               className="px-3 py-2 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 rounded-md text-sm text-slate-900 dark:text-white"
+                                               value={presetId}
+                                               onChange={(e) => setPresetId(e.target.value as PresetId)}
+                                               aria-label="Job preset"
+                                           >
+                                               <option value="">Select a preset…</option>
+                                               <option value="userFolders">Documents + Desktop + Pictures (Recommended)</option>
+                                               <option value="documentsOnly">Documents only</option>
+                                               <option value="userProfile">Entire user profile (advanced)</option>
+                                           </select>
+                                           <Button
+                                               variant="secondary"
+                                               className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                                               onClick={() => applyPreset(presetId)}
+                                               disabled={!presetId}
+                                           >
+                                               Apply
+                                           </Button>
+                                       </div>
+                                   </div>
+
+                                   {presetId === 'userProfile' && (
+                                       <div className="mt-3 flex items-center justify-between gap-3">
+                                           <div className="text-xs text-slate-600 dark:text-slate-300">
+                                               Include AppData (Roaming/Local). Disabling keeps backups smaller.
+                                           </div>
+                                           <input
+                                               type="checkbox"
+                                               className="w-4 h-4 text-purple-600 rounded"
+                                               checked={includeAppData}
+                                               onChange={(e) => setIncludeAppData(e.target.checked)}
+                                           />
+                                       </div>
+                                   )}
+
+                                   {!windowsHome && (
+                                       <p className="text-[10px] text-purple-900/70 dark:text-purple-200/70 mt-2">
+                                           Presets need access to your Windows profile path. If you’re running in browser/mock mode, use “Add Folder…” instead.
+                                       </p>
+                                   )}
+                               </div>
+
                                <div>
                                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Job Name</label>
                                    <input 
