@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import TitleBar from './components/TitleBar';
 import RepositoriesView from './views/RepositoriesView';
+import JobsView from './views/JobsView';
 import MountsView from './views/MountsView';
 import SettingsView from './views/SettingsView';
 import DashboardView from './views/DashboardView';
@@ -20,6 +21,7 @@ import { Loader2 } from 'lucide-react';
 import OnboardingModal from './components/OnboardingModal';
 import UpdateModal from './components/UpdateModal';
 import { getIpcRendererOrNull } from './services/electron';
+import RestoreView, { RestoreTab } from './views/RestoreView';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -155,7 +157,9 @@ const App: React.FC = () => {
   const [updateProgress, setUpdateProgress] = useState(0);
 
   const [preselectedRepoId, setPreselectedRepoId] = useState<string | null>(null);
+    const [restoreTab, setRestoreTab] = useState<RestoreTab>('archives');
   const [detailRepo, setDetailRepo] = useState<Repository | null>(null);
+    const [openJobsRepoId, setOpenJobsRepoId] = useState<string | null>(null);
   
   const [isLoaded, setIsLoaded] = useState(false);
   const dataLoadedRef = useRef(false);
@@ -509,7 +513,8 @@ const App: React.FC = () => {
           status: 'mounted',
         };
         setMounts(prev => [...prev, newMount]);
-        setCurrentView(View.MOUNTS);
+        setRestoreTab('mounts');
+        setCurrentView(View.ARCHIVES);
         
         try {
             getIpcRendererOrNull()?.send('open-path', path);
@@ -854,13 +859,15 @@ const App: React.FC = () => {
 
   const handleQuickMount = (repo: Repository) => {
     setPreselectedRepoId(repo.id);
-    setCurrentView(View.MOUNTS);
+        setRestoreTab('mounts');
+        setCurrentView(View.ARCHIVES);
     handleConnect(repo);
   };
   
   const handleArchiveMount = (repo: Repository, archiveName: string) => {
       setPreselectedRepoId(repo.id);
-      setCurrentView(View.MOUNTS);
+            setRestoreTab('mounts');
+            setCurrentView(View.ARCHIVES);
       if (repo.status !== 'connected') handleConnect(repo);
   };
 
@@ -1010,32 +1017,62 @@ const App: React.FC = () => {
                         onBackupStarted={startRepoBackup}
                         onBackupFinished={finishRepoBackup}
                         onBackupCancelled={cancelRepoBackup}
+                        openJobsRepoId={openJobsRepoId}
+                        onOpenJobsConsumed={() => setOpenJobsRepoId(null)}
           />
         );
-      case View.MOUNTS:
-        return (
-          <MountsView 
-            mounts={mounts} 
-            repos={repos} 
-            archives={archives}
-            onUnmount={handleUnmount} 
-            onMount={handleMount} 
-            preselectedRepoId={preselectedRepoId}
-          />
-        );
+            case View.JOBS:
+                return (
+                    <JobsView
+                        repos={repos}
+                        jobs={jobs}
+                        onChangeView={setCurrentView}
+                        onAddJob={handleAddJob}
+                        onUpdateJob={handleUpdateJob}
+                        onDeleteJob={handleDeleteJob}
+                        onRunJob={handleRunJob}
+                    />
+                );
+            case View.MOUNTS:
+                // Backwards-compat / deep links: treat Mounts as a tab inside Archives.
+                return (
+                    <RestoreView
+                        tab={'mounts'}
+                        onTabChange={setRestoreTab}
+                        archives={archives}
+                        repos={repos}
+                        onArchiveMount={handleArchiveMount}
+                        onRefreshArchives={handleRefreshArchives}
+                        onGetInfo={(archiveName) => {
+                            const repo = repos.find(r => r.status === 'connected');
+                            if (repo) return handleFetchArchiveStats(repo, archiveName);
+                            return Promise.resolve();
+                        }}
+                        mounts={mounts}
+                        onUnmount={handleUnmount}
+                        onMount={handleMount}
+                        preselectedRepoId={preselectedRepoId}
+                    />
+                );
       case View.ARCHIVES:
         return (
-            <ArchivesView 
-                archives={archives} 
-                repos={repos} 
-                onMount={handleArchiveMount}
-                onRefresh={handleRefreshArchives}
-                onGetInfo={(archiveName) => {
-                    const repo = repos.find(r => r.status === 'connected');
-                    if(repo) return handleFetchArchiveStats(repo, archiveName);
-                    return Promise.resolve();
-                }}
-            />
+                        <RestoreView
+                            tab={restoreTab}
+                            onTabChange={setRestoreTab}
+                            archives={archives}
+                            repos={repos}
+                            onArchiveMount={handleArchiveMount}
+                            onRefreshArchives={handleRefreshArchives}
+                            onGetInfo={(archiveName) => {
+                                const repo = repos.find(r => r.status === 'connected');
+                                if (repo) return handleFetchArchiveStats(repo, archiveName);
+                                return Promise.resolve();
+                            }}
+                            mounts={mounts}
+                            onUnmount={handleUnmount}
+                            onMount={handleMount}
+                            preselectedRepoId={preselectedRepoId}
+                        />
         );
       case View.REPO_DETAILS:
         return detailRepo ? (
@@ -1060,6 +1097,10 @@ const App: React.FC = () => {
               onChangeView={setCurrentView}
               onViewDetails={(repo) => { setDetailRepo(repo); setCurrentView(View.REPO_DETAILS); }}
               onAbortCheck={handleAbortCheck}
+                            onManageJobs={(repo) => {
+                                setOpenJobsRepoId(repo.id);
+                                setCurrentView(View.REPOSITORIES);
+                            }}
                   onOneOffBackup={(r) => setBackupModal({ repo: r, isOpen: true })}
               isDarkMode={isDarkMode}
               toggleTheme={toggleTheme}
@@ -1129,7 +1170,7 @@ const App: React.FC = () => {
           <div className="flex flex-1 overflow-hidden pt-9">
               <Sidebar 
                   currentView={currentView} 
-                  onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); }} 
+                  onChangeView={(view) => { setCurrentView(view); setPreselectedRepoId(null); if (view !== View.ARCHIVES && view !== View.MOUNTS) setRestoreTab('archives'); }} 
                   updateAvailable={updateAvailable}
               />
               <TerminalModal isOpen={isTerminalOpen} title={terminalTitle} logs={terminalLogs} onClose={() => setIsTerminalOpen(false)} isProcessing={isProcessing} />

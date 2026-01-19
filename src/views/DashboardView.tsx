@@ -11,7 +11,7 @@ import {
   Lock,
   Moon,
   Sun,
-  Play,
+    Play,
   Plus,
   RefreshCw,
   FolderOpen,
@@ -43,14 +43,15 @@ interface DashboardViewProps {
   onViewDetails?: (repo: Repository) => void;
   onAbortCheck?: (repo: Repository) => void;
     onAbortBackup?: (repo: Repository) => void;
-  onOneOffBackup?: (repo: Repository) => void;
+    onManageJobs?: (repo: Repository) => void;
+    onOneOffBackup?: (repo: Repository) => void;
   isDarkMode?: boolean;
   toggleTheme?: () => void;
   isLoading?: boolean;
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({ 
-    repos, mounts, jobs, activityLogs, onQuickMount, onConnect, onCheck, onChangeView, onViewDetails, onAbortCheck, onAbortBackup, onOneOffBackup, isDarkMode, toggleTheme, isLoading 
+    repos, mounts, jobs, activityLogs, onQuickMount, onConnect, onCheck, onChangeView, onViewDetails, onAbortCheck, onAbortBackup, onManageJobs, onOneOffBackup, isDarkMode, toggleTheme, isLoading 
 }) => {
   
   // Real-time Current File Logic
@@ -214,7 +215,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             
             <div className="flex items-center gap-3">
-                 <button onClick={toggleTheme} title="Toggle Theme" className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                 <button onClick={toggleTheme} title="Toggle Theme" aria-label="Toggle Theme" className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
                      {isDarkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
                  </button>
             </div>
@@ -296,7 +297,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                   ) : (
                       repos.map(repo => {
+                          const nextRun = jobs ? getNextRunForRepo(jobs, repo.id) : null;
+                          const hasAnyJobs = !!jobs?.some(j => j.repoId === repo.id);
                           const health = getRepoHealth(repo);
+                                                    const connectionLabel = repo.status === 'connected'
+                                                        ? 'Online'
+                                                        : repo.status === 'connecting'
+                                                            ? 'Connecting'
+                                                            : 'Offline';
                           const borderColor = 
                                 health === 'critical' ? 'border-red-500' :
                                 health === 'warning' ? 'border-yellow-500' :
@@ -317,13 +325,27 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                           </div>
                                       </div>
                                       {/* Status Badge */}
-                                      {health === 'critical' ? (
-                                          <div className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-[10px] font-bold uppercase">At Risk</div>
-                                      ) : health === 'warning' ? (
-                                           <div className="px-2 py-0.5 bg-yellow-100 text-yellow-600 rounded text-[10px] font-bold uppercase">Warning</div>
-                                      ) : (
-                                           <div className="px-2 py-0.5 bg-green-100 text-green-600 rounded text-[10px] font-bold uppercase">Healthy</div>
-                                      )}
+                                                                            <div className="flex items-center gap-2">
+                                                                                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                                                                                        repo.status === 'connected'
+                                                                                            ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
+                                                                                            : repo.status === 'connecting'
+                                                                                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                                                                                                : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600'
+                                                                                    }`} title={`Connection: ${connectionLabel}`}>
+                                                                                        {connectionLabel}
+                                                                                    </div>
+
+                                                                                    <div className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide ${
+                                                                                        health === 'critical'
+                                                                                            ? 'bg-red-100/70 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                                                            : health === 'warning'
+                                                                                                ? 'bg-yellow-100/70 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                                                                                : 'bg-green-100/70 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                                    }`} title="Backup health based on last snapshot">
+                                                                                        {health === 'critical' ? 'At Risk' : health === 'warning' ? 'Warning' : 'Healthy'}
+                                                                                    </div>
+                                                                            </div>
                                   </div>
 
                                   {/* Last Backup Display */}
@@ -339,6 +361,26 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                               </span>
                                           )}
                                       </div>
+
+                                                                            {jobs && (
+                                                                                <div className="mt-2 flex items-center gap-2 text-xs">
+                                                                                    <CalendarClock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                                                                                    <span className="text-slate-500 dark:text-slate-400">Next job:</span>
+                                                                                    {nextRun ? (
+                                                                                        <span className="font-medium text-purple-700 dark:text-purple-400 truncate" title="Next scheduled run">
+                                                                                            {nextRun}
+                                                                                        </span>
+                                                                                    ) : !hasAnyJobs ? (
+                                                                                        <span className="font-medium text-slate-600 dark:text-slate-300 truncate" title="No jobs configured">
+                                                                                            No jobs yet
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="font-medium text-yellow-700 dark:text-yellow-400 truncate" title="Jobs exist, but none are scheduled">
+                                                                                            No schedule enabled
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                   </div>
 
                                   {/* Backup ETA + Cancel */}
@@ -386,23 +428,34 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                           <>
                                               <button 
                                                 onClick={() => onViewDetails?.(repo)}
-                                                className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center"
+                                                                                                className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center"
                                                 title="View Details & History"
+                                                                                                aria-label="View Details & History"
                                               >
                                                 <Activity className="w-4 h-4" />
                                               </button>
+                                                                                            {onOneOffBackup && (
+                                                                                                <button 
+                                                                                                    onClick={() => onOneOffBackup(repo)}
+                                                                                                    className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center"
+                                                                                                    title="One-off Backup"
+                                                                                                    aria-label="One-off Backup"
+                                                                                                >
+                                                                                                    <Play className="w-4 h-4" />
+                                                                                                </button>
+                                                                                            )}
                                               <button 
                                                 onClick={() => onQuickMount(repo)}
-                                                className="flex-1 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors flex justify-center items-center gap-2"
+                                                                                                className="flex-1 h-9 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 transition-colors flex justify-center items-center gap-2"
                                               >
                                                   <FolderOpen className="w-4 h-4" /> Mount
                                               </button>
-                                              {onOneOffBackup && (
+                                              {onManageJobs && (
                                                  <button 
-                                                    onClick={() => onOneOffBackup(repo)}
-                                                    className="flex-1 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors flex justify-center items-center gap-2"
+                                                    onClick={() => onManageJobs(repo)}
+                                                                                                        className="flex-1 h-9 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-colors flex justify-center items-center gap-2"
                                                  >
-                                                     <Play className="w-4 h-4" /> Backup
+                                                     <CalendarClock className="w-4 h-4" /> Jobs
                                                  </button>
                                               )}
                                           </>

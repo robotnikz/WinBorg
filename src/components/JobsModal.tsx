@@ -319,6 +319,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                  onClick={onClose}
                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                                  aria-label="Close"
+                                 title="Close"
                              >
                  <X size={20} />
                </button>
@@ -378,6 +379,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                                            onClick={() => copyToClipboard(p)}
                                                            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                                                            title="Copy path"
+                                                           aria-label="Copy path"
                                                        >
                                                            <Copy className="w-4 h-4" />
                                                        </button>
@@ -395,6 +397,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                             disabled={job.status === 'running'}
                                             className="p-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded hover:bg-purple-100 dark:hover:bg-purple-900/50 disabled:opacity-50 transition-colors"
                                             title="Run Job Now"
+                                            aria-label="Run Job Now"
                                         >
                                            <Play className="w-4 h-4 fill-current" />
                                        </button>
@@ -403,6 +406,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                             disabled={job.status === 'running'}
                                             className="p-2 bg-slate-50 dark:bg-slate-900/30 text-slate-600 dark:text-slate-200 rounded hover:bg-slate-100 dark:hover:bg-slate-900/50 disabled:opacity-50 transition-colors"
                                             title="Edit Job"
+                                            aria-label="Edit Job"
                                         >
                                            <Pencil className="w-4 h-4" />
                                        </button>
@@ -410,6 +414,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                             onClick={() => onDeleteJob(job.id)}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                             title="Delete Job"
+                                            aria-label="Delete Job"
                                         >
                                            <Trash2 className="w-4 h-4" />
                                        </button>
@@ -533,7 +538,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                            <input
                                                type="text"
                                                className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                                               placeholder="e.g. C:\\Users\\tobia\\Documents"
+                                               placeholder="e.g. C:\\Users\\USERNAME\\Documents"
                                                value={sourcePathInput}
                                                onChange={(e) => setSourcePathInput(e.target.value)}
                                                onKeyDown={(e) => {
@@ -561,6 +566,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                                            onClick={() => copyToClipboard(p)}
                                                            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                                                            title="Copy"
+                                                           aria-label="Copy"
                                                        >
                                                            <Copy className="w-4 h-4" />
                                                        </button>
@@ -569,6 +575,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                                            onClick={() => moveSourcePath(idx, -1)}
                                                            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-40"
                                                            title="Move up"
+                                                           aria-label="Move up"
                                                            disabled={idx === 0}
                                                        >
                                                            <ArrowUp className="w-4 h-4" />
@@ -578,6 +585,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                                            onClick={() => moveSourcePath(idx, 1)}
                                                            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-40"
                                                            title="Move down"
+                                                           aria-label="Move down"
                                                            disabled={idx === sourcePaths.length - 1}
                                                        >
                                                            <ArrowDown className="w-4 h-4" />
@@ -587,6 +595,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                                                            onClick={() => setSourcePaths(prev => prev.filter(x => x !== p))}
                                                            className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                                            title="Remove"
+                                                           aria-label="Remove"
                                                        >
                                                            <X size={14} />
                                                        </button>
