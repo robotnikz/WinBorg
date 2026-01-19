@@ -219,34 +219,9 @@ More: [docs/README.md](docs/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECT
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
-npm run test:e2e:manual
-```
 
-More details: see [docs/TESTING.md](docs/TESTING.md).
+Quick notes:
 
-## 🤝 Contributing
-
-We welcome contributions!
-
-1.  Fork the repository.
-2.  Create a feature branch (`git checkout -b feature/NewThing`).
-3.  Commit your changes (we use **Semantic Release**, so please use conventional commits like `feat:`, `fix:`, `docs:`).
-4.  Push and open a Pull Request targeting `main`.
-
-### Running Locally
-```bash
-# Install deps
-npm install
-
-# Run dev mode (Vite + Electron)
-# - `electron` uses the default Vite port (5174)
-# - `electron:dev` auto-picks a free port (handy if 5174 is already in use)
-npm run electron
-# or
-npm run electron:dev
-
-# Run tests
-npm run test
-```
-
----
+1. Create a branch.
+2. Run checks locally (see [docs/TESTING.md](docs/TESTING.md)).
+3. Open a Pull Request targeting `main`.
