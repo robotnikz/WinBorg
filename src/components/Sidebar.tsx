@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart, ArrowUpCircle } from 'lucide-react';
 import { View } from '../types';
+import { getShellOrNull } from '../services/electron';
 import AppLogo from './AppLogo';
 import { getAppVersion } from '../utils/appVersion';
 
@@ -41,12 +42,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
   const handleOpenRepo = (e: React.MouseEvent) => {
       e.stopPropagation();
-      try {
-          const { shell } = (window as any).require('electron');
-          shell.openExternal(`https://github.com/${devProfile.repo}`);
-      } catch(err) {
-          window.open(`https://github.com/${devProfile.repo}`, '_blank');
+      const url = `https://github.com/${devProfile.repo}`;
+      const shell = getShellOrNull();
+      if (shell?.openExternal) {
+        shell.openExternal(url);
+        return;
       }
+      window.open(url, '_blank');
   };
 
   return (
@@ -98,10 +100,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
         {/* Developer / About Footer */}
         <div className="border-t border-gray-200 dark:border-slate-800 pt-4 mt-2 px-2 pb-4">
-            <div 
-                onClick={handleOpenRepo}
-                className="flex items-center gap-3 group p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all cursor-pointer"
-                title="View on GitHub"
+            <button
+              type="button"
+              onClick={handleOpenRepo}
+              className="flex items-center gap-3 group p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all cursor-pointer text-left w-full"
+              aria-label="View on GitHub"
+              title="View on GitHub"
             >
                 <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-inner group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">
                     <Code2 className="w-5 h-5" />
@@ -120,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
                          </div>
                     </div>
                 </div>
-            </div>
+            </button>
         </div>
       </div>
     </div>

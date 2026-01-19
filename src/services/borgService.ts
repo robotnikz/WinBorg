@@ -4,30 +4,18 @@
 
 import { formatBytes, formatDuration } from '../utils/formatters';
 import { ArchiveStats } from '../types';
+import { getIpcRendererOrNull, type IpcRendererLike } from './electron';
 
-// Helper to safely get ipcRenderer without crashing in Browser mode
-const getIpcRenderer = () => {
-    try {
-        if ((window as any).require) {
-            const electron = (window as any).require('electron');
-            return electron.ipcRenderer;
-        }
-    } catch (e) {
-        console.warn("Electron require failed", e);
-    }
-    
-    // Fallback for Browser/Dev mode (Prevents White Screen crash)
-    console.warn("WinBorg: Running in browser/mock mode. Electron features disabled.");
-    return {
-        invoke: async () => ({ success: false, error: "Running in browser mode (Mock)" }),
-        send: () => {},
-        on: () => {},
-        removeListener: () => {}
-    };
+const fallbackIpcRenderer: IpcRendererLike = {
+    invoke: async () => ({ success: false, error: 'Running in browser mode (Mock)' }),
+    send: () => {},
+    on: () => {},
+    removeListener: () => {},
+    removeAllListeners: () => {},
 };
 
-// Initialize lazily
-const ipcRenderer = getIpcRenderer();
+// Lazily resolve so tests can inject `window.require('electron')` after import.
+const getIpc = () => getIpcRendererOrNull() ?? fallbackIpcRenderer;
 
 const getBorgConfig = () => {
     const storedWsl = localStorage.getItem('winborg_use_wsl');
@@ -145,34 +133,34 @@ export const borgService = {
 
   // --- SSH KEY MANAGEMENT ---
   manageSSHKey: async (action: 'check' | 'generate' | 'read', type: 'ed25519' | 'rsa' = 'ed25519'): Promise<{success: boolean, exists?: boolean, key?: string, path?: string, error?: string}> => {
-      return ipcRenderer.invoke('ssh-key-manage', { action, type });
+      return getIpc().invoke('ssh-key-manage', { action, type });
   },
 
   installSSHKey: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string}> => {
-      return ipcRenderer.invoke('ssh-key-install', { target, password, port });
+      return getIpc().invoke('ssh-key-install', { target, password, port });
   },
 
   installBorg: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string, details?: string}> => {
-      return ipcRenderer.invoke('ssh-install-borg', { target, password, port });
+      return getIpc().invoke('ssh-install-borg', { target, password, port });
   },
 
   testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string}> => {
-      return ipcRenderer.invoke('ssh-test-connection', { target, port });
+            return getIpc().invoke('ssh-test-connection', { target, port });
   },
   checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string, path?: string, error?: string}> => {
-    return await ipcRenderer.invoke('ssh-check-borg', { target, port });
+        return await getIpc().invoke('ssh-check-borg', { target, port });
   },  
   // --- SECRETS MANAGEMENT ---
   savePassphrase: async (repoId: string, passphrase: string) => {
-      return await ipcRenderer.invoke('save-secret', { repoId, passphrase });
+            return await getIpc().invoke('save-secret', { repoId, passphrase });
   },
 
   deletePassphrase: async (repoId: string) => {
-      return await ipcRenderer.invoke('delete-secret', { repoId });
+      return await getIpc().invoke('delete-secret', { repoId });
   },
 
   hasPassphrase: async (repoId: string): Promise<boolean> => {
-      const res = await ipcRenderer.invoke('has-secret', { repoId });
+      const res = await getIpc().invoke('has-secret', { repoId });
       return res.hasSecret;
   },
 
@@ -250,10 +238,10 @@ export const borgService = {
       onLog(msg.text);
     };
 
-    ipcRenderer.on('terminal-log', logListener);
+    getIpc().on('terminal-log', logListener);
 
     try {
-      const result = await ipcRenderer.invoke('borg-spawn', { 
+            const result = await getIpc().invoke('borg-spawn', { 
           args: finalArgs, 
           commandId, 
           useWsl: config.useWsl,
@@ -276,7 +264,7 @@ export const borgService = {
                             // ignore
                     }
             }
-      ipcRenderer.removeListener('terminal-log', logListener);
+            getIpc().removeListener('terminal-log', logListener);
     }
   },
 
@@ -446,11 +434,11 @@ export const borgService = {
             fuseLog += `\n${msg.text}`;
         }
       };
-      ipcRenderer.on('terminal-log', logListener);
+    getIpc().on('terminal-log', logListener);
 
       try {
         const runPreflight = async () => {
-            return await ipcRenderer.invoke('borg-spawn', { 
+            return await getIpc().invoke('borg-spawn', { 
             commandId: 'fuse-setup', 
             useWsl: true,
             envVars: {},
@@ -471,7 +459,7 @@ export const borgService = {
             onLog('[Auto-Setup] /dev/fuse missing. Attempting WSL repair (update + restart)...');
             let repairResult: any = null;
             try {
-                repairResult = await ipcRenderer.invoke('system-fix-wsl-fuse');
+                repairResult = await getIpc().invoke('system-fix-wsl-fuse');
             } catch (e: any) {
                 onLog(`[Auto-Setup] WSL repair failed to run: ${e?.message || String(e)}`);
             }
@@ -490,7 +478,7 @@ export const borgService = {
           onLog(`[Setup Error] ${e.message}`);
           return { ok: false };
       } finally {
-          ipcRenderer.removeListener('terminal-log', logListener);
+          getIpc().removeListener('terminal-log', logListener);
       }
   },
 
@@ -632,11 +620,11 @@ export const borgService = {
   // --- RESTORE / EXTRACT ---
 
   getDownloadsPath: async (): Promise<string> => {
-      return await ipcRenderer.invoke('get-downloads-path');
+      return await getIpc().invoke('get-downloads-path');
   },
   
   createDirectory: async (path: string): Promise<boolean> => {
-      return await ipcRenderer.invoke('create-directory', path);
+      return await getIpc().invoke('create-directory', path);
   },
 
   getArchiveHistory: async (repoUrl: string, options?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }): Promise<ArchiveStats[]> => {
@@ -751,13 +739,13 @@ export const borgService = {
   },
 
   openPath: (path: string) => {
-      ipcRenderer.send('open-path', path);
+      getIpc().send('open-path', path);
   },
 
   // --- MOUNTING ---
 
   stopCommand: async (commandId: string): Promise<boolean> => {
-      const result = await ipcRenderer.invoke('borg-stop', { commandId });
+      const result = await getIpc().invoke('borg-stop', { commandId });
       return result.success;
   },
 
@@ -767,7 +755,7 @@ export const borgService = {
     const logListener = (_: any, msg: { id: string, text: string }) => {
         if (msg.id === 'mount') onLog(msg.text);
     };
-    ipcRenderer.on('terminal-log', logListener);
+    getIpc().on('terminal-log', logListener);
 
     try {
         if (config.useWsl) {
@@ -779,7 +767,7 @@ export const borgService = {
             
             // FIX: Ensure the mountpoint directory exists in WSL before mounting
             onLog(`[Setup] Creating mount point: ${mountPoint}`);
-            await ipcRenderer.invoke('borg-spawn', { 
+            await getIpc().invoke('borg-spawn', { 
                 commandId: `mkdir-${mountId}`,
                 useWsl: true,
                 forceBinary: 'mkdir',
@@ -788,7 +776,7 @@ export const borgService = {
         }
         
         const args = ['mount', '--foreground', '-o', 'allow_other', `${repoUrl}::${archiveName}`, mountPoint];
-        const result = await ipcRenderer.invoke('borg-mount', { 
+        const result = await getIpc().invoke('borg-mount', { 
             args, 
             mountId, 
             useWsl: config.useWsl,
@@ -799,13 +787,13 @@ export const borgService = {
         
         return { success: result.success, mountId: result.success ? mountId : undefined, error: result.error };
     } finally {
-        ipcRenderer.removeListener('terminal-log', logListener);
+        getIpc().removeListener('terminal-log', logListener);
     }
   },
 
   unmount: async (mountId: string, localPath: string) => {
     const config = getBorgConfig();
-    return await ipcRenderer.invoke('borg-unmount', { 
+        return await getIpc().invoke('borg-unmount', { 
         mountId, 
         localPath, 
         useWsl: config.useWsl,
@@ -815,7 +803,7 @@ export const borgService = {
 
   selectDirectory: async (): Promise<string[] | null> => {
       try {
-        const result = await ipcRenderer.invoke('select-directory');
+                const result = await getIpc().invoke('select-directory');
         return !result.canceled ? result.filePaths : null;
       } catch (e) {
           console.error("Failed to select directory", e);
