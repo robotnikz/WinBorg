@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useId, useRef } from 'react';
 import { X, FilePlus, FileMinus, FileDiff, File, Search, AlertCircle, ArrowRight } from 'lucide-react';
 import Button from './Button';
 
@@ -21,6 +21,26 @@ interface DiffEntry {
 
 const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, archiveNew, logs, onClose, isProcessing }) => {
   const [search, setSearch] = useState('');
+    const titleId = useId();
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Ensure focus lands inside the dialog for keyboard users.
+            setTimeout(() => searchInputRef.current?.focus(), 0);
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || isProcessing) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, isProcessing, onClose]);
 
   // Parser logic to transform raw borg diff text into structured data
   const parsedEntries = useMemo(() => {
@@ -65,13 +85,24 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-      <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[85vh] rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!isProcessing) onClose();
+            }}
+        >
+            <div
+                className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[85vh] rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+            >
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50 shrink-0">
           <div>
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                Diff Report
             </h3>
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
@@ -81,7 +112,11 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
             </div>
           </div>
           {!isProcessing && (
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                        <button
+                            onClick={onClose}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                                        aria-label="Close dialog"
+                        >
               <X size={20} />
             </button>
           )}
@@ -103,12 +138,14 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
 
             <div className="relative w-64">
                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-               <input 
+            <input 
                     type="text" 
                     placeholder="Filter changes..." 
                     className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                aria-label="Filter changes"
+                ref={searchInputRef}
                />
            </div>
         </div>

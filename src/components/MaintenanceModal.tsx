@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Trash2, HardDrive, AlertCircle, X, CheckCircle2, Loader2, Terminal } from 'lucide-react';
@@ -24,7 +24,26 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
   const [keepWeekly, setKeepWeekly] = useState(4);
   const [keepMonthly, setKeepMonthly] = useState(6);
 
-  if (!isOpen) return null;
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (isOpen && !isProcessing) {
+            setTimeout(() => closeButtonRef.current?.focus(), 0);
+        }
+    }, [isOpen, isProcessing]);
+
+    useEffect(() => {
+        if (!isOpen || isProcessing) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, isProcessing, onClose]);
+
+      if (!isOpen) return null;
 
   const handlePrune = async () => {
       setIsProcessing(true);
@@ -82,8 +101,19 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!isProcessing) onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label={`Repository Maintenance: ${repo.name}`}
+             >
            
            {/* Header */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
@@ -91,7 +121,7 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
                    <h3 className="font-bold text-slate-800 dark:text-slate-100">Repository Maintenance</h3>
                    <p className="text-xs text-slate-500 dark:text-slate-400">{repo.name}</p>
                </div>
-               <button onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50">
+                             <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" aria-label="Close">
                  <X size={20} />
                </button>
            </div>

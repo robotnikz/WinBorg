@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { CheckCircle2, FolderOpen, X } from 'lucide-react';
 import Button from './Button';
 import { borgService } from '../services/borgService';
@@ -11,6 +11,20 @@ interface ExtractionSuccessModalProps {
 }
 
 const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen, onClose, path }) => {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleOpenFolder = () => {
@@ -19,10 +33,21 @@ const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen,
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 p-6 relative">
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4"
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        onClose();
+      }}
+    >
+       <div
+         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 p-6 relative"
+         role="dialog"
+         aria-modal="true"
+         aria-label="Download Successful"
+       >
            
-           <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+           <button ref={closeButtonRef} onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close dialog">
              <X size={20} />
            </button>
 

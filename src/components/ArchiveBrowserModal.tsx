@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Repository, Archive } from '../types';
 import Button from './Button';
 import { FileEntry, borgService } from '../services/borgService';
@@ -31,9 +31,14 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
   const [extracting, setExtracting] = useState(false);
   const [search, setSearch] = useState('');
 
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    const selectedPathSet = useMemo(() => new Set(selectedPaths), [selectedPaths]);
+
   useEffect(() => {
       if (isOpen) {
           loadFiles();
+          setTimeout(() => searchInputRef.current?.focus(), 0);
       } else {
           setFileList([]);
           setCurrentPath([]);
@@ -41,6 +46,17 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
           setSearch('');
       }
   }, [isOpen]);
+
+  useEffect(() => {
+      if (!isOpen || extracting) return;
+
+      const onKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') onClose();
+      };
+
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, extracting, onClose]);
 
   const loadFiles = async () => {
       setLoading(true);
@@ -62,9 +78,10 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
 
   // Build a virtual view of the current folder based on the flat fileList
   const currentFolderContents = useMemo(() => {
-      if (search) {
+      const needle = search.trim().toLowerCase();
+      if (needle) {
           // Flat search mode
-          return fileList.filter(f => f.path.toLowerCase().includes(search.toLowerCase()));
+          return fileList.filter((f) => f.path.toLowerCase().includes(needle));
       }
 
       const prefix = currentPath.length > 0 ? currentPath.join('/') + '/' : '';
@@ -74,6 +91,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
       
       // Reduce to direct children
       const directChildren: FileEntry[] = [];
+    const directChildPaths = new Set<string>();
       const seenFolders = new Set<string>();
 
       for (const file of relevant) {
@@ -83,6 +101,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
           if (parts.length === 1) {
               // Direct child file or empty folder marker
               directChildren.push(file);
+              directChildPaths.add(file.path);
           } else {
               // It's a subfolder item
               const folderName = parts[0];
@@ -90,11 +109,11 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                   seenFolders.add(folderName);
                   // Create a fake folder entry if it doesn't strictly exist in the list (Borg usually lists dirs explicitly though)
                   // Check if we already have the explicit folder entry
-                  const existingDir = directChildren.find(c => c.path === prefix + folderName);
-                  if (!existingDir) {
+                  const folderPath = prefix + folderName;
+                  if (!directChildPaths.has(folderPath)) {
                       // Implicit folder
                       directChildren.push({
-                          path: prefix + folderName,
+                          path: folderPath,
                           type: 'd',
                           mode: 'drwxr-xr-x',
                           user: 'root',
@@ -103,6 +122,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                           gid: 0,
                           healthy: true
                       });
+                      directChildPaths.add(folderPath);
                   }
               }
           }
@@ -129,11 +149,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
   };
 
   const toggleSelection = (path: string) => {
-      if (selectedPaths.includes(path)) {
-          setSelectedPaths(selectedPaths.filter(p => p !== path));
-      } else {
-          setSelectedPaths([...selectedPaths, path]);
-      }
+      setSelectedPaths((prev) => (prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path]));
   };
 
   const performExtraction = async (targetPath: string) => {
@@ -199,8 +215,19 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!extracting) onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label={`Archive Browser: ${archive.name}`}
+             >
            
            {/* Header */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
@@ -211,7 +238,12 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                    </h3>
                    <p className="text-xs text-slate-500 dark:text-slate-400">{archive.name} • {fileList.length} items loaded</p>
                </div>
-               <button onClick={onClose} disabled={extracting} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                             <button
+                                 onClick={onClose}
+                                 disabled={extracting}
+                                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                 aria-label="Close"
+                             >
                  <X size={20} />
                </button>
            </div>
@@ -224,6 +256,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                    <button 
                         onClick={() => setCurrentPath([])}
                         className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 ${currentPath.length === 0 ? 'text-blue-600' : 'text-slate-500'}`}
+                        aria-label="Go to root folder"
                    >
                        <Home className="w-4 h-4" />
                    </button>
@@ -243,12 +276,14 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                {/* Search */}
                <div className="relative w-64">
                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                   <input 
+                    <input 
                         type="text" 
                         placeholder="Search files..." 
                         className="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
+                        aria-label="Search files"
+                        ref={searchInputRef}
                    />
                </div>
            </div>
@@ -275,7 +310,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
 
                        {currentFolderContents.map((item) => {
                            const itemName = item.path.split('/').pop() || item.path;
-                           const isSelected = selectedPaths.includes(item.path);
+                           const isSelected = selectedPathSet.has(item.path);
 
                            return (
                                <div 
