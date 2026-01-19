@@ -29,7 +29,7 @@
 
 ## ⚡ What is WinBorg?
 
-WinBorg Manager is a modern GUI that brings the power of **BorgBackup** to Windows without the complexity. 
+WinBorg Manager is a modern GUI that brings the power of **[BorgBackup](https://borgbackup.readthedocs.io/en/stable/)** to Windows without the complexity. 
 
 By leveraging **WSL2 (Windows Subsystem for Linux)**, it runs the official, unmodified Linux binaries of BorgBackup for maximum stability and performance, while presenting you with a completely native, polished Windows 11-style interface.
 

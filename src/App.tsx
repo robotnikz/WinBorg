@@ -34,14 +34,68 @@ const App: React.FC = () => {
       return saved ? saved === 'dark' : true;
   });
 
-  useEffect(() => {
-      localStorage.setItem('winborg_theme', isDarkMode ? 'dark' : 'light');
-      if (isDarkMode) {
-          document.documentElement.classList.add('dark');
-      } else {
-          document.documentElement.classList.remove('dark');
-      }
-  }, [isDarkMode]);
+    useEffect(() => {
+        // Borg ops can get queued per repository. Avoid stacking multiple toasts:
+        // show a single persistent toast while ANY queued command is waiting.
+        const queuedCommandIds = new Set<string>();
+        let toastId: string | null = null;
+
+        const showIfNeeded = () => {
+            if (queuedCommandIds.size === 0) return;
+            if (toastId) return;
+            toastId = toast.loading('Waiting for an ongoing repository operation…');
+        };
+
+        const dismissIfDone = () => {
+            if (queuedCommandIds.size !== 0) return;
+            if (!toastId) return;
+            toast.dismiss(toastId);
+            toastId = null;
+        };
+
+        const onQueued = (e: any) => {
+            const commandId = e?.detail?.commandId;
+            if (typeof commandId === 'string' && commandId.length > 0) {
+                queuedCommandIds.add(commandId);
+            } else {
+                // Fallback: still show a single toast even if detail is missing.
+                queuedCommandIds.add('unknown');
+            }
+            showIfNeeded();
+        };
+
+        const onDequeued = (e: any) => {
+            const commandId = e?.detail?.commandId;
+            if (typeof commandId === 'string' && commandId.length > 0) {
+                queuedCommandIds.delete(commandId);
+            } else {
+                queuedCommandIds.clear();
+            }
+            dismissIfDone();
+        };
+
+        try {
+            window.addEventListener('winborg:borg-queued', onQueued as any);
+            window.addEventListener('winborg:borg-dequeued', onDequeued as any);
+            return () => {
+                window.removeEventListener('winborg:borg-queued', onQueued as any);
+                window.removeEventListener('winborg:borg-dequeued', onDequeued as any);
+                // Cleanup any persistent toast to avoid leaking UI on hot reload.
+                if (toastId) toast.dismiss(toastId);
+            };
+        } catch {
+            return;
+        }
+    }, []);
+
+    useEffect(() => {
+            localStorage.setItem('winborg_theme', isDarkMode ? 'dark' : 'light');
+            if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+            } else {
+                    document.documentElement.classList.remove('dark');
+            }
+    }, [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
