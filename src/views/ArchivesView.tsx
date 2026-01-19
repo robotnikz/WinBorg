@@ -252,8 +252,15 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Archives</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                {activeRepo ? `Snapshots for ${activeRepo.name}` : "Select a repository to view archives"}
+            <p
+                className={`text-sm mt-1 ${
+                    activeRepo
+                        ? 'text-slate-500 dark:text-slate-400'
+                        : 'text-red-600 dark:text-red-400 font-bold'
+                }`}
+                role={!activeRepo ? 'alert' : undefined}
+            >
+                {activeRepo ? `Snapshots for ${activeRepo.name}` : 'Connect to a repository to view archives'}
             </p>
         </div>
         
@@ -299,13 +306,14 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                         variant="secondary" 
                         onClick={handleFetchAllStats} 
                         title="Fetch size & duration for all archives" 
+                        aria-label="Fetch size & duration for all archives"
                         disabled={!activeRepo || isFetchingAll || filteredArchives.every(a => a.size !== 'Unknown')}
                         className={isFetchingAll ? "bg-blue-50 text-blue-600 border-blue-200" : "dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200"}
                     >
                         {isFetchingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
                     </Button>
 
-                    <Button variant="secondary" onClick={onRefresh} title="Refresh Archives List" disabled={!activeRepo || isFetchingAll} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200">
+                    <Button variant="secondary" onClick={onRefresh} title="Refresh Archives List" aria-label="Refresh Archives List" disabled={!activeRepo || isFetchingAll} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200">
                         <RefreshCw className="w-4 h-4" />
                     </Button>
                 </div>
@@ -421,6 +429,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             onClick={() => setBrowserArchive(archive)}
                                             disabled={isFetchingAll}
                                             title="Browse Files"
+                                            aria-label="Browse Files"
                                         >
                                             <FolderSearch className="w-5 h-5" />
                                         </Button>
@@ -431,6 +440,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             onClick={() => activeRepo && onMount(activeRepo, archive.name)}
                                             disabled={isFetchingAll}
                                             title="Mount Archive"
+                                            aria-label="Mount Archive"
                                         >
                                             <HardDrive className="w-5 h-5" />
                                         </Button>
@@ -439,6 +449,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             onClick={() => handleDeleteClick([archive.name])}
                                             className="h-10 w-10 p-0 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100 dark:bg-red-900/25 dark:text-red-300 dark:hover:bg-red-900/45 dark:border-red-900/60"
                                             title="Delete Archive"
+                                            aria-label="Delete Archive"
                                             disabled={isFetchingAll}
                                         >
                                             <Trash2 className="w-5 h-5" />
