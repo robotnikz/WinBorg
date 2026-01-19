@@ -3,13 +3,12 @@
   <img src="public/icon.png" alt="WinBorg Logo" width="128" height="128" />
 
   # WinBorg Manager
-  
-  **The native Windows GUI for BorgBackup.**
-  
-  Stop wrestling with CLI commands. Start backing up reliably.
-  Enterprise-grade security meets Windows 11 elegance.
 
-  <!-- Badges -->
+  **The native Windows GUI for BorgBackup.**
+
+  Borg backups on Windows — with guided setup, scheduling, and restores.
+
+  <!-- Badges (optional: keep consistent with README.md) -->
   [![Release](https://img.shields.io/github/v/release/robotnikz/WinBorg?style=for-the-badge&color=blue)](https://github.com/robotnikz/WinBorg/releases)
   [![CI/CD](https://img.shields.io/github/actions/workflow/status/robotnikz/WinBorg/cicd.yml?branch=main&style=for-the-badge&label=CI%2FCD)](https://github.com/robotnikz/WinBorg/actions/workflows/cicd.yml)
   [![Downloads](https://img.shields.io/github/downloads/robotnikz/WinBorg/total?style=for-the-badge&label=Downloads&color=brightgreen)](https://github.com/robotnikz/WinBorg/releases)
@@ -22,80 +21,21 @@
   [Docs](docs/README.md) •
   [Testing](docs/TESTING.md) •
   [Security](SECURITY.md)
-  
+
 </div>
 
 ---
 
 ## ⚡ What is WinBorg?
 
-WinBorg Manager is a modern GUI that brings the power of **[BorgBackup](https://borgbackup.readthedocs.io/en/stable/)** to Windows without the complexity. 
+WinBorg Manager is a modern Windows 10/11 desktop app that brings **[BorgBackup](https://borgbackup.readthedocs.io/en/stable/)** to a **Windows-native GUI**:
 
-By leveraging **WSL2 (Windows Subsystem for Linux)**, it runs the official, unmodified Linux binaries of BorgBackup for maximum stability and performance, while presenting you with a completely native, polished Windows 11-style interface.
+- **Encrypted, deduplicated, compressed backups** (Borg)
+- **Guided onboarding** for **WSL2 + Ubuntu + Borg** (no CLI wrestling)
+- **Jobs & schedules**, **retention/prune**, **notifications**
+- **Restore, browse, diff, mount** — because backups without restore aren’t backups
 
-Whether you're backing up your local Documents to a NAS, or your entire dev environment to BorgBase or Hetzner StorageBox, WinBorg makes it simple.
-
-## 🚀 Quickstart (TL;DR)
-
-1. Download the latest Windows installer from the [Releases page](https://github.com/robotnikz/WinBorg/releases/latest).
-2. Launch WinBorg and follow the onboarding for **WSL2 + Ubuntu + BorgBackup**.
-3. Add a repository (e.g. Hetzner Storage Box / BorgBase), create a job, and run your first backup.
-
-If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), and [SECURITY.md](SECURITY.md).
-
-## 📌 Contents
-
-- [Requirements](#-requirements)
-- [Key Features](#-key-features)
-- [Gallery](#-gallery)
-- [Installation & Getting Started](#-installation--getting-started)
-- [Troubleshooting (FAQ)](#-troubleshooting-faq)
-- [Project Structure](#-project-structure)
-- [Testing](#-testing)
-- [Contributing](#-contributing)
-
-## ✅ Requirements
-
-- Windows 10/11 with **WSL2** support (virtualization enabled in BIOS/UEFI or VM settings)
-- An Ubuntu WSL distro (WinBorg can install this during onboarding)
-- BorgBackup inside Ubuntu (WinBorg can install this during onboarding)
-- For remote repos: SSH access to your backup target (StorageBox/BorgBase/VPS/NAS)
-- For **Mounts**: WinBorg automatically checks/repairs common FUSE prerequisites inside WSL during the mount flow (bindings, permissions). If `/dev/fuse` is missing, this typically requires WSL2 + `wsl --update` + reboot/shutdown (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
-
-## 🧩 Troubleshooting (FAQ)
-
-- **“WSL Setup Required” / WSL install fails:** ensure virtualization (VT-x/AMD-V) is enabled; reboot after `wsl --install --no-distribution`.
-- **Ubuntu install prompts for username/password:** that’s expected; finish the Ubuntu first-run setup, then return to WinBorg.
-- **“BorgBackup Not Found”:** open Ubuntu and run `sudo apt update` + `sudo apt install -y borgbackup` (or use WinBorg’s auto-install).
-- **SSH “Permission denied (publickey)” / can’t connect:** use WinBorg’s **Install SSH Key** flow; double-check host, user, and port (Hetzner Storage Box often uses port 23).
-- **Mounts don’t show up / fail:** WinBorg auto-fixes most FUSE issues during mount; if it still fails, check whether `/dev/fuse` exists in your WSL distro and follow [docs/OPERATIONS.md](docs/OPERATIONS.md).
-
-## ✨ Key Features
-
-### 🛡️ Smart & Secure Setup
-*   **Automatic SSH Key Management:** WinBorg handles the complex SSH setup for you. 
-    *   **Generate:** Integrated key generator creates secure `Ed25519` keys.
-    *   **Deploy:** One-click deployment of your public key to any remote server (Linux VPS, Hetzner StorageBox, etc.).
-*   **Remote Server Provisioning:** No need to SSH into your server manually. WinBorg can **automatically install BorgBackup** on your remote Debian/Ubuntu server directly from the GUI.
-*   **Strict Security:** Enforces safe practices like mandatory passphrases for encrypted repos and validates host keys.
-
-### 📂 Full Management Suite
-*   **Easy Repository Wizard:** 
-    *   **Quick Start Templates:** One-click presets for popular providers like **Hetzner Storage Box**, **BorgBase**, **Rsync.net**, and local NAS.
-    *   **Smart Auto-Detection:** Automatically detects standard paths and ports (e.g., Port 23 for Hetzner) to prevent configuration errors.
-    *   **Connect:** Smart detection of existing repositories.
-    *   **Initialize:** Interactive guide to set up new encrypted repositories with secure presets.
-*   **Archives:** Browse all your snapshots with detailed metadata (size, time, duration).
-*   **File Browser:** Explore the contents of *any* old archive and download/restore specific files effortlessly.
-*   **Mounting:** Mount archives as a FUSE filesystem (requires configured FUSE inside WSL).
-*   **Diff Viewer:** See exactly what changed between two backups (Added/Modified/Deleted files).
-
-### 🤖 Automation & Monitoring
-*   **Auto-Updater:** Built-in update system that checks for new releases periodically.
-*   **Background Jobs:** Schedule backups to run automatically (Hourly/Daily/Weekly).
-*   **Notifications:** Get native Windows toasts, **Discord Webhook** alerts, or **Email Notifications** (SMTP) when backups finish or fail.
-*   **Pruning:** Automated retention policies (e.g., "Keep 7 daily, 4 weekly").
-*   **Settings Export/Import:** Backup and restore your WinBorg configuration after reinstalling.
+> WinBorg is **Windows-first**. Your backups remain **standard Borg repositories** (no vendor lock-in).
 
 ---
 
@@ -114,130 +54,171 @@ If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [docs/OPERAT
 
 ---
 
-## 🚀 Installation & Getting Started
+## 🚀 Quickstart (5 minutes)
 
-WinBorg is designed to be usable by everyone, not just sysadmins. It automatically guides you through installing the required Windows + Linux components (WSL2 + Ubuntu + BorgBackup).
-### 1. Simple Installation
-1.  **Download:** Get the latest installer (`.exe`) from the [Releases Page](https://github.com/robotnikz/WinBorg/releases).
-2.  **Run Installer:** Double-click the downloaded file. Windows might ask for permission; click "Yes".
-3.  **Launch:** Open "WinBorg Manager" from your desktop or Start Menu.
+1. **Download the installer**: https://github.com/robotnikz/WinBorg/releases/latest
+2. Launch WinBorg → follow onboarding for **WSL2 + Ubuntu + BorgBackup**.
+3. **Add a repository** (e.g. BorgBase / Hetzner StorageBox / NAS via SSH).
+4. **Create a job** (e.g. Documents/Desktop/Pictures) → **Run**.
+5. Recommended: do a **test restore** (extract a file from an older archive).
 
-### 2. Automatic Onboarding
-When you open WinBorg for the first time, it will check your system and guide you through these steps:
+If anything gets stuck, see [docs/OPERATIONS.md](docs/OPERATIONS.md) and [docs/TESTING.md](docs/TESTING.md).
 
-1.  **Enable WSL (Admin step)**
-  - If WSL2 is missing/disabled, WinBorg shows **"WSL Setup Required"**.
-  - Click **"Install WSL (Admin)"** and accept the Windows administrator prompt.
-  - When it finishes, WinBorg will tell you a **restart is required**.
+---
 
-2.  **Restart Windows**
-  - Click **"Restart Computer Now"** (or restart manually).
-  - After reboot, launch WinBorg again.
+## 🧰 Manual install (advanced)
 
-3.  **Install Ubuntu (WSL) (User step)**
-  - If WSL is enabled but no supported distro exists yet, WinBorg offers **"Install Ubuntu (WSL)"**.
-  - This step is intentionally **not** run as admin: WSL distros are installed *per Windows user account*.
-  - A PowerShell window will open. If Ubuntu asks for a **new username + password**, complete it.
-  - Once you see the Ubuntu shell prompt, close the window and return to WinBorg.
+If you prefer to install dependencies yourself (or you’re in a locked-down environment), you can prepare WSL + Ubuntu + Borg manually and then run WinBorg.
 
-4.  **Install BorgBackup inside Ubuntu**
-  - If BorgBackup is missing, WinBorg shows **"BorgBackup Not Found"**.
-  - Click **"Install Borg (Auto)"**. WinBorg will run `apt-get update` + `apt-get install borgbackup` inside Ubuntu.
+### 1) Enable WSL (Admin)
 
-If anything goes wrong, use **"Retry Check"** / **"Check Again"** in the dialog. WinBorg also provides a **"Show details"** toggle for advanced troubleshooting output.
+Run PowerShell **as Administrator**:
 
-> Tip: In some environments (especially VMs), WSL2 requires virtualization support (VT-x/AMD-V / nested virtualization). If WinBorg reports virtualization issues, enable virtualization in BIOS/UEFI or your VM settings.
-
-### 3. Creating your First Backup
-1.  Click **"Add Repository"**.
-2.  **Remote Backup (Recommended):** Use a service like **Hetzner Storage Box** or **BorgBase**.
-    *   Enter the Server URL (e.g., `ssh://user@your-server.com`).
-    *   **SSH Key Missing?** WinBorg will detect this. Click **"Install SSH Key"**, enter your server password *once*, and WinBorg will secure the connection forever.
-    *   **Borg Missing on Server?** If the server doesn't have backup software, WinBorg offers to **"Install Borg on Server"** automatically.
-3.  **Initialize:** Give your repo a name and a secure password.
-4.  **Done!** You can now create your first backup.
-
-### 🔧 Manual Details (For Advanced Users)
-If you prefer tight control over your system environment, you can install the dependencies manually before running WinBorg. This allows you to skip parts of the auto-onboarding flow.
-
-**1. Enable WSL (no distro yet) [Admin]**
-This enables the required Windows features. Run in PowerShell **as Administrator**:
 ```powershell
 wsl --install --no-distribution
 # Restart Windows after this finishes.
 ```
 
-**2. Install Ubuntu for your Windows user [Non-Admin]**
-After reboot, run in a normal (non-admin) PowerShell:
+### 2) Install Ubuntu (Non-Admin)
+
+After reboot, run PowerShell as your normal user:
+
 ```powershell
 wsl --install -d Ubuntu
 ```
-If prompted, create a new Ubuntu username/password.
 
-**3. Install BorgBackup inside Ubuntu**
-Open the Ubuntu terminal (Start Menu → "Ubuntu") and run:
+Ubuntu may prompt you to create a new Linux username/password — complete that step.
+
+### 3) Install BorgBackup inside Ubuntu
+
+Open the Ubuntu terminal and run:
+
 ```bash
 sudo apt update
 sudo apt install -y borgbackup
 ```
 
-**4. Verify Installation**
-WinBorg automatically looks for the binary. Verify it exists:
+### 4) Verify Borg
+
 ```bash
 which borg
-# Should return: /usr/bin/borg
+# Expected: /usr/bin/borg
 ```
 
-### 5. Your First Backup (Manual Path)
-1.  Go to the **Repositories** tab and click `+ Add Repository`.
-2.  Enter your SSH URL (e.g., `ssh://u123@your-provider.com/./backups`) or a local path.
-3.  Once connected, go to **Dashboard**, create a Job ("Backup Documents"), and hit Run ▶️.
+After that, open WinBorg and you should be able to skip most onboarding steps.
 
 ---
 
-## 🛠 Project Structure
+## 🧩 Why WSL?
 
-WinBorg is built with:
-*   **Frontend:** React + TypeScript + Vite.
-*   **Desktop App:** Electron (main process in `electron-main.js`).
-*   **Main-process modules:** `main/` contains dependency-injected helpers used by the Electron main process (keeps logic unit-testable).
-*   **WSL/Borg Integration:** Borg runs inside WSL2 using the official Linux binaries.
-*   **Testing:** Vitest (unit) + Playwright (Electron E2E with deterministic IPC mocks).
-*   **CI:** GitHub Actions runs typecheck, unit tests with coverage, build, and E2E.
+Borg is most stable and best supported on Linux. WinBorg uses **WSL2** to run the **official Linux Borg binaries** — while giving you a polished Windows UI.
 
-Developer docs: see [docs/README.md](docs/README.md).
+This means:
+- maximum compatibility with the Borg ecosystem (CLI, BorgBase, borgmatic, etc.)
+- no proprietary backup format
+- Windows integration where it matters (tray, autostart, Explorer open, etc.)
 
-Supporting docs:
-- [docs/TESTPLAN.md](docs/TESTPLAN.md)
-- [docs/FUNCTIONAL_TEST_MATRIX.md](docs/FUNCTIONAL_TEST_MATRIX.md)
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- [docs/OPERATIONS.md](docs/OPERATIONS.md)
-- [docs/AUDIT.md](docs/AUDIT.md)
-- [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md)
-- [docs/UX_CHECKLIST.md](docs/UX_CHECKLIST.md)
+---
 
-## ✅ Testing
+## ✨ Features (user-facing)
 
-Windows note: if PowerShell blocks `npm` due to `npm.ps1` execution policy, see `docs/TESTING.md` for workarounds.
+### Setup & Security
+- Guided system checks and installation for **WSL2**, **Ubuntu**, **BorgBackup**
+- SSH key management: generate keys, deploy keys, test connectivity
+- Optional provisioning: install Borg on a remote Debian/Ubuntu server
+- **Key export / recovery** for Borg repositories
+
+### Backup & Automation
+- Jobs with **multiple source paths**, exclude patterns, compression
+- Scheduling (e.g. hourly/daily) + rules (e.g. battery/offline)
+- Retention/Prune policies (e.g. keep 7 daily, 4 weekly, …)
+- Maintenance: prune + compact
+
+### Restore & Transparency
+- Archive list with metadata & stats
+- **Archive browser**: find files/folders in older snapshots
+- **Restore / extract**: selectively bring data back
+- **Diff viewer**: see what changed between two archives
+- **Mounts**: mount archives as a filesystem (FUSE inside WSL)
+
+### Monitoring & UX
+- Native Windows notifications + Discord webhook + SMTP
+- Tray menu (quick actions, update check, stop mounts)
+- Settings export/import (optionally including secrets)
+
+---
+
+## 🎯 Who is WinBorg for?
+
+- Windows users who want Borg but don’t want to live in a Borg CLI
+- HomeLab/NAS users with SSH-based repositories
+- BorgBase / Hetzner StorageBox users
+- Security- and ransomware-aware users (client-side encryption + append-only via BorgBase)
+
+---
+
+## ✅ Requirements
+
+- Windows 10/11 with **WSL2** (virtualization enabled)
+- Ubuntu WSL distro (WinBorg can install this during onboarding)
+- BorgBackup inside Ubuntu (WinBorg can install this during onboarding)
+- For remote repos: SSH access to your backup target (StorageBox/BorgBase/VPS/NAS)
+- For mounts: FUSE prerequisites inside WSL (WinBorg checks/fixes many things automatically; missing `/dev/fuse` may require WSL update + reboot/shutdown)
+
+---
+
+## 🛠️ Troubleshooting (FAQ)
+
+- **WSL setup required / install fails**: ensure virtualization (VT-x/AMD-V) is enabled; reboot after `wsl --install`.
+- **Ubuntu asks for username/password**: expected; complete Ubuntu first-run setup.
+- **BorgBackup not found**: use WinBorg auto-install or run `sudo apt update && sudo apt install -y borgbackup` in Ubuntu.
+- **SSH permission denied (publickey)**: use WinBorg’s “Install SSH Key”; verify host/user/port (Hetzner StorageBox often uses port 23).
+- **Mounts fail**: FUSE preflight runs; if `/dev/fuse` is missing, update WSL and reboot/shutdown; see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+---
+
+## 🆚 Comparison (short & honest)
+
+- **Vorta**: excellent Borg desktop client, but primarily macOS/Linux — WinBorg is Windows-first with WSL onboarding.
+- **Duplicati**: huge range of cloud backends and central management — WinBorg focuses on Borg-native workflows, restore/mount UX, and no lock-in.
+- **BorgBase**: hosting/monitoring/2FA/append-only — WinBorg is a great Windows client for BorgBase repositories.
+
+---
+
+## 🔒 Security
+
+Please read [SECURITY.md](SECURITY.md).
+
+Important: With Borg, if you lose **both** your key **and** passphrase, the data cannot be recovered. WinBorg includes key export/recovery to help prevent this.
+
+---
+
+## 🧪 Testing
+
+See [docs/TESTING.md](docs/TESTING.md)
 
 ```bash
-# Unit tests
+npm run typecheck
 npm test
-
-# Unit tests with coverage (threshold-gated)
 npm run test:coverage
-
-# E2E (Playwright launches Electron)
-# Note: the E2E scripts run a build first via pretest hooks.
 npm run test:e2e
+```
 
-# Fast smoke subset
-npm run test:e2e:smoke
+---
 
-# Full E2E suite
-npm run test:e2e:full
+## 🧱 Developers / Project structure
 
-# Manual E2E (may trigger admin prompts / app close)
+- Renderer: React + TypeScript in `src/`
+- Main process: `electron-main.js`
+- Unit-testable main modules: `main/`
+
+More: [docs/README.md](docs/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+---
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 npm run test:e2e:manual
 ```
 
