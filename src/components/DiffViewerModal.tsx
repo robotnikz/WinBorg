@@ -116,6 +116,7 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
                             onClick={onClose}
                             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                                                         aria-label="Close dialog"
+                                                        title="Close dialog"
                         >
               <X size={20} />
             </button>

@@ -64,6 +64,7 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
               onClick={onClose}
               className="text-gray-400 hover:text-white transition-colors"
               aria-label="Close"
+              title="Close"
             >
               <X className="w-4 h-4" />
             </button>

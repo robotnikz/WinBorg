@@ -92,7 +92,7 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
                        <p className="text-xs text-slate-500 dark:text-slate-400">Export for {repo.name}</p>
                    </div>
                </div>
-                             <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
+                                                         <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
                  <X size={20} />
                </button>
            </div>

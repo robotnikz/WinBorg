@@ -243,6 +243,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                                  disabled={extracting}
                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                                  aria-label="Close"
+                                 title="Close"
                              >
                  <X size={20} />
                </button>
@@ -257,6 +258,7 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                         onClick={() => setCurrentPath([])}
                         className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 ${currentPath.length === 0 ? 'text-blue-600' : 'text-slate-500'}`}
                         aria-label="Go to root folder"
+                        title="Go to root folder"
                    >
                        <Home className="w-4 h-4" />
                    </button>

@@ -119,7 +119,7 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
                    <AlertTriangle className="w-5 h-5" />
                    <h3 className="font-bold">Delete Repository</h3>
                </div>
-                             <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
+                                                         <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
                  <X size={20} />
                </button>
            </div>

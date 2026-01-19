@@ -121,7 +121,7 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
                    <h3 className="font-bold text-slate-800 dark:text-slate-100">Repository Maintenance</h3>
                    <p className="text-xs text-slate-500 dark:text-slate-400">{repo.name}</p>
                </div>
-                             <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" aria-label="Close">
+                                                         <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" aria-label="Close" title="Close">
                  <X size={20} />
                </button>
            </div>
