@@ -106,7 +106,10 @@ describe('IPC contract (renderer <-> main)', () => {
     ];
 
     for (const channel of rendererChannels) {
-      const invokePattern = new RegExp(`ipcRenderer\\.invoke\\(\\s*['\"]${channel}['\"]`, 'm');
+      const invokePattern = new RegExp(
+        `(?:ipcRenderer|getIpc\\(\\))\\.invoke\\(\\s*['\"]${channel}['\"]`,
+        'm'
+      );
       expect(
         invokePattern.test(text),
         `Expected borgService to call ipcRenderer.invoke("${channel}")`

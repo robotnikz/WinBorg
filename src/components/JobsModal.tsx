@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Repository, BackupJob } from '../types';
 import Button from './Button';
 import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Copy, Pencil } from 'lucide-react';
@@ -21,6 +21,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
   const [activeTab, setActiveTab] = useState<'general' | 'schedule' | 'retention'>('general');
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [editingJob, setEditingJob] = useState<BackupJob | null>(null);
+
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
   
   // Job Form State
   const [jobName, setJobName] = useState('');
@@ -42,7 +44,23 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
   const [scheduleType, setScheduleType] = useState<'daily' | 'hourly' | 'manual'>('daily');
   const [scheduleTime, setScheduleTime] = useState('14:00');
 
-  if (!isOpen) return null;
+    useEffect(() => {
+        if (!isOpen) return;
+        closeButtonRef.current?.focus();
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
 
     const handleCreate = () => {
       if (!jobName || sourcePaths.length === 0 || !archivePrefix) return;
@@ -195,8 +213,19 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
   const repoJobs = jobs.filter(j => j.repoId === repo.id);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                onClose();
+            }}
+        >
+             <div
+                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-label={`Backup Jobs for ${repo.name}`}
+             >
            
            {/* HEADER */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50 shrink-0">
@@ -207,7 +236,12 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
                    </h3>
                    <p className="text-xs text-slate-500 dark:text-slate-400">Manage persistent tasks for {repo.name}</p>
                </div>
-               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                             <button
+                                 ref={closeButtonRef}
+                                 onClick={onClose}
+                                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                 aria-label="Close"
+                             >
                  <X size={20} />
                </button>
            </div>

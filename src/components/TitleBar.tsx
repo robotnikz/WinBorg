@@ -1,28 +1,32 @@
 import React from 'react';
 import { Minus, Square, X } from 'lucide-react';
+import { getIpcRendererOrNull } from '../services/electron';
 
 const TitleBar: React.FC = () => {
   // Use window.require to access Electron API safely in the renderer
   const handleMinimize = () => {
-    try {
-      (window as any).require('electron').ipcRenderer.send('window-minimize');
-    } catch (e) {
+    const ipcRenderer = getIpcRendererOrNull();
+    if (ipcRenderer) {
+      ipcRenderer.send('window-minimize');
+    } else {
       console.error("Electron not found");
     }
   };
 
   const handleMaximize = () => {
-    try {
-      (window as any).require('electron').ipcRenderer.send('window-maximize');
-    } catch (e) {
+    const ipcRenderer = getIpcRendererOrNull();
+    if (ipcRenderer) {
+      ipcRenderer.send('window-maximize');
+    } else {
       console.error("Electron not found");
     }
   };
 
   const handleClose = () => {
-    try {
-      (window as any).require('electron').ipcRenderer.send('window-close');
-    } catch (e) {
+    const ipcRenderer = getIpcRendererOrNull();
+    if (ipcRenderer) {
+      ipcRenderer.send('window-close');
+    } else {
       console.error("Electron not found");
     }
   };

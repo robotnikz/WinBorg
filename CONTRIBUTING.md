@@ -97,9 +97,9 @@ If you rename an IPC channel, update both sides and the test in `src/test/ipcCon
 Start at [docs/README.md](docs/README.md).
 
 Additional supporting docs:
-- `TESTPLAN.md` (actionable plan)
-- `FUNCTIONAL_TEST_MATRIX.md` (use-cases → coverage map)
-- `COMPATIBILITY.md` (environment matrix)
+- `docs/TESTPLAN.md` (actionable plan)
+- `docs/FUNCTIONAL_TEST_MATRIX.md` (use-cases → coverage map)
+- `docs/COMPATIBILITY.md` (environment matrix)
 
 ## Merge-ready guidance (for large changes)
 

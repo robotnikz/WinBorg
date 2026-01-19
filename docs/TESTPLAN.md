@@ -132,4 +132,4 @@ Suggested execution:
 
 ## Manual release certification
 
-See `docs/RELEASE_CHECKLIST.md` for the ship checklist.
+See `RELEASE_CHECKLIST.md` for the ship checklist.
