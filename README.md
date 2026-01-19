@@ -41,7 +41,7 @@ Whether you're backing up your local Documents to a NAS, or your entire dev envi
 2. Launch WinBorg and follow the onboarding for **WSL2 + Ubuntu + BorgBackup**.
 3. Add a repository (e.g. Hetzner Storage Box / BorgBase), create a job, and run your first backup.
 
-If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [OPERATIONS.md](OPERATIONS.md), and [SECURITY.md](SECURITY.md).
+If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), and [SECURITY.md](SECURITY.md).
 
 ## 📌 Contents
 
@@ -60,7 +60,7 @@ If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [OPERATIONS.
 - An Ubuntu WSL distro (WinBorg can install this during onboarding)
 - BorgBackup inside Ubuntu (WinBorg can install this during onboarding)
 - For remote repos: SSH access to your backup target (StorageBox/BorgBase/VPS/NAS)
-- For **Mounts**: WinBorg automatically checks/repairs common FUSE prerequisites inside WSL during the mount flow (bindings, permissions). If `/dev/fuse` is missing, this typically requires WSL2 + `wsl --update` + reboot/shutdown (see [OPERATIONS.md](OPERATIONS.md)).
+- For **Mounts**: WinBorg automatically checks/repairs common FUSE prerequisites inside WSL during the mount flow (bindings, permissions). If `/dev/fuse` is missing, this typically requires WSL2 + `wsl --update` + reboot/shutdown (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
 
 ## 🧩 Troubleshooting (FAQ)
 
@@ -68,7 +68,7 @@ If you run into issues, jump to [docs/TESTING.md](docs/TESTING.md), [OPERATIONS.
 - **Ubuntu install prompts for username/password:** that’s expected; finish the Ubuntu first-run setup, then return to WinBorg.
 - **“BorgBackup Not Found”:** open Ubuntu and run `sudo apt update` + `sudo apt install -y borgbackup` (or use WinBorg’s auto-install).
 - **SSH “Permission denied (publickey)” / can’t connect:** use WinBorg’s **Install SSH Key** flow; double-check host, user, and port (Hetzner Storage Box often uses port 23).
-- **Mounts don’t show up / fail:** WinBorg auto-fixes most FUSE issues during mount; if it still fails, check whether `/dev/fuse` exists in your WSL distro and follow [OPERATIONS.md](OPERATIONS.md).
+- **Mounts don’t show up / fail:** WinBorg auto-fixes most FUSE issues during mount; if it still fails, check whether `/dev/fuse` exists in your WSL distro and follow [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## ✨ Key Features
 
@@ -208,13 +208,13 @@ WinBorg is built with:
 Developer docs: see [docs/README.md](docs/README.md).
 
 Supporting docs:
-- [TESTPLAN.md](TESTPLAN.md)
-- [FUNCTIONAL_TEST_MATRIX.md](FUNCTIONAL_TEST_MATRIX.md)
-- [COMPATIBILITY.md](COMPATIBILITY.md)
-- [OPERATIONS.md](OPERATIONS.md)
-- [AUDIT.md](AUDIT.md)
-- [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
-- [UX_CHECKLIST.md](UX_CHECKLIST.md)
+- [docs/TESTPLAN.md](docs/TESTPLAN.md)
+- [docs/FUNCTIONAL_TEST_MATRIX.md](docs/FUNCTIONAL_TEST_MATRIX.md)
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
+- [docs/OPERATIONS.md](docs/OPERATIONS.md)
+- [docs/AUDIT.md](docs/AUDIT.md)
+- [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md)
+- [docs/UX_CHECKLIST.md](docs/UX_CHECKLIST.md)
 
 ## ✅ Testing
 

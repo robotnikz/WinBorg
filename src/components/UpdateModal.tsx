@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Download, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import Button from './Button';
 
@@ -56,27 +56,55 @@ function toPlainText(input: string): string {
 }
 
 const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, version, downloading, progress, readyToInstall, releaseNotes }) => {
-    if (!isOpen) return null;
+    const titleId = useId();
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
 
     const [showChangelog, setShowChangelog] = useState(false);
     const changelogText = useMemo(() => {
+        if (!isOpen) return '';
         const raw = normalizeReleaseNotes(releaseNotes);
         const cleaned = toPlainText(raw);
         return cleaned;
-    }, [releaseNotes]);
+    }, [isOpen, releaseNotes]);
 
     const hasChangelog = !downloading && !!changelogText;
 
+    useEffect(() => {
+        if (!isOpen || downloading) return;
+
+        setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, downloading, onClose]);
+
+    if (!isOpen) return null;
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!downloading) onClose();
+            }}
+        >
+            <div
+                className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+            >
                 <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50">
-                    <h3 className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                    <h3 id={titleId} className="font-bold text-lg text-slate-800 dark:text-white flex items-center gap-2">
                         <Download className="w-5 h-5 text-blue-500" />
                         {readyToInstall ? 'Update Ready' : 'Update Available'}
                     </h3>
                     {!downloading && (
-                         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                         <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close">
                              <X size={18} />
                          </button>
                     )}

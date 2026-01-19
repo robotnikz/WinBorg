@@ -1356,7 +1356,7 @@ ipcMain.handle('borg-mount', async (event, { args, mountId, useWsl, executablePa
         if (secret) {
             spawnEnv.BORG_PASSPHRASE = secret;
             if (useWsl) {
-                 if (spawnEnv.WSLENV) spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE';
+                 if (spawnEnv.WSLENV) spawnEnv.WSLENV = spawnEnv.WSLENV + ':BORG_PASSPHRASE/u';
                  else spawnEnv.WSLENV = 'BORG_PASSPHRASE/u';
             }
         }

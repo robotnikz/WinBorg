@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MountPoint, Repository, Archive } from '../types';
 import Button from '../components/Button';
 import { FolderOpen, XCircle, HardDrive, Terminal, Loader2, Info, Plus, ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { getIpcRendererOrNull } from '../services/electron';
 
 interface MountsViewProps {
   mounts: MountPoint[];
@@ -19,6 +20,7 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
   const [selectedArchive, setSelectedArchive] = useState(archives[0]?.name || '');
   const [commandPreview, setCommandPreview] = useState('');
   const lastAppliedPreselectedRepoId = useRef<string | null>(null);
+  const repoById = useMemo(() => new Map(repos.map((r) => [r.id, r] as const)), [repos]);
   
   const [useWsl, setUseWsl] = useState(true);
   
@@ -45,7 +47,7 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
 
   useEffect(() => {
     if (isCreating) {
-      const repo = repos.find(r => r.id === selectedRepo);
+      const repo = repoById.get(selectedRepo);
       if (repo) {
         const archiveNameClean = selectedArchive.replace(/[^a-zA-Z0-9._-]/g, '_');
         const internalPath = `/mnt/wsl/winborg/${archiveNameClean}`;
@@ -53,7 +55,7 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
         setCommandPreview(cmd);
       }
     }
-  }, [isCreating, selectedRepo, selectedArchive, repos]);
+  }, [isCreating, selectedRepo, selectedArchive, repoById]);
 
   const handleMount = () => {
     let finalPath = 'Z:';
@@ -66,21 +68,21 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
   };
 
   const handleOpenFolder = (path: string) => {
-    try {
-        const { ipcRenderer } = (window as any).require('electron');
-        let pathToSend = path;
-        
-        if (path.startsWith('/')) {
-             const windowsStyle = path.replace(/\//g, '\\');
-             pathToSend = `\\\\wsl.localhost\\Ubuntu${windowsStyle}`;
-        }
-        ipcRenderer.send('open-path', pathToSend);
-    } catch(e) {
-        alert(`Could not open path: ${path}`);
+    const ipcRenderer = getIpcRendererOrNull();
+    if (!ipcRenderer) {
+      alert(`Could not open path: ${path}`);
+      return;
     }
+
+    let pathToSend = path;
+    if (path.startsWith('/')) {
+      const windowsStyle = path.replace(/\//g, '\\');
+      pathToSend = `\\\\wsl.localhost\\Ubuntu${windowsStyle}`;
+    }
+    ipcRenderer.send('open-path', pathToSend);
   };
 
-  const currentRepoStatus = repos.find(r => r.id === selectedRepo)?.status;
+  const currentRepoStatus = repoById.get(selectedRepo)?.status;
   const internalPath = useWsl ? `/mnt/wsl/winborg/${selectedArchive || '...'}` : 'Z:';
   const explorerPathHint = useWsl ? `\\\\wsl.localhost\\Ubuntu${internalPath.replace(/\//g, '\\')}` : internalPath;
 
@@ -190,7 +192,7 @@ const MountsView: React.FC<MountsViewProps> = ({ mounts, repos, archives, onUnmo
         )}
 
         {mounts.map(mount => {
-          const repo = repos.find(r => r.id === mount.repoId);
+          const repo = repoById.get(mount.repoId);
           const isLinuxPath = mount.localPath.startsWith('/');
           
           return (

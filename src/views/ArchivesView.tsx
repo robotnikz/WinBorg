@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Repository } from '../types';
 import Button from '../components/Button';
 import { Database, Clock, HardDrive, Search, Calendar, RefreshCw, DownloadCloud, Loader2, ListChecks, FolderSearch, GitCompare, Trash2, FileBox } from 'lucide-react';
@@ -33,6 +33,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   // Delete State
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+    const deleteDialogRef = useRef<HTMLDivElement>(null);
   
   // Browser Modal State
   const [browserArchive, setBrowserArchive] = useState<Archive | null>(null);
@@ -44,12 +45,16 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   const [successPath, setSuccessPath] = useState<string | null>(null);
 
   // Basic filtering
-  const filteredArchives = archives.filter(a => 
-    a.name.toLowerCase().includes(search.toLowerCase())
-  );
+    const filteredArchives = useMemo(() => {
+        const needle = search.trim().toLowerCase();
+        if (!needle) return archives;
+        return archives.filter((a) => a.name.toLowerCase().includes(needle));
+    }, [archives, search]);
 
   // Helper to find the active connected repo
-  const activeRepo = repos.find(r => r.status === 'connected');
+    const activeRepo = useMemo(() => repos.find((r) => r.status === 'connected'), [repos]);
+
+    const selectedArchiveSet = useMemo(() => new Set(selectedArchives), [selectedArchives]);
 
   // Stats
   const totalArchives = archives.length;
@@ -84,12 +89,9 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   };
 
   const toggleSelection = (archiveName: string) => {
-      if (selectedArchives.includes(archiveName)) {
-          setSelectedArchives(prev => prev.filter(n => n !== archiveName));
-      } else {
-          // If shift key held? For now simple toggle
-          setSelectedArchives(prev => [...prev, archiveName]);
-      }
+      setSelectedArchives((prev) =>
+        prev.includes(archiveName) ? prev.filter((n) => n !== archiveName) : [...prev, archiveName]
+      );
   };
 
   const handleCompare = async () => {
@@ -152,6 +154,19 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       setSelectedArchives([]);
   };
 
+    useEffect(() => {
+        if (!itemsToDelete) return;
+        setTimeout(() => deleteDialogRef.current?.focus(), 0);
+        if (isDeleting) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setItemsToDelete(null);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [itemsToDelete, isDeleting]);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       
@@ -182,8 +197,21 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       
       {/* Delete Confirmation */}
       {itemsToDelete && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full border border-gray-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+          <div
+              className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+              onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (!isDeleting) setItemsToDelete(null);
+              }}
+          >
+              <div
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full border border-gray-200 dark:border-slate-700 animate-in zoom-in-95 duration-200"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Delete Archives"
+                  tabIndex={-1}
+                  ref={deleteDialogRef}
+              >
                   <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mb-4 mx-auto">
                       <Trash2 className="w-6 h-6" />
                   </div>
@@ -340,7 +368,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                         </tr>
                     ) : (
                         filteredArchives.map((archive) => {
-                            const isSelected = selectedArchives.includes(archive.name);
+                            const isSelected = selectedArchiveSet.has(archive.name);
                             return (
                             <tr key={archive.id} className={`hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors group ${isSelected ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
                                 <td className="px-3 py-4 text-center">

@@ -177,13 +177,13 @@ Supporting documents:
 - [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) (manual certification steps)
 - [docs/IPC.md](IPC.md) (IPC channel documentation and design notes)
 - [docs/ARCHITECTURE.md](ARCHITECTURE.md) (high-level architecture)
-- [OPERATIONS.md](../OPERATIONS.md) (day-2 ops)
+- [OPERATIONS.md](OPERATIONS.md) (day-2 ops)
 
-Additional checklists (repo root):
+Additional checklists:
 
-- [TESTPLAN.md](../TESTPLAN.md) (actionable plan + NFR checks)
-- [FUNCTIONAL_TEST_MATRIX.md](../FUNCTIONAL_TEST_MATRIX.md) (use-cases → coverage map)
-- [COMPATIBILITY.md](../COMPATIBILITY.md) (environment matrix)
-- [AUDIT.md](../AUDIT.md) (audit notes / security posture)
-- [SECURITY_CHECKLIST.md](../SECURITY_CHECKLIST.md) (security checklist)
-- [UX_CHECKLIST.md](../UX_CHECKLIST.md) (quick UI regression)
+- [TESTPLAN.md](TESTPLAN.md) (actionable plan + NFR checks)
+- [FUNCTIONAL_TEST_MATRIX.md](FUNCTIONAL_TEST_MATRIX.md) (use-cases → coverage map)
+- [COMPATIBILITY.md](COMPATIBILITY.md) (environment matrix)
+- [AUDIT.md](AUDIT.md) (audit notes / security posture)
+- [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) (security checklist)
+- [UX_CHECKLIST.md](UX_CHECKLIST.md) (quick UI regression)

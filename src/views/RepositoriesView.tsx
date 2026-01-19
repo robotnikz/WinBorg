@@ -130,6 +130,37 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [detectedRemotePath, setDetectedRemotePath] = useState<string | undefined>(undefined);
   const [showPassphrase, setShowPassphrase] = useState(false);
 
+    useEffect(() => {
+        const anyOverlayOpen = !!localLogData || !!installKeyTarget || !!installBorgTarget || isModalOpen;
+        if (!anyOverlayOpen) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+
+            if (localLogData) {
+                setLocalLogData(null);
+                return;
+            }
+
+            if (installKeyTarget) {
+                if (!isInstallingKey) setInstallKeyTarget(null);
+                return;
+            }
+
+            if (installBorgTarget) {
+                if (!isInstallingBorg) setInstallBorgTarget(null);
+                return;
+            }
+
+            if (isModalOpen) {
+                if (!isInitializing) setIsModalOpen(false);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [localLogData, installKeyTarget, isInstallingKey, installBorgTarget, isInstallingBorg, isModalOpen, isInitializing]);
+
   // Helper to parse target
   const parseTargetFromUrl = (urlToParse?: string) => {
     const u = urlToParse || repoForm.url;
@@ -569,14 +600,25 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
       {/* Log Detail Modal */}
       {localLogData && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-              <div className="bg-[#1e1e1e] w-full max-w-3xl rounded-xl shadow-2xl border border-gray-700 flex flex-col max-h-[85vh]">
+          <div
+              className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+              onMouseDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                setLocalLogData(null);
+              }}
+          >
+              <div
+                  className="bg-[#1e1e1e] w-full max-w-3xl rounded-xl shadow-2xl border border-gray-700 flex flex-col max-h-[85vh]"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={localLogData.title}
+              >
                   <div className="px-5 py-3 bg-[#252526] border-b border-gray-700 flex justify-between items-center rounded-t-xl">
                       <div className="flex items-center gap-2 text-gray-200">
                           <Terminal className="w-4 h-4 text-blue-400" />
                           <span className="font-mono text-sm font-semibold">{localLogData.title}</span>
                       </div>
-                      <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                      <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors" aria-label="Close"><X className="w-4 h-4" /></button>
                   </div>
                   <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1 bg-[#1e1e1e] text-gray-300">
                       {localLogData.logs.map((l, i) => (
@@ -592,14 +634,25 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
       {/* SSH Install Key Modal */}
       {installKeyTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                    onMouseDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (!isInstallingKey) setInstallKeyTarget(null);
+                    }}
+                >
+                     <div
+                         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-label="Install SSH Key"
+                     >
                 <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Key className="w-4 h-4 text-indigo-500"/> Install SSH Key
                     </h3>
                     {!isInstallingKey && (
-                        <button onClick={() => setInstallKeyTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                                <button onClick={() => setInstallKeyTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
                             <X size={18} />
                         </button>
                     )}
@@ -640,14 +693,25 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       )}
 
       {installBorgTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                    onMouseDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (!isInstallingBorg) setInstallBorgTarget(null);
+                    }}
+                >
+                     <div
+                         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-label="Install BorgBackup"
+                     >
                 <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Cloud className="w-4 h-4 text-blue-500"/> Install BorgBackup
                     </h3>
                     {!isInstallingBorg && (
-                        <button onClick={() => setInstallBorgTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                                <button onClick={() => setInstallBorgTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
                             <X size={18} />
                         </button>
                     )}
@@ -691,11 +755,22 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                    onMouseDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (!isInitializing) setIsModalOpen(false);
+                    }}
+                >
+                     <div
+                         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-label={editingRepoId ? 'Edit Repository' : 'Add Repository'}
+                     >
              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 shrink-0">
                <h3 className="font-bold text-lg text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
-               <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
+                             <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Close">
                  <X size={18} />
                </button>
              </div>

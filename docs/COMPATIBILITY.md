@@ -67,7 +67,7 @@ CI tests are deterministic and do **not** require real WSL/SSH/Borg:
 
 ## Where to look next
 
-- Testing overview: `docs/TESTING.md`
+- Testing overview: `TESTING.md`
 - Risk-based test plan: `TESTPLAN.md`
 - Operations/troubleshooting: `OPERATIONS.md`
-- Release procedure: `docs/RELEASE_CHECKLIST.md`
+- Release procedure: `RELEASE_CHECKLIST.md`

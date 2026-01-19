@@ -170,13 +170,13 @@ See [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 - Release checklist: [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
 - IPC design notes: [docs/IPC.md](IPC.md)
 - Architecture overview: [docs/ARCHITECTURE.md](ARCHITECTURE.md)
-- Operations (day-2): [OPERATIONS.md](../OPERATIONS.md)
+- Operations (day-2): [OPERATIONS.md](OPERATIONS.md)
 
-Root-level checklists:
+Additional checklists:
 
-- Test plan: [TESTPLAN.md](../TESTPLAN.md)
-- Functional test matrix: [FUNCTIONAL_TEST_MATRIX.md](../FUNCTIONAL_TEST_MATRIX.md)
-- Compatibility matrix: [COMPATIBILITY.md](../COMPATIBILITY.md)
-- Audit notes: [AUDIT.md](../AUDIT.md)
-- Security checklist: [SECURITY_CHECKLIST.md](../SECURITY_CHECKLIST.md)
-- UX checklist: [UX_CHECKLIST.md](../UX_CHECKLIST.md)
+- Test plan: [TESTPLAN.md](TESTPLAN.md)
+- Functional test matrix: [FUNCTIONAL_TEST_MATRIX.md](FUNCTIONAL_TEST_MATRIX.md)
+- Compatibility matrix: [COMPATIBILITY.md](COMPATIBILITY.md)
+- Audit notes: [AUDIT.md](AUDIT.md)
+- Security checklist: [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
+- UX checklist: [UX_CHECKLIST.md](UX_CHECKLIST.md)

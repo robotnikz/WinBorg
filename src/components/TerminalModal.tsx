@@ -11,6 +11,7 @@ interface TerminalModalProps {
 
 const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onClose, isProcessing }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -18,11 +19,39 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
     }
   }, [logs]);
 
+  useEffect(() => {
+    if (isOpen && !isProcessing && onClose) {
+      closeButtonRef.current?.focus();
+    }
+  }, [isOpen, isProcessing, onClose]);
+
+  useEffect(() => {
+    if (!isOpen || isProcessing || !onClose) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isProcessing, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#1e1e1e] w-full max-w-2xl rounded-lg shadow-2xl border border-gray-700 overflow-hidden flex flex-col max-h-[80vh]">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (!isProcessing && onClose) onClose();
+      }}
+    >
+      <div
+        className="bg-[#1e1e1e] w-full max-w-2xl rounded-lg shadow-2xl border border-gray-700 overflow-hidden flex flex-col max-h-[80vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-black/20">
           <div className="flex items-center gap-2 text-gray-300">
@@ -30,14 +59,19 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
             <span className="text-sm font-mono font-medium">{title}</span>
           </div>
           {!isProcessing && onClose && (
-            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+            <button
+              ref={closeButtonRef}
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
+              aria-label="Close"
+            >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
         {/* Terminal Output */}
-        <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1">
+        <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1" aria-live="polite">
           {logs.map((log, index) => (
             <div key={index} className="text-gray-300 break-all border-l-2 border-transparent hover:border-gray-600 pl-2">
               <span className="text-gray-500 select-none mr-2">[{new Date().toLocaleTimeString()}]</span>

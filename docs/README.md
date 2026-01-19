@@ -9,15 +9,15 @@ This folder contains developer-facing documentation for WinBorg.
 - [Testing](TESTING.md)
 - [Test strategy (risk-based)](TEST_STRATEGY.md)
 
-## Supporting checklists (repo root)
+## Supporting checklists
 
-- [Test plan](../TESTPLAN.md)
-- [Functional test matrix](../FUNCTIONAL_TEST_MATRIX.md)
-- [Compatibility matrix](../COMPATIBILITY.md)
-- [Operations](../OPERATIONS.md)
-- [Audit notes](../AUDIT.md)
-- [Security checklist](../SECURITY_CHECKLIST.md)
-- [UX checklist](../UX_CHECKLIST.md)
+- [Test plan](TESTPLAN.md)
+- [Functional test matrix](FUNCTIONAL_TEST_MATRIX.md)
+- [Compatibility matrix](COMPATIBILITY.md)
+- [Operations](OPERATIONS.md)
+- [Audit notes](AUDIT.md)
+- [Security checklist](SECURITY_CHECKLIST.md)
+- [UX checklist](UX_CHECKLIST.md)
 
 ## Release & operations
 
