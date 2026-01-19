@@ -78,7 +78,7 @@ describe('DashboardView', () => {
     onCheck: vi.fn(),
     onChangeView: vi.fn(),
     onAbortCheck: vi.fn(),
-    onOneOffBackup: vi.fn(),
+    onManageJobs: vi.fn(),
     toggleTheme: vi.fn(),
   };
 

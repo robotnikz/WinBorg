@@ -17,7 +17,7 @@ The renderer never runs Borg directly. It calls the main process via Electron IP
 
 - `src/App.tsx`: top-level state, early system checks (WSL/Borg), view routing.
 - `src/services/borgService.ts`: the renderer’s IPC client. It wraps `ipcRenderer.invoke/send/on` and provides higher-level methods like `runCommand`, repo init, archive operations.
-- `src/views/*`: screen-level flows (repositories, archives, mounts, settings, dashboard).
+- `src/views/*`: screen-level flows (dashboard, repositories, jobs, restore (archives/mounts), settings).
 - `src/components/*`: reusable UI elements and modals (onboarding, job creation, archive browser, etc.).
 
 Renderer fallback behavior:
@@ -66,7 +66,6 @@ Writes are atomic (temp file + replace) and (best-effort) backed up to `.bak`. R
 - **Onboarding:** renderer calls `system-check-wsl` and `system-check-borg`; if missing, guides user through `system-install-wsl`/`system-install-ubuntu`/`system-install-borg` and reboot.
 - **Repositories:** create/edit/delete; connect via local path or SSH; optionally install SSH keys / install Borg on remote.
 - **Backups (jobs):** schedule + “run now”; execution happens in main process via `borg-spawn`.
-- **Archives:** list, diff, browse, extract.
-- **Mounts:** mount/unmount via `borg-mount` / `borg-unmount` with preflight checks.
+- **Restore (archives & mounts):** list, diff, browse, extract; mount/unmount via `borg-mount` / `borg-unmount` with preflight checks.
 - **Notifications:** toast/email/discord (configured in settings, tested via IPC).
 - **Updates:** electron-updater channels for check/download/install.

@@ -205,7 +205,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                        {availableRepos.length > 1 ? 'Select target repository below' : `Upload to ${activeRepo.name}`}
                    </p>
                </div>
-                                                                                                                 <button ref={closeButtonRef} onClick={handleCloseWindow} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" disabled={isCancelling} aria-label="Close">
+                                                                                                                                                                                                                                 <button ref={closeButtonRef} onClick={handleCloseWindow} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" disabled={isCancelling} aria-label="Close" title="Close">
                  <X size={20} />
                </button>
            </div>

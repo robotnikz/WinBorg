@@ -107,6 +107,7 @@ const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, onClose }
             onClick={onClose}
             className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-slate-500 transition-colors"
             aria-label="Close"
+            title="Close"
           >
             <X className="w-5 h-5" />
           </button>

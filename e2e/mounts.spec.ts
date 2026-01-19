@@ -55,7 +55,7 @@ test.describe('Mounts flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });
@@ -100,7 +100,7 @@ test.describe('Mounts flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });

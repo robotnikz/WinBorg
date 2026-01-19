@@ -93,22 +93,22 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
             {/* Config Icons */}
             <div className="flex items-center gap-0.5 border-l border-gray-200 dark:border-slate-700 pl-1">
                 {onMaintenance && repo.status === 'connected' && (
-                    <button onClick={() => onMaintenance(repo)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 rounded" title="Maintenance: Prune old archives & Compact space">
+                  <button onClick={() => onMaintenance(repo)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 rounded" title="Maintenance: Prune old archives & Compact space" aria-label="Maintenance">
                         <Wrench className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onExportKey && repo.encryption !== 'none' && (
-                    <button onClick={() => onExportKey(repo)} className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 rounded" title="Export / Backup Encryption Key">
+                  <button onClick={() => onExportKey(repo)} className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 rounded" title="Export / Backup Encryption Key" aria-label="Export Encryption Key">
                         <Key className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onEdit && (
-                    <button onClick={() => onEdit(repo)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded" title="Edit Connection Settings">
+                  <button onClick={() => onEdit(repo)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded" title="Edit Connection Settings" aria-label="Edit Repository">
                         <Edit2 className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onDelete && (
-                    <button onClick={() => onDelete(repo)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded" title="Remove Repository or Destroy Data">
+                  <button onClick={() => onDelete(repo)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded" title="Remove Repository or Destroy Data" aria-label="Remove Repository">
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
                 )}
@@ -145,7 +145,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
               onClick={() => onConnect?.(repo)}
               disabled={repo.status === 'connecting'}
               title={repo.status === 'connected' ? "Refresh repository information" : "Connect via SSH/Local Path"}
-              className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-2 ${
+              className={`flex-1 h-9 px-3 py-2 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-2 ${
                   repo.status === 'connected' 
                   ? 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600' 
                   : 'bg-slate-800 dark:bg-blue-600 text-white border-transparent hover:bg-slate-700 dark:hover:bg-blue-700 shadow-sm'
@@ -160,7 +160,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                 <button 
                   onClick={() => onMount?.(repo)}
                   title="Browse and Mount existing archives to Windows/WSL"
-                  className="flex-1 px-3 py-2 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-400 transition-colors shadow-sm"
+                  className="flex-1 h-9 px-3 py-2 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-400 transition-colors shadow-sm"
                 >
                   Mount
                 </button>
@@ -168,7 +168,8 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                     <button 
                         onClick={() => onManageJobs(repo)}
                         title="Manage Backup Jobs & Schedules"
-                        className="px-3 py-2 text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg text-purple-700 dark:text-purple-400 transition-colors shadow-sm"
+                        aria-label="Manage Backup Jobs & Schedules"
+                        className="h-9 px-3 py-2 text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg text-purple-700 dark:text-purple-400 transition-colors shadow-sm"
                     >
                         <Briefcase className="w-4 h-4" />
                     </button>
@@ -177,6 +178,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                     <button 
                         onClick={() => onBackup(repo)}
                         title="Create a One-off Snapshot now"
+                    aria-label="Create a One-off Snapshot now"
                         className="px-3 py-2 text-xs font-semibold bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 transition-colors shadow-sm"
                     >
                         <UploadCloud className="w-4 h-4" />

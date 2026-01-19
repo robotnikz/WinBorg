@@ -57,7 +57,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Archives' })).toBeVisible();
 
     // Refresh (idempotent; re-runs borg list --json)
@@ -103,7 +103,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Archives' })).toBeVisible();
 
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
@@ -150,7 +150,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });
@@ -182,7 +182,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });
@@ -214,7 +214,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });
@@ -246,7 +246,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });
@@ -280,7 +280,7 @@ test.describe('Archives flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    await page.locator('nav').getByRole('button', { name: 'Archives', exact: true }).click();
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
     await expect(page.getByText('daily-2026-01-03')).toBeVisible();
 
     const row = page.locator('tr', { hasText: 'daily-2026-01-03' });

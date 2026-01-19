@@ -47,7 +47,7 @@ const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen,
          aria-label="Download Successful"
        >
            
-           <button ref={closeButtonRef} onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close dialog">
+           <button ref={closeButtonRef} onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close dialog" title="Close dialog">
              <X size={20} />
            </button>
 

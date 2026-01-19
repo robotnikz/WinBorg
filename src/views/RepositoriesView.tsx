@@ -32,11 +32,16 @@ interface RepositoriesViewProps {
     onBackupStarted?: (repo: Repository, commandId: string, jobId?: string) => void;
     onBackupFinished?: (repo: Repository, result: 'success' | 'error', durationMs?: number) => void;
     onBackupCancelled?: (repo: Repository) => void;
+
+    // Deep-linking helpers (e.g., from Dashboard)
+    openJobsRepoId?: string | null;
+    onOpenJobsConsumed?: () => void;
 }
 
 const RepositoriesView: React.FC<RepositoriesViewProps> = ({ 
     repos, jobs, onAddRepo, onEditRepo, onConnect, onMount, onCheck, onDelete, onBreakLock,
-                onAddJob, onUpdateJob, onDeleteJob, onRunJob, onBackupStarted, onBackupFinished, onBackupCancelled
+                onAddJob, onUpdateJob, onDeleteJob, onRunJob, onBackupStarted, onBackupFinished, onBackupCancelled,
+                openJobsRepoId, onOpenJobsConsumed
 }) => {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -108,6 +113,15 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   
   // Jobs Modal
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
+
+    useEffect(() => {
+        if (!openJobsRepoId) return;
+        const targetRepo = repos.find(r => r.id === openJobsRepoId) || null;
+        if (targetRepo) {
+            setJobsRepo(targetRepo);
+            onOpenJobsConsumed?.();
+        }
+    }, [openJobsRepoId, repos, onOpenJobsConsumed]);
 
   // Terminal/Log Feedback
   const [localLogData, setLocalLogData] = useState<{title: string, logs: string[]} | null>(null);
@@ -618,7 +632,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                           <Terminal className="w-4 h-4 text-blue-400" />
                           <span className="font-mono text-sm font-semibold">{localLogData.title}</span>
                       </div>
-                      <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors" aria-label="Close"><X className="w-4 h-4" /></button>
+                      <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors" aria-label="Close" title="Close"><X className="w-4 h-4" /></button>
                   </div>
                   <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1 bg-[#1e1e1e] text-gray-300">
                       {localLogData.logs.map((l, i) => (
@@ -652,7 +666,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                         <Key className="w-4 h-4 text-indigo-500"/> Install SSH Key
                     </h3>
                     {!isInstallingKey && (
-                                                <button onClick={() => setInstallKeyTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
+                                                <button onClick={() => setInstallKeyTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
                             <X size={18} />
                         </button>
                     )}
@@ -711,7 +725,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                         <Cloud className="w-4 h-4 text-blue-500"/> Install BorgBackup
                     </h3>
                     {!isInstallingBorg && (
-                                                <button onClick={() => setInstallBorgTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
+                                                <button onClick={() => setInstallBorgTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
                             <X size={18} />
                         </button>
                     )}
@@ -770,7 +784,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                      >
              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 shrink-0">
                <h3 className="font-bold text-lg text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
-                             <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Close">
+                                                         <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Close" title="Close">
                  <X size={18} />
                </button>
              </div>
@@ -1009,6 +1023,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                                 onClick={() => { navigator.clipboard.writeText(sshPublicKey); toast.show("SSH Public Key copied to clipboard", 'success'); }}
                                                 className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded text-slate-500 hover:text-blue-500"
                                                 title="Copy Public Key"
+                                                aria-label="Copy Public Key"
                                             >
                                                 <Copy className="w-3 h-3" />
                                             </button>
@@ -1019,6 +1034,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                             onClick={() => handleCheckKey()}
                                             className="px-2 py-1.5 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
                                             title="Refresh"
+                                            aria-label="Refresh"
                                         >
                                             <RefreshCw className="w-3 h-3" />
                                         </button>

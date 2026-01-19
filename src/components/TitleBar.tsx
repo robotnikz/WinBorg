@@ -50,6 +50,7 @@ const TitleBar: React.FC = () => {
             onClick={handleMinimize}
             className="h-full w-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400 transition-colors"
             title="Minimize"
+          aria-label="Minimize"
         >
             <Minus size={16} />
         </button>
@@ -57,6 +58,7 @@ const TitleBar: React.FC = () => {
             onClick={handleMaximize}
             className="h-full w-12 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400 transition-colors"
             title="Maximize"
+          aria-label="Maximize"
         >
             <Square size={14} />
         </button>
@@ -64,6 +66,7 @@ const TitleBar: React.FC = () => {
             onClick={handleClose}
             className="h-full w-12 flex items-center justify-center hover:bg-[#e81123] hover:text-white text-slate-600 dark:text-slate-400 transition-colors"
             title="Close"
+          aria-label="Close"
         >
             <X size={16} />
         </button>

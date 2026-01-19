@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HardDrive, Server, Settings, LayoutDashboard, Database, Activity, Github, Code2, Heart, ArrowUpCircle } from 'lucide-react';
+import { HardDrive, Server, Settings, LayoutDashboard, Activity, Github, Code2, ArrowUpCircle, Briefcase } from 'lucide-react';
 import { View } from '../types';
 import { getShellOrNull } from '../services/electron';
 import AppLogo from './AppLogo';
@@ -27,9 +27,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
   const navItems = [
     { view: View.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { view: View.REPOSITORIES, label: 'Repositories', icon: Server },
-    { view: View.ARCHIVES, label: 'Archives', icon: Database },
-    { view: View.MOUNTS, label: 'Mounts', icon: HardDrive },
-    { view: View.ACTIVITY, label: 'Activity', icon: Activity },
+    { view: View.JOBS, label: 'Jobs', icon: Briefcase },
+    { view: View.ARCHIVES, label: 'Restore', icon: HardDrive },
   ];
 
   // Developer Config
@@ -85,6 +84,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
       {/* BOTTOM SECTION */}
       <div className="p-3">
+        {/* Secondary: Activity */}
+        <button
+          onClick={() => onChangeView(View.ACTIVITY)}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 mb-3 ${
+            currentView === View.ACTIVITY
+              ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600 dark:text-blue-400'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-gray-200/50 dark:hover:bg-slate-800/50'
+          }`}
+          aria-label="Activity"
+          title="Activity"
+        >
+          <Activity className="w-4 h-4" />
+          Activity
+        </button>
+
         {/* Settings Button */}
         <button
           onClick={() => onChangeView(View.SETTINGS)}

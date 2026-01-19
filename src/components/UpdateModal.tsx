@@ -104,7 +104,7 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, ve
                         {readyToInstall ? 'Update Ready' : 'Update Available'}
                     </h3>
                     {!downloading && (
-                         <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close">
+                         <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close" title="Close">
                              <X size={18} />
                          </button>
                     )}
