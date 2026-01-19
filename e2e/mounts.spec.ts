@@ -47,7 +47,7 @@ test.describe('Mounts flow', () => {
     }
   });
 
-  test('mount archive then unmount', async () => {
+  test('mount archive then unmount @smoke', async () => {
     await addMockElectronInitScript(page.context(), { initialDb: baseDb, system: baseSystem });
     await page.reload();
 

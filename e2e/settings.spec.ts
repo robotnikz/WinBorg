@@ -32,7 +32,7 @@ test.describe('Settings flow', () => {
     }
   });
 
-  test('notifications test + export/import settings', async () => {
+  test('notifications test + export/import settings @smoke', async () => {
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 

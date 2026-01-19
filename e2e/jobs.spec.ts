@@ -47,7 +47,7 @@ test.describe('Jobs flow', () => {
     }
   });
 
-  test('connect repo -> create scheduled job -> job appears in list', async () => {
+  test('connect repo -> create scheduled job -> job appears in list @smoke', async () => {
     await addMockElectronInitScript(page.context(), { initialDb: baseDb, system: baseSystem });
     await page.reload();
 

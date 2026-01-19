@@ -16,6 +16,8 @@ describe('IPC contract (renderer <-> main)', () => {
   const repoRoot = path.resolve(__dirname, '../..');
   const electronMainPath = path.join(repoRoot, 'electron-main.js');
   const borgServicePath = path.join(repoRoot, 'src', 'services', 'borgService.ts');
+  const settingsViewPath = path.join(repoRoot, 'src', 'views', 'SettingsView.tsx');
+  const appVersionPath = path.join(repoRoot, 'src', 'utils', 'appVersion.ts');
 
   const channels = [
     // Onboarding / system checks & installs
@@ -51,6 +53,21 @@ describe('IPC contract (renderer <-> main)', () => {
     'save-secret',
     'delete-secret',
     'has-secret',
+
+    // App + settings transfer
+    'get-app-version',
+    'get-db',
+    'save-db',
+    'export-app-data',
+    'import-app-data',
+
+    // Updates
+    'check-for-updates',
+
+    // Notifications
+    'get-notification-config',
+    'save-notification-config',
+    'test-notification',
   ] as const;
 
   it('electron-main.js registers required ipcMain.handle channels', () => {
@@ -94,6 +111,31 @@ describe('IPC contract (renderer <-> main)', () => {
         invokePattern.test(text),
         `Expected borgService to call ipcRenderer.invoke("${channel}")`
       ).toBe(true);
+    }
+  });
+
+  it('renderer invokes required settings/update channels (drift protection)', () => {
+    const settingsText = fs.readFileSync(settingsViewPath, 'utf8');
+    const appVersionText = fs.readFileSync(appVersionPath, 'utf8');
+
+    const mustBeReferencedSomewhere: ReadonlyArray<(typeof channels)[number]> = [
+      'get-app-version',
+      'get-db',
+      'save-db',
+      'export-app-data',
+      'import-app-data',
+      'check-for-updates',
+      'get-notification-config',
+      'save-notification-config',
+      'test-notification',
+    ];
+
+    const haystacks = [settingsText, appVersionText];
+
+    for (const channel of mustBeReferencedSomewhere) {
+      const invokeLike = new RegExp(`\\.invoke\\(\\s*['\"]${channel}['\"]`, 'm');
+      const found = haystacks.some((t) => invokeLike.test(t));
+      expect(found, `Expected renderer code to reference invoke("${channel}")`).toBe(true);
     }
   });
 });

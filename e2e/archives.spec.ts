@@ -47,7 +47,7 @@ test.describe('Archives flow', () => {
     }
   });
 
-  test('connect -> refresh archives -> diff -> browse', async () => {
+  test('connect -> refresh archives -> diff -> browse @smoke', async () => {
     await addMockElectronInitScript(page.context(), { initialDb: baseDb, system: baseSystem });
     await page.reload();
 

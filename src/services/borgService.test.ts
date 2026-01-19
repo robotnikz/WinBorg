@@ -407,4 +407,109 @@ describe('borgService', () => {
             }));
         });
     });
+
+    describe('testConnection', () => {
+        it('uses ssh binary + parsed port/userhost for ssh:// URLs', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);
+            const onLog = vi.fn();
+
+            await borgService.testConnection(
+                'ssh://alice@example.com:2222/./repo',
+                onLog,
+                { disableHostCheck: true, remotePath: '/usr/local/bin/borg2' }
+            );
+
+            expect(spy).toHaveBeenCalledWith(
+                expect.arrayContaining([
+                    '-p',
+                    '2222',
+                    '-o',
+                    'StrictHostKeyChecking=no',
+                    '-o',
+                    'UserKnownHostsFile=/dev/null',
+                    '-o',
+                    'BatchMode=yes',
+                    'alice@example.com',
+                    '/usr/local/bin/borg2 --version',
+                ]),
+                onLog,
+                { forceBinary: 'ssh' }
+            );
+
+            spy.mockRestore();
+        });
+
+        it('returns true without spawning when URL is not ssh', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);
+            const res = await borgService.testConnection('C:\\Backups\\repo', vi.fn());
+            expect(res).toBe(true);
+            expect(spy).not.toHaveBeenCalled();
+            spy.mockRestore();
+        });
+    });
+
+    describe('listArchives', () => {
+        it('parses borg list --json output even with log noise', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockImplementation(async (_args: any, onLog: any) => {
+                onLog('Some warning on stderr\n');
+                onLog('{"archives":[{"name":"a1","id":"id-1","time":"2026-01-01T00:00:00Z"},{"name":"a2","time":"2026-01-02T00:00:00Z"}]}');
+                return true;
+            });
+
+            const res = await borgService.listArchives('ssh://repo');
+            expect(res).toEqual([
+                { id: 'id-1', name: 'a1', time: '2026-01-01T00:00:00Z' },
+                { id: 'a2', name: 'a2', time: '2026-01-02T00:00:00Z' },
+            ]);
+
+            spy.mockRestore();
+        });
+
+        it('returns [] when command fails or JSON cannot be parsed', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(false);
+            await expect(borgService.listArchives('ssh://repo')).resolves.toEqual([]);
+            spy.mockRestore();
+
+            const spy2 = vi.spyOn(borgService, 'runCommand').mockImplementation(async (_args: any, onLog: any) => {
+                onLog('no json here');
+                return true;
+            });
+            await expect(borgService.listArchives('ssh://repo')).resolves.toEqual([]);
+            spy2.mockRestore();
+        });
+    });
+
+    describe('getArchiveInfo', () => {
+        it('returns formatted size and duration when borg info JSON is valid', async () => {
+            const spy = vi.spyOn(borgService, 'runCommand').mockImplementation(async (_args: any, onLog: any) => {
+                onLog('noise\n');
+                onLog(
+                    JSON.stringify({
+                        archives: [
+                            {
+                                duration: 1.2,
+                                stats: {
+                                    original_size: 4096,
+                                    compressed_size: 2048,
+                                    deduplicated_size: 1024,
+                                },
+                            },
+                        ],
+                    })
+                );
+                return true;
+            });
+
+            const res = await borgService.getArchiveInfo('ssh://repo', 'arch-1');
+            expect(res).toMatchObject({
+                size: '1 KB',
+                duration: '1.2s',
+                originalSize: 4096,
+                compressedSize: 2048,
+                deduplicatedSize: 1024,
+            });
+
+            spy.mockRestore();
+        });
+    });
 });

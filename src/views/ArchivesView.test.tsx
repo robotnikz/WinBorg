@@ -14,18 +14,29 @@ vi.mock('../services/borgService', () => ({
 
 // Mock child components
 vi.mock('../components/ArchiveBrowserModal', () => ({
-    default: ({ isOpen, onClose }: any) => isOpen ? (
+    default: ({ isOpen, onClose, onExtractSuccess }: any) => isOpen ? (
         <div data-testid="archive-browser-modal">
             Archive Browser
             <button onClick={onClose}>Close</button>
+            <button onClick={() => onExtractSuccess?.('C:\\Restores\\archive-1')}>Simulate Restore Success</button>
         </div>
     ) : null
 }));
 
 vi.mock('../components/DiffViewerModal', () => ({
-    default: ({ isOpen, onClose }: any) => isOpen ? (
+    default: ({ isOpen, onClose, logs = [] }: any) => isOpen ? (
         <div data-testid="diff-viewer-modal">
             Diff Viewer
+            <div data-testid="diff-logs">{Array.isArray(logs) ? logs.join('\n') : String(logs)}</div>
+            <button onClick={onClose}>Close</button>
+        </div>
+    ) : null
+}));
+
+vi.mock('../components/ExtractionSuccessModal', () => ({
+    default: ({ isOpen, path, onClose }: any) => isOpen ? (
+        <div data-testid="extraction-success-modal">
+            Restored to: <span>{path}</span>
             <button onClick={onClose}>Close</button>
         </div>
     ) : null
@@ -98,6 +109,18 @@ describe('ArchivesView', () => {
         expect(screen.getByTestId('archive-browser-modal')).toBeInTheDocument();
     });
 
+    it('shows success modal when restore succeeds from browser', () => {
+        render(<ArchivesView {...defaultProps} />);
+
+        const browseBtn = screen.getAllByTitle('Browse Files')[0];
+        fireEvent.click(browseBtn);
+
+        fireEvent.click(screen.getByText('Simulate Restore Success'));
+
+        expect(screen.getByTestId('extraction-success-modal')).toBeInTheDocument();
+        expect(screen.getByText(/C:\\Restores\\archive-1/i)).toBeInTheDocument();
+    });
+
     it('opens diff viewer when two archives are selected and compare clicked', async () => {
         render(<ArchivesView {...defaultProps} />);
         
@@ -118,8 +141,54 @@ describe('ArchivesView', () => {
         expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
         
         await waitFor(() => {
-            expect(borgService.diffArchives).toHaveBeenCalled();
+            expect(borgService.diffArchives).toHaveBeenCalledWith(
+                mockRepo.url,
+                expect.any(String),
+                expect.any(String),
+                expect.any(Function),
+                expect.objectContaining({ repoId: mockRepo.id })
+            );
         });
+    });
+
+    it('shows an error line when borg diff returns false', async () => {
+        (borgService.diffArchives as any).mockResolvedValue(false);
+
+        render(<ArchivesView {...defaultProps} />);
+
+        const checkboxes = screen.getAllByRole('checkbox');
+        fireEvent.click(checkboxes[0]);
+        fireEvent.click(checkboxes[1]);
+
+        fireEvent.click(screen.getByText('Diff'));
+        expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('diff-logs').textContent).toMatch(/\[Error\] borg diff failed/i);
+        });
+    });
+
+    it('shows an error line when borg diff throws', async () => {
+        (borgService.diffArchives as any).mockRejectedValue(new Error('boom'));
+
+        render(<ArchivesView {...defaultProps} />);
+
+        const checkboxes = screen.getAllByRole('checkbox');
+        fireEvent.click(checkboxes[0]);
+        fireEvent.click(checkboxes[1]);
+
+        fireEvent.click(screen.getByText('Diff'));
+        expect(screen.getByTestId('diff-viewer-modal')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('diff-logs').textContent).toMatch(/\[Error\] borg diff crashed: boom/i);
+        });
+    });
+
+    it('refreshes archive list when refresh button is clicked', () => {
+        render(<ArchivesView {...defaultProps} />);
+        fireEvent.click(screen.getByTitle('Refresh Archives List'));
+        expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
     });
 
     it('requests info for archives with Unknown stats', async () => {

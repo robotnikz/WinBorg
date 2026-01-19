@@ -353,6 +353,9 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
           case 'system-reboot':
             return { success: true };
 
+          case 'get-app-version':
+            return '0.0.0-test';
+
           case 'get-notification-config':
             return structuredClone(state.notifyConfig);
           case 'save-notification-config':
