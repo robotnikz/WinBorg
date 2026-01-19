@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import ArchiveBrowserModal from './ArchiveBrowserModal';
 import { Archive, Repository } from '../types';
 import { borgService } from '../services/borgService';
@@ -89,7 +89,9 @@ describe('ArchiveBrowserModal', () => {
         (borgService.createDirectory as any).mockResolvedValue(true);
         (borgService.extractFiles as any).mockResolvedValue(true);
 
-        render(<ArchiveBrowserModal {...defaultProps} />);
+        const onClose = vi.fn();
+        const onExtractSuccess = vi.fn();
+        render(<ArchiveBrowserModal {...defaultProps} onClose={onClose} onExtractSuccess={onExtractSuccess} />);
         await waitFor(() => screen.getByText('file.txt'));
 
         // Select file (click the file name to toggle)
@@ -108,6 +110,12 @@ describe('ArchiveBrowserModal', () => {
                 expect.any(Function),
                 expect.anything()
             );
+        });
+
+        await waitFor(() => {
+            expect(onExtractSuccess).toHaveBeenCalledTimes(1);
+            expect(onExtractSuccess).toHaveBeenCalledWith(expect.stringContaining('WinBorg Restores'));
+            expect(onClose).toHaveBeenCalledTimes(1);
         });
     });
 });

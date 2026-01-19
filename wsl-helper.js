@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const childProcess = require('child_process');
 
 // Returns 'Ubuntu', 'Debian', or null (for default)
 // Decoupled from electron-main for testing
@@ -25,7 +25,7 @@ function parseWslListOutput(stdout) {
 
 async function getPreferredWslDistro() {
     return new Promise((resolve) => {
-        exec('wsl --list', { encoding: 'utf16le' }, (error, stdout) => {
+        childProcess.execFile('wsl', ['--list'], { encoding: 'utf16le' }, (error, stdout) => {
             if (error) return resolve(null);
             const distro = parseWslListOutput(stdout);
             resolve(distro);

@@ -1,0 +1,48 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f3f3f3; /* Windows 11 Light Gray Background */
+  overflow: hidden; /* App-like feel */
+}
+
+/* Dark mode body override handled by tailwind classes in App structure usually,
+   but we ensure base is dark when class is present on html */
+html.dark body {
+  background-color: #0f172a;
+}
+
+/* Custom Scrollbar for Windows 11 feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.mica-effect {
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+}
+
+.acrylic-panel {
+  background-color: rgba(243, 243, 243, 0.6);
+  backdrop-filter: blur(15px);
+}

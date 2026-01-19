@@ -6,6 +6,28 @@ test.describe('Jobs flow', () => {
   let electronApp: any;
   let page: any;
 
+  const baseDb = {
+    repos: [
+      {
+        id: 'repo1',
+        name: 'My Repo',
+        url: 'ssh://user@example.com:22/./repo',
+        encryption: 'repokey',
+        trustHost: true,
+        status: 'disconnected',
+        lastBackup: 'Never',
+        size: 'Unknown',
+        fileCount: 0,
+      },
+    ],
+    jobs: [],
+    archives: [],
+    activityLogs: [],
+    settings: {},
+  };
+
+  const baseSystem = { wslInstalled: true, borgInstalled: true };
+
   test.beforeEach(async () => {
     electronApp = await electron.launch({
       args: [path.join(__dirname, '../electron-main.js'), '--no-sandbox'],
@@ -16,38 +38,19 @@ test.describe('Jobs flow', () => {
 
     // Ensure responsive sidebars are visible during tests.
     await page.setViewportSize({ width: 1200, height: 800 });
-
-    await addMockElectronInitScript(page.context(), {
-      initialDb: {
-        repos: [
-          {
-            id: 'repo1',
-            name: 'My Repo',
-            url: 'ssh://user@example.com:22/./repo',
-            encryption: 'repokey',
-            trustHost: true,
-            status: 'disconnected',
-            lastBackup: 'Never',
-            size: 'Unknown',
-            fileCount: 0,
-          },
-        ],
-        jobs: [],
-        archives: [],
-        activityLogs: [],
-        settings: {},
-      },
-      system: { wslInstalled: true, borgInstalled: true },
-    });
-
-    await page.reload();
   });
 
   test.afterEach(async () => {
-    await electronApp.close();
+    if (electronApp) {
+      await electronApp.close().catch(() => {});
+      electronApp = null;
+    }
   });
 
-  test('connect repo -> create scheduled job -> job appears in list', async () => {
+  test('connect repo -> create scheduled job -> job appears in list @smoke', async () => {
+    await addMockElectronInitScript(page.context(), { initialDb: baseDb, system: baseSystem });
+    await page.reload();
+
     await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
 
     // Connect repo so action buttons (including Jobs) become available.
@@ -79,5 +82,72 @@ test.describe('Jobs flow', () => {
 
     // Back on list view, job should be visible.
     await expect(page.getByText('Docs')).toBeVisible();
+  });
+
+  test('run job now -> shows success toast', async () => {
+    await addMockElectronInitScript(page.context(), { initialDb: baseDb, system: baseSystem });
+    await page.reload();
+
+    await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
+
+    // Connect repo so action buttons (including Jobs) become available.
+    await page.getByRole('button', { name: 'Connect', exact: true }).click();
+    await expect(page.getByText('Online')).toBeVisible();
+
+    // Open Jobs modal (icon-only button).
+    await page.getByTitle('Manage Backup Jobs & Schedules').click();
+    await expect(page.getByText('Backup Jobs')).toBeVisible();
+
+    // Create a job.
+    await page.getByRole('button', { name: 'Create First Job' }).click();
+    await page.getByPlaceholder('e.g. My Documents').fill('Docs');
+    await page.getByRole('button', { name: /Add Folder/i }).click();
+    await expect(page.getByText('C:\\Temp')).toBeVisible();
+    await page.getByPlaceholder('e.g. docs').fill('docs');
+    await page.getByRole('button', { name: 'Save Job' }).click();
+
+    await expect(page.getByText('Docs')).toBeVisible();
+
+    // Run job.
+    await page.getByTitle('Run Job Now').click();
+
+    // Toast from App.handleRunJob
+    await expect(page.getByText(/finished successfully/i)).toBeVisible();
+  });
+
+  test('run job now -> borg create failure shows error toast', async () => {
+    await addMockElectronInitScript(page.context(), {
+      initialDb: baseDb,
+      system: baseSystem,
+      borg: { createSuccess: false, createError: 'Simulated borg create failure' },
+    });
+    await page.reload();
+
+    await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
+
+    // Connect repo so action buttons (including Jobs) become available.
+    await page.getByRole('button', { name: 'Connect', exact: true }).click();
+    await expect(page.getByText('Online')).toBeVisible();
+
+    // Open Jobs modal (icon-only button).
+    await page.getByTitle('Manage Backup Jobs & Schedules').click();
+    await expect(page.getByText('Backup Jobs')).toBeVisible();
+
+    // Create a job.
+    await page.getByRole('button', { name: 'Create First Job' }).click();
+    await page.getByPlaceholder('e.g. My Documents').fill('Docs');
+    await page.getByRole('button', { name: /Add Folder/i }).click();
+    await expect(page.getByText('C:\\Temp')).toBeVisible();
+    await page.getByPlaceholder('e.g. docs').fill('docs');
+    await page.getByRole('button', { name: 'Save Job' }).click();
+
+    await expect(page.getByText('Docs')).toBeVisible();
+
+    // Run job.
+    await page.getByTitle('Run Job Now').click();
+
+    // Error toast from App.handleRunJob
+    await expect(page.getByText(/failed\. Check activity log/i)).toBeVisible();
+    await expect(page.getByText(/finished successfully/i)).toBeHidden();
   });
 });

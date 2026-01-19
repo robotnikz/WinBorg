@@ -27,6 +27,36 @@ export type MockOptions = {
   system?: {
     wslInstalled?: boolean;
     borgInstalled?: boolean;
+    // When WSL is enabled but no distro is installed, Onboarding expects a reason.
+    wslReason?: 'no-distro' | 'docker-default' | 'no-supported-distro' | string;
+    wslError?: string;
+    distro?: string;
+    borgVersion?: string;
+    borgPath?: string;
+  };
+  ssh?: {
+    testConnectionSuccess?: boolean;
+    testConnectionError?: string;
+    borgInstalled?: boolean;
+    borgError?: string;
+    borgVersion?: string;
+    borgPath?: string;
+  };
+  filesystem?: {
+    createDirectorySuccess?: boolean;
+    selectDirectoryCanceled?: boolean;
+    selectDirectoryPaths?: string[];
+  };
+  borg?: {
+    createSuccess?: boolean;
+    createError?: string;
+    extractSuccess?: boolean;
+    extractError?: string;
+  };
+  mounts?: {
+    mountSuccess?: boolean;
+    mountError?: string;
+    unmountSuccess?: boolean;
   };
   notifications?: Record<string, any>;
   updates?: {
@@ -88,10 +118,11 @@ function makeArchiveInfoJson(archiveName: string) {
 function makeArchiveLsJsonLines() {
   // borg list --json-lines repo::archive
   const entries = [
-    { path: 'Users/', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000 },
-    { path: 'Users/tobia/', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000 },
-    { path: 'Users/tobia/Documents/', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000 },
-    { path: 'Users/tobia/Documents/report.txt', type: 'f', healthy: true, mode: '-rw-r--r--', user: 'u', group: 'g', uid: 1000, gid: 1000, size: 1337 },
+    // Use paths without trailing slashes so UI folder names render correctly.
+    { path: 'Users', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+    { path: 'Users/tobia', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+    { path: 'Users/tobia/Documents', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+    { path: 'Users/tobia/Documents/report.txt', type: 'f', healthy: true, mode: '-rw-r--r--', user: 'u', group: 'g', uid: 1000, gid: 1000, size: 1337, mtime: '2026-01-03T10:00:00Z' },
   ];
   return entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
 }
@@ -102,6 +133,35 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
     system: {
       wslInstalled: options.system?.wslInstalled ?? true,
       borgInstalled: options.system?.borgInstalled ?? true,
+      wslReason: options.system?.wslReason ?? null,
+      wslError: options.system?.wslError ?? null,
+      distro: options.system?.distro ?? 'Ubuntu',
+      borgVersion: options.system?.borgVersion ?? '1.2.3',
+      borgPath: options.system?.borgPath ?? '/usr/bin/borg',
+    },
+    ssh: {
+      testConnectionSuccess: options.ssh?.testConnectionSuccess ?? true,
+      testConnectionError: options.ssh?.testConnectionError ?? 'Permission denied (publickey).',
+      borgInstalled: options.ssh?.borgInstalled ?? true,
+      borgError: options.ssh?.borgError ?? 'borg: command not found',
+      borgVersion: options.ssh?.borgVersion ?? '1.2.7',
+      borgPath: options.ssh?.borgPath ?? '/usr/bin/borg',
+    },
+    filesystem: {
+      createDirectorySuccess: options.filesystem?.createDirectorySuccess ?? true,
+      selectDirectoryCanceled: options.filesystem?.selectDirectoryCanceled ?? false,
+      selectDirectoryPaths: options.filesystem?.selectDirectoryPaths ?? ['C:\\Temp'],
+    },
+    borg: {
+      createSuccess: options.borg?.createSuccess ?? true,
+      createError: options.borg?.createError ?? 'borg create failed',
+      extractSuccess: options.borg?.extractSuccess ?? true,
+      extractError: options.borg?.extractError ?? 'borg extract failed',
+    },
+    mounts: {
+      mountSuccess: options.mounts?.mountSuccess ?? true,
+      mountError: options.mounts?.mountError ?? 'Mount failed',
+      unmountSuccess: options.mounts?.unmountSuccess ?? true,
     },
     notifications: options.notifications ?? {
       notifyOnUpdate: false,
@@ -123,10 +183,16 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
   return context.addInitScript((initOpts: any) => {
     const listeners = new Map<string, Set<Function>>();
 
+    (window as any).__winborgIpcSends = [];
+
     const state = {
       db: structuredClone(initOpts.initialDb),
       notifyConfig: structuredClone(initOpts.notifications),
-      system: initOpts.system,
+      system: structuredClone(initOpts.system),
+      ssh: structuredClone(initOpts.ssh),
+      filesystem: structuredClone(initOpts.filesystem),
+      borg: structuredClone(initOpts.borg),
+      mountBehavior: structuredClone(initOpts.mounts),
       updates: initOpts.updates,
       secrets: new Map<string, string>(),
       mounts: new Map<string, { mountId: string; localPath: string }>(),
@@ -185,6 +251,11 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
         return { success: true };
       }
 
+      if (effectiveCmd === 'list' && effectiveArgs.includes('--json-lines')) {
+        sendTerminalLog(commandId, makeArchiveLsJsonLines());
+        return { success: true };
+      }
+
       if (effectiveCmd === 'info' && effectiveArgs.includes('--json')) {
         const last = effectiveArgs[effectiveArgs.length - 1];
         // last could be repoUrl OR repoUrl::archive
@@ -204,12 +275,20 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
       }
 
       if (effectiveCmd === 'extract') {
+        if (state.borg?.extractSuccess === false) {
+          sendTerminalLog(commandId, `Error: ${state.borg?.extractError || 'borg extract failed'}\n`);
+          return { success: false, error: state.borg?.extractError || 'borg extract failed' };
+        }
         sendTerminalLog(commandId, '[extract] done\n');
         return { success: true };
       }
 
       if (effectiveCmd === 'create') {
         // backup job create
+        if (state.borg?.createSuccess === false) {
+          sendTerminalLog(commandId, state.borg?.createError || 'borg create failed');
+          return { success: false, error: state.borg?.createError || 'borg create failed' };
+        }
         sendTerminalLog(commandId, '10%\n');
         sendTerminalLog(commandId, '50%\n');
         sendTerminalLog(commandId, '100%\n');
@@ -243,16 +322,39 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
             return { ok: true };
 
           case 'system-check-wsl':
-            return { installed: !!state.system.wslInstalled };
+            return {
+              installed: !!state.system.wslInstalled,
+              reason: state.system.wslReason ?? undefined,
+              error: state.system.wslError ?? undefined,
+              distro: state.system.distro ?? undefined,
+            };
           case 'system-check-borg':
-            return { installed: !!state.system.borgInstalled };
+            return {
+              installed: !!state.system.borgInstalled,
+              version: state.system.borgVersion ?? undefined,
+              path: state.system.borgPath ?? undefined,
+            };
           case 'system-install-wsl':
+            // In real life this often requires a reboot; for tests we flip the state so a relaunch can start "post install".
+            state.system.wslInstalled = true;
+            state.system.wslReason = null;
+            state.system.wslError = null;
+            return { success: true };
+          case 'system-install-ubuntu':
+            state.system.wslInstalled = true;
+            state.system.wslReason = null;
+            state.system.wslError = null;
+            return { success: true };
           case 'system-install-borg':
+            state.system.borgInstalled = true;
             return { success: true };
           case 'system-fix-wsl-fuse':
             return { success: true };
           case 'system-reboot':
             return { success: true };
+
+          case 'get-app-version':
+            return '0.0.0-test';
 
           case 'get-notification-config':
             return structuredClone(state.notifyConfig);
@@ -289,12 +391,19 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
             if (payload?.action === 'generate') return { success: true, exists: true };
             return { success: true };
           case 'ssh-test-connection':
-            return { success: true };
+            if (state.ssh?.testConnectionSuccess) return { success: true };
+            return { success: false, error: state.ssh?.testConnectionError || 'Connection failed' };
           case 'ssh-check-borg':
-            return { success: true, version: '1.2.7', path: '/usr/bin/borg' };
+            if (state.ssh?.borgInstalled) {
+              return { success: true, version: state.ssh?.borgVersion || 'unknown', path: state.ssh?.borgPath || 'borg' };
+            }
+            return { success: false, error: state.ssh?.borgError || 'borg not found' };
           case 'ssh-install-borg':
+            state.ssh.borgInstalled = true;
             return { success: true };
           case 'ssh-key-install':
+            // After deploying a key, subsequent SSH connectivity checks should pass.
+            state.ssh.testConnectionSuccess = true;
             return { success: true };
 
           // Borg execution
@@ -305,6 +414,9 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
 
           // Mounting
           case 'borg-mount': {
+            if (state.mountBehavior?.mountSuccess === false) {
+              return { success: false, error: state.mountBehavior?.mountError || 'Mount failed' };
+            }
             const mountId = payload?.mountId || randomId('mount');
             state.mounts.set(mountId, { mountId, localPath: payload?.args?.[payload?.args?.length - 1] ?? 'Z:\\WinBorgMount' });
             // borgService.mount listens for id === 'mount'
@@ -313,15 +425,23 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
             return { success: true };
           }
           case 'borg-unmount':
+            if (state.mountBehavior?.unmountSuccess === false) return { success: false };
             if (payload?.mountId) state.mounts.delete(payload.mountId);
             return { success: true };
 
           case 'select-directory':
-            return { canceled: false, filePaths: ['C:\\Temp'] };
+            return {
+              canceled: !!state.filesystem?.selectDirectoryCanceled,
+              filePaths: Array.isArray(state.filesystem?.selectDirectoryPaths)
+                ? state.filesystem.selectDirectoryPaths
+                : ['C:\\Temp'],
+            };
           case 'get-downloads-path':
-            return { path: 'C:\\Users\\mock\\Downloads' };
+            // borgService.getDownloadsPath() expects a string.
+            return 'C:\\Users\\mock\\Downloads';
           case 'create-directory':
-            return { success: true };
+            // borgService.createDirectory() expects a boolean.
+            return state.filesystem?.createDirectorySuccess !== false;
 
           default:
             // Default succeed so unknown calls don't explode the app.
@@ -339,6 +459,11 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
         set.delete(cb);
       },
       send: (channel: string, payload?: any) => {
+        try {
+          (window as any).__winborgIpcSends.push({ channel, payload });
+        } catch {
+          // ignore
+        }
         // Window controls / progress / open-path etc. No-op.
         // We keep this to avoid renderer crashes.
         if (channel === 'download-update') {
@@ -401,6 +526,16 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
           },
         },
       });
+    }
+
+    function makeArchiveLsJsonLines() {
+      const entries = [
+        { path: 'Users', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+        { path: 'Users/tobia', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+        { path: 'Users/tobia/Documents', type: 'd', healthy: true, mode: 'drwxr-xr-x', user: 'u', group: 'g', uid: 1000, gid: 1000, mtime: '2026-01-03T10:00:00Z' },
+        { path: 'Users/tobia/Documents/report.txt', type: 'f', healthy: true, mode: '-rw-r--r--', user: 'u', group: 'g', uid: 1000, gid: 1000, size: 1337, mtime: '2026-01-03T10:00:00Z' },
+      ];
+      return entries.map((e) => JSON.stringify(e)).join('\n') + '\n';
     }
   }, opts);
 }

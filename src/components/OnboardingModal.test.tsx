@@ -1,5 +1,5 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+
 import OnboardingModal from './OnboardingModal';
 
 // Mock Electron IPC

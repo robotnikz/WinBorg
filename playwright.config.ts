@@ -9,11 +9,12 @@ export default defineConfig({
   },
   fullyParallel: false, // Electron doesn't support parallel well usually
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Keep CI strict: no retries masking flakes; retain traces for debugging.
+  retries: 0,
   workers: 1, // Electron requirement often
-  reporter: 'html',
+  reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'html',
   use: {
-    trace: 'on-first-retry',
+    trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
   },
   projects: [
     {

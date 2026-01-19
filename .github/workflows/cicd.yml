@@ -6,6 +6,10 @@ on:
       - "**"
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+  schedule:
+    # Nightly full regression run (UTC)
+    - cron: "30 2 * * *"
 
 jobs:
   # JOB 1: QUALITY ASSURANCE
@@ -26,8 +30,11 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: "Security: Audit production dependencies (high+)"
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Type Check (TypeScript)
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Run Unit Tests (with Coverage)
         run: npm run test:coverage
@@ -42,11 +49,32 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Build Application (Required for E2E)
-        run: npm run build
+      - name: Decide E2E suite (smoke on PRs, full on main)
+        id: e2e
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "script=test:e2e:smoke" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "script=test:e2e:full" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "script=test:e2e:full" >> "$GITHUB_OUTPUT"
+          else
+            echo "script=test:e2e:smoke" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run E2E Tests (Headless)
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run test:e2e
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run ${{ steps.e2e.outputs.script }}
+
+      - name: Upload Playwright Report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
 
   # JOB 2: Semantic Release
   # Only runs if tests pass AND we are on main branch (not PRs)

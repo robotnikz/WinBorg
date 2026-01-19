@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+
 import JobsModal from './JobsModal';
 
 vi.mock('../services/borgService', () => ({

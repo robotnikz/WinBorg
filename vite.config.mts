@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
@@ -7,12 +7,14 @@ export default defineConfig({
   plugins: [react() as any],
   test: {
     globals: true,
+    pool: 'forks',
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
+      allowExternal: true,
       thresholds: {
         statements: 30,
         branches: 25,
@@ -33,4 +35,4 @@ export default defineConfig({
   define: {
     'process.env.APP_VERSION': JSON.stringify(process.env.npm_package_version),
   },
-});
+} as any);

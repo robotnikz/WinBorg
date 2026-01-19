@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+
 import { parseWslListOutput } from '../../wsl-helper';
 
 describe('WSL Distro Parsing Logic', () => {

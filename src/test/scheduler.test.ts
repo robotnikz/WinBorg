@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, test } from 'vitest';
+
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const {
@@ -55,5 +55,24 @@ describe('main/scheduler', () => {
     expect(tryStartJob('a', running)).toBe(false);
     finishJob('a', running);
     expect(tryStartJob('a', running)).toBe(true);
+  });
+
+  test('does not trigger when schedule is disabled or job is missing', () => {
+    const now = new Date();
+    expect(shouldTriggerScheduledJob(null, now, null)).toEqual({ shouldTrigger: false, triggerKey: null });
+    expect(shouldTriggerScheduledJob(undefined, now, null)).toEqual({ shouldTrigger: false, triggerKey: null });
+
+    const disabled = { id: 'j3', scheduleEnabled: false, scheduleType: 'daily', scheduleTime: '00:00' };
+    expect(shouldTriggerScheduledJob(disabled, now, null).shouldTrigger).toBe(false);
+  });
+
+  test('does not trigger for unknown scheduleType', () => {
+    const job = { id: 'j4', scheduleEnabled: true, scheduleType: 'weekly', scheduleTime: '12:34' };
+    const now = new Date();
+    now.setHours(12, 34, 0, 0);
+
+    const res = shouldTriggerScheduledJob(job, now, null);
+    expect(res.shouldTrigger).toBe(false);
+    expect(res.triggerKey).toBe(getTriggerKey(now, 'weekly'));
   });
 });

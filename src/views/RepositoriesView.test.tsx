@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+
 import RepositoriesView from './RepositoriesView';
 import { Repository } from '../types';
 import { borgService } from '../services/borgService';
@@ -9,7 +9,11 @@ vi.mock('../services/borgService', () => ({
     borgService: {
         initRepo: vi.fn(),
         testConnection: vi.fn(),
+        testSshConnection: vi.fn(),
+        checkBorgInstalledRemote: vi.fn(),
         runCommand: vi.fn(),
+        savePassphrase: vi.fn(),
+        deletePassphrase: vi.fn(),
         manageSSHKey: vi.fn(async (action: 'check' | 'generate' | 'read') => {
             if (action === 'check') return { success: true, exists: false };
             if (action === 'read') return { success: true, key: '' };
@@ -23,7 +27,7 @@ vi.mock('../components/RepoCard', () => ({
     default: ({ repo, onConnect }: any) => (
         <div data-testid="repo-card">
             <span>{repo.name}</span>
-            <button onClick={() => onConnect(repo)}>Connect</button>
+            <button onClick={() => onConnect(repo)}>Connect Repo</button>
         </div>
     )
 }));
@@ -72,6 +76,47 @@ describe('RepositoriesView', () => {
         });
 
         expect(screen.getByText('linux')).toBeInTheDocument();
+    });
+
+    it('adds a repository after a successful connection test', async () => {
+        (borgService as any).testConnection.mockResolvedValue(true);
+
+        render(<RepositoriesView {...defaultProps} />);
+        fireEvent.click(screen.getByText('Add Repository'));
+
+        // Fill minimal required fields (local path style)
+        fireEvent.change(screen.getByPlaceholderText('e.g. Work Backups'), { target: { value: 'Local Repo' } });
+        fireEvent.change(screen.getByPlaceholderText('ssh://user@example.com:22'), { target: { value: 'C:\\Backups' } });
+
+        // Run connection test
+        fireEvent.click(await screen.findByRole('button', { name: /Test Connection/i }));
+
+        await waitFor(() => {
+            expect((borgService as any).testConnection).toHaveBeenCalledWith(
+                'C:\\Backups',
+                expect.any(Function),
+                expect.any(Object)
+            );
+        });
+
+        await screen.findByText(/Connection successful/i);
+
+        // Avoid passphrase requirement by choosing no encryption for this test.
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'none' } });
+
+        // Connect should now be enabled
+        fireEvent.click(screen.getByRole('button', { name: /^Connect$/i }));
+
+        await waitFor(() => {
+            expect(defaultProps.onAddRepo).toHaveBeenCalledTimes(1);
+        });
+
+        expect(defaultProps.onAddRepo).toHaveBeenCalledWith(
+            expect.objectContaining({
+                name: 'Local Repo',
+                url: 'C:\\Backups',
+            })
+        );
     });
 
     it('filters repositories by search', () => {

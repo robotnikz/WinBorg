@@ -27,7 +27,10 @@ test.describe('@smoke WinBorg App Launch', () => {
   });
 
   test.afterEach(async () => {
-    await electronApp.close();
+    if (electronApp) {
+      await electronApp.close().catch(() => {});
+      electronApp = null;
+    }
   });
 
   test('app window opens and has correct title', async () => {
@@ -41,7 +44,7 @@ test.describe('@smoke WinBorg App Launch', () => {
     // Basic check for UI elements
     expect(title).toBeTruthy();
 
-    // Basic check for UI elements
-    await expect(firstWindow.getByText('WinBorg', { exact: true })).toBeVisible();
+    // Wait for a stable, always-present UI element.
+    await expect(firstWindow.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 15000 });
   });
 });

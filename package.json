@@ -13,17 +13,22 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "electron": "concurrently \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5174 && electron .\"",
     "electron:dev": "node scripts/dev-electron.mjs",
     "dist": "tsc && vite build && electron-builder",
     "test": "vitest",
+    "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test --grep @smoke",
-    "test:e2e:full": "playwright test",
+    "test:pr": "npm run typecheck && npm run test:coverage && npm run test:e2e:smoke",
+    "test:e2e": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep-invert @manual",
+    "test:e2e:smoke": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep @smoke --grep-invert @manual",
+    "test:e2e:manual": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep @manual",
+    "test:e2e:full": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep-invert @manual",
     "pretest:e2e": "npm run build",
     "pretest:e2e:smoke": "npm run build",
+    "pretest:e2e:manual": "npm run build",
     "pretest:e2e:full": "npm run build"
   },
   "build": {
@@ -71,6 +76,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/testing-library__jest-dom": "^6.0.0",
     "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-istanbul": "^4.0.17",
     "@vitest/coverage-v8": "^4.0.17",
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
@@ -85,5 +91,10 @@
     "vite": "^7.3.1",
     "vitest": "^4.0.17",
     "wait-on": "^9.0.3"
+  },
+  "overrides": {
+    "tar": "7.5.3",
+    "undici": "6.23.0",
+    "diff": "8.0.3"
   }
 }

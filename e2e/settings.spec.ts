@@ -26,10 +26,13 @@ test.describe('Settings flow', () => {
   });
 
   test.afterEach(async () => {
-    await electronApp.close();
+    if (electronApp) {
+      await electronApp.close().catch(() => {});
+      electronApp = null;
+    }
   });
 
-  test('notifications test + export/import settings', async () => {
+  test('notifications test + export/import settings @smoke', async () => {
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
 

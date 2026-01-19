@@ -16,27 +16,46 @@ const { createSystemHandlers } = require('./main/systemHandlers');
 const { resolveSshKeyInstallOptions } = require('./main/sshHelpers');
 const { createMountPreflight } = require('./main/mountPreflight');
 
-// --- SINGLE INSTANCE LOCK ---
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  // If we don't get the lock, another instance is already running.
-  // We quit this new instance immediately.
-  app.quit();
-} else {
-  // This is the first instance.
-  // Set up a listener for any subsequent attempts to launch a second instance.
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // Someone tried to run a second instance. We should focus our window.
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-      new Notification({
-        title: 'WinBorg Manager',
-        body: 'WinBorg Manager is already running. Focusing the existing window.'
-      }).show();
+// --- TEST MODE: isolate userData so repeated E2E launches don't fight the single-instance lock.
+// This runs before requestSingleInstanceLock() and is intentionally best-effort.
+if (process.env.NODE_ENV === 'test') {
+    try {
+        const uniqueUserDataDir = path.join(
+            os.tmpdir(),
+            `winborg-test-userdata-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        );
+        app.setPath('userData', uniqueUserDataDir);
+    } catch (e) {
+        // best-effort
     }
-  });
+}
+
+// --- SINGLE INSTANCE LOCK ---
+// In E2E test mode we intentionally skip this lock. Fast launch/close cycles
+// can race with lock cleanup and make Electron quit intermittently.
+const isTestMode = process.env.NODE_ENV === 'test';
+if (!isTestMode) {
+    const gotTheLock = app.requestSingleInstanceLock();
+
+    if (!gotTheLock) {
+        // If we don't get the lock, another instance is already running.
+        // We quit this new instance immediately.
+        app.quit();
+    } else {
+        // This is the first instance.
+        // Set up a listener for any subsequent attempts to launch a second instance.
+        app.on('second-instance', (event, commandLine, workingDirectory) => {
+            // Someone tried to run a second instance. We should focus our window.
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.focus();
+                new Notification({
+                    title: 'WinBorg Manager',
+                    body: 'WinBorg Manager is already running. Focusing the existing window.'
+                }).show();
+            }
+        });
+    }
 }
 
 // OPTIONAL: Nodemailer for Emails
@@ -965,7 +984,10 @@ app.whenReady().then(() => {
             icon: getIconPath() || undefined
         }).show();
     }
-    setTimeout(() => checkForUpdates(false), 3000);
+    // Avoid auto-updater network checks during deterministic Playwright runs.
+    if (!isTestMode) {
+        setTimeout(() => checkForUpdates(false), 3000);
+    }
 });
 
 app.on('before-quit', () => { isQuitting = true; });
