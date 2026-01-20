@@ -336,10 +336,37 @@ loadData();
 function applyAutoStartSettings() {
     if (process.platform === 'win32') {
         const settings = dbCache.settings;
+        const openAtLogin = !!settings.startWithWindows;
+        const shouldStartHidden = openAtLogin && !!settings.startMinimized;
+
+        // In packaged builds, app.getPath('exe') points to the app executable.
+        // In dev/unpackaged runs it typically points to electron.exe, which must be
+        // given an app path argument. Otherwise Windows startup will launch the
+        // Electron binary without a target and show the Electron "path-to-app" screen.
+        const isPackaged = !!app.isPackaged;
+        const exePath = app.getPath('exe');
+
+        const args = [];
+        if (openAtLogin) {
+            if (!isPackaged) {
+                // Prefer the same app path Electron uses for this running instance.
+                const candidateArgvPath = process.argv && typeof process.argv[1] === 'string' ? process.argv[1] : null;
+                const candidateAppPath = (typeof app.getAppPath === 'function') ? app.getAppPath() : null;
+
+                const appPathArg =
+                    (candidateArgvPath && fs.existsSync(candidateArgvPath)) ? candidateArgvPath :
+                    (candidateAppPath && fs.existsSync(candidateAppPath)) ? candidateAppPath :
+                    null;
+
+                if (appPathArg) args.push(appPathArg);
+            }
+            if (shouldStartHidden) args.push('--hidden');
+        }
+
         app.setLoginItemSettings({
-            openAtLogin: settings.startWithWindows,
-            path: app.getPath('exe'),
-            args: (settings.startWithWindows && settings.startMinimized) ? ['--hidden'] : []
+            openAtLogin,
+            path: exePath,
+            args
         });
     }
 }
