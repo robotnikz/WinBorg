@@ -64,7 +64,8 @@ Writes are atomic (temp file + replace) and (best-effort) backed up to `.bak`. R
 ## Main user flows (summary)
 
 - **Onboarding:** renderer calls `system-check-wsl` and `system-check-borg`; if missing, guides user through `system-install-wsl`/`system-install-ubuntu`/`system-install-borg` and reboot.
-- **Repositories:** create/edit/delete; connect via local path or SSH; optionally install SSH keys / install Borg on remote.
+- **Repositories:** create/edit/delete; connect via SSH; can trigger remote Borg install checks/installation.
+- **Connections:** manage SSH hosts (server URL), SSH key generation, key deployment, and SSH connectivity tests.
 - **Backups (jobs):** schedule + “run now”; execution happens in main process via `borg-spawn`.
 - **Restore (archives & mounts):** list, diff, browse, extract; mount/unmount via `borg-mount` / `borg-unmount` with preflight checks.
 - **Notifications:** toast/email/discord (configured in settings, tested via IPC).

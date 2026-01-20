@@ -29,9 +29,8 @@ Steps:
 
 ### Repo lifecycle
 
-- Add local repo (no encryption) and verify no destructive delete on “Remove from app”.
-- Add SSH repo; verify host key behavior (strict vs disabled).
-- Generate/install SSH key; verify successful connection after.
+- For SSH repos: create at least one Connection; generate/deploy SSH key; verify **Test SSH** succeeds.
+- Add SSH repo by selecting the Connection + repo path; verify host key behavior (strict vs disabled) matches Settings.
 - Initialize encrypted repo; verify passphrase handling.
 
 ### Job run + notifications

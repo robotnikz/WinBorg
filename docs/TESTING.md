@@ -117,8 +117,9 @@ This test case is designed to verify the experience of a new user on a fresh Win
     
 4.  **Functional Test:**
     *   Open WinBorg.
-    *   Add a local folder as Repo (e.g., `C:\Backups`).
-    *   WinBorg converts this to `/mnt/c/Backups`.
+    *   Go to **Connections** → add a connection (e.g. `ssh://user@host:22`).
+    *   Generate/deploy SSH key if needed → **Test SSH** succeeds.
+    *   Go to **Repositories** → Add Repo → select the connection → set repo path (e.g. `/./backup`) → **Test Connection** → **Initialize**.
     *   **Pass:** Initialization succeeds.
 
 5.  **Backup Test:**
@@ -134,11 +135,10 @@ Execute these tests manually to certify a release.
 
 | ID | Test Scenario | Steps | Expected Result |
 | :--- | :--- | :--- | :--- |
-| **R1** | **Connect to Repo (Local)** | 1. Click `+` Add Repo.<br>2. Enter path: `C:\TestRepo`.<br>3. Select Encryption: `None`.<br>4. Click "Initialize". | Repository card appears via "Connecting...". Status changes to `Connected`. Statistics (Size/Count) are loaded. |
-| **R2** | **Connect to Repo (SSH)** | 1. Click `+` Add Repo.<br>2. Enter URL: `ssh://user@host:22/./backup`.<br>3. Enter Password if requested.<br>4. Click "Add". | App connects via SSH. If host key is unknown, it might prompt or auto-accept (depending on setting). Status becomes `Connected`. |
+| **R1** | **Connect to Repo (SSH via Connection)** | 1. Go to **Connections** → add a connection, e.g. `ssh://user@host:22`.<br>2. Generate key (if missing) and **Deploy Key** (password prompt may appear).<br>3. Click **Test SSH** and verify it succeeds.<br>4. Go to **Repositories** → click `+` Add Repo → select the connection → set repo path, e.g. `/./backup` → click "Test Connection" → "Connect" / "Initialize". | Connection test succeeds and repo becomes `Connected`. If host key is unknown, it follows the configured host-key policy (settings) and the UI provides remediation on failure. |
 | **R3** | **Edit Repository** | 1. Click "Edit" (Pencil) on a Repo Card.<br>2. Change Name to `My Renamed Repo`.<br>3. Save. | Repo Card title updates immediately to `My Renamed Repo`. Data persists after restart. |
 | **R4** | **Delete Repository** | 1. Click "Trash" icon on Repo Card.<br>2. Confirm "Remove from App". | Repo is removed from UI. **Important:** Actual files on disk must remain untouched. |
-| **R5** | **Destroy Repository** | 1. Click "Trash" icon.<br>2. Select "Delete files on disk".<br>3. Type "DELETE". | Repo is removed from UI AND the folder `C:\TestRepo` is gone (or empty). |
+| **R5** | **Destroy Repository** | 1. Click "Trash" icon.<br>2. Select "Delete files on disk".<br>3. Type "DELETE". | Repo is removed from UI AND the remote repository path is gone (or empty). |
 
 ### 4.2 Archive Operations
 
