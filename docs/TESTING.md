@@ -119,7 +119,7 @@ This test case is designed to verify the experience of a new user on a fresh Win
     *   Open WinBorg.
     *   Go to **Connections** → add a connection (e.g. `ssh://user@host:22`).
     *   Generate/deploy SSH key if needed → **Test SSH** succeeds.
-    *   Go to **Repositories** → Add Repo → select the connection → set repo path (e.g. `/./backup`) → **Test Connection** → **Initialize**.
+    *   Go to **Repositories** → Add Repo → select the connection → set repo path (e.g. `/./backup`) → **Test SSH & Remote Connection** → **Initialize**.
     *   **Pass:** Initialization succeeds.
 
 5.  **Backup Test:**
@@ -135,7 +135,7 @@ Execute these tests manually to certify a release.
 
 | ID | Test Scenario | Steps | Expected Result |
 | :--- | :--- | :--- | :--- |
-| **R1** | **Connect to Repo (SSH via Connection)** | 1. Go to **Connections** → add a connection, e.g. `ssh://user@host:22`.<br>2. Generate key (if missing) and **Deploy Key** (password prompt may appear).<br>3. Click **Test SSH** and verify it succeeds.<br>4. Go to **Repositories** → click `+` Add Repo → select the connection → set repo path, e.g. `/./backup` → click "Test Connection" → "Connect" / "Initialize". | Connection test succeeds and repo becomes `Connected`. If host key is unknown, it follows the configured host-key policy (settings) and the UI provides remediation on failure. |
+| **R1** | **Connect to Repo (SSH via Connection)** | 1. Go to **Connections** → add a connection, e.g. `ssh://user@host:22`.<br>2. Generate key (if missing) and **Deploy Key** (password prompt may appear).<br>3. Click **Test SSH** and verify it succeeds.<br>4. Go to **Repositories** → click `+` Add Repo → select the connection → set repo path, e.g. `/./backup` → click **Test SSH & Remote Connection** → "Connect" / "Initialize". | Connection test succeeds and repo becomes `Connected`. If host key is unknown, it follows the configured host-key policy (settings) and the UI provides remediation on failure. |
 | **R3** | **Edit Repository** | 1. Click "Edit" (Pencil) on a Repo Card.<br>2. Change Name to `My Renamed Repo`.<br>3. Save. | Repo Card title updates immediately to `My Renamed Repo`. Data persists after restart. |
 | **R4** | **Delete Repository** | 1. Click "Trash" icon on Repo Card.<br>2. Confirm "Remove from App". | Repo is removed from UI. **Important:** Actual files on disk must remain untouched. |
 | **R5** | **Destroy Repository** | 1. Click "Trash" icon.<br>2. Select "Delete files on disk".<br>3. Type "DELETE". | Repo is removed from UI AND the remote repository path is gone (or empty). |

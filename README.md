@@ -65,7 +65,7 @@ WinBorg Manager is a modern Windows 10/11 desktop app that brings **[BorgBackup]
   - Generate an SSH key if needed, then click **Deploy Key** and finally **Test SSH**.
 4. Add your repository:
   - Go to **Repositories** → **Add Repository**.
-  - Select an existing **Connection** and enter only the **repo path** (e.g. `/./backup`), then click **Test Connection** → **Connect** / **Initialize**.
+  - Select an existing **Connection** and enter only the **repo path** (e.g. `/./backup`), then click **Test SSH & Remote Connection** → **Connect** / **Initialize**.
 5. Create your first backup:
   - Go to **Jobs** → **Create Job** → pick source folders (Documents/Desktop/Pictures) → **Run**.
   - Verify you see a new archive under **Archives**.

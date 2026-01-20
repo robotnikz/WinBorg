@@ -15,7 +15,7 @@ A quick manual UI regression checklist (10–15 minutes).
 ## Repositories
 
 - Add repository modal opens.
-- “Test Connection” shows success/failure states (Local, or SSH via a selected Connection).
+- “Test SSH & Remote Connection” shows success/failure states (SSH via a selected Connection).
 - Connect/disconnect state updates in UI.
 
 ## Jobs
