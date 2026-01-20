@@ -56,20 +56,24 @@ WinBorg Manager is a modern Windows 10/11 desktop app that brings **[BorgBackup]
 
 ## 🚀 Quickstart (5 minutes)
 
-1. **Download the installer**: https://github.com/robotnikz/WinBorg/releases/latest
-2. Launch WinBorg → complete onboarding for **WSL2 + Ubuntu + BorgBackup**.
-  - WinBorg uses Borg *inside WSL*, but you manage everything from the Windows UI.
-3. Create your Connection (SSH):
-  - Go to **Connections** → **Add Connection**.
-  - Enter a server URL like `ssh://user@host:22` (some providers use non-standard ports).
-  - Generate an SSH key if needed, then click **Deploy Key** and finally **Test SSH**.
-4. Add your repository:
-  - Go to **Repositories** → **Add Repository**.
-  - Select an existing **Connection** and enter only the **repo path** (e.g. `/./backup`), then click **Test SSH & Remote Connection** → **Connect** / **Initialize**.
-5. Create your first backup:
-  - Go to **Jobs** → **Create Job** → pick source folders (Documents/Desktop/Pictures) → **Run**.
-  - Verify you see a new archive under **Archives**.
-6. Recommended (quick sanity check): do a small **test restore** (extract a file from an older archive).
+1. **Download & install**
+   - [Download the latest installer](https://github.com/robotnikz/WinBorg/releases/latest)
+2. **First launch / onboarding**
+   - Launch WinBorg and complete onboarding for **WSL2 + Ubuntu + BorgBackup**.
+   - Note: WinBorg runs Borg *inside WSL*, but you manage everything from the Windows UI.
+3. **Create your Connection (SSH)**
+   - Go to **Connections** → **Add Connection**.
+   - Enter a server URL (example: `ssh://user@host:22`; some providers use non-standard ports).
+   - Generate an SSH key if needed → **Deploy Key** → **Test SSH**.
+4. **Add your repository**
+   - Go to **Repositories** → **Add Repository**.
+   - Select an existing **Connection** and enter only the **repo path** (example: `/./backup`).
+   - Click **Test SSH & Remote Connection** → **Connect** / **Initialize**.
+5. **Create your first backup**
+   - Go to **Jobs** → **Create Job** → pick source folders (Documents/Desktop/Pictures) → **Run**.
+   - Verify you see a new archive under **Archives**.
+6. **Recommended (quick sanity check)**
+   - Do a small **test restore** (extract a file from an older archive).
 
 If anything gets stuck, see [docs/OPERATIONS.md](docs/OPERATIONS.md) and [docs/TESTING.md](docs/TESTING.md).
 
