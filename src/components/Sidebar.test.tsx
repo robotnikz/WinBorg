@@ -31,10 +31,12 @@ describe('Sidebar', () => {
 
     it('renders all nav items', () => {
         render(<Sidebar currentView={View.DASHBOARD} onChangeView={vi.fn()} />);
+        expect(screen.getByText('Core')).toBeInTheDocument();
         expect(screen.getByText('Dashboard')).toBeInTheDocument();
         expect(screen.getByText('Repositories')).toBeInTheDocument();
         expect(screen.getByText('Jobs')).toBeInTheDocument();
         expect(screen.getByText('Restore')).toBeInTheDocument();
+        expect(screen.getByText('System')).toBeInTheDocument();
         expect(screen.getByText('Activity')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
         expect(screen.getByTestId('app-logo')).toBeInTheDocument();

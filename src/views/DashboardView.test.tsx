@@ -1,8 +1,8 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import DashboardView from './DashboardView';
-import { Repository, MountPoint, ActivityLogEntry, BackupJob } from '../types';
+import { Repository, MountPoint, ActivityLogEntry, BackupJob, View } from '../types';
 
 // Mock Electron
 const mockIpcRenderer = {
@@ -105,6 +105,31 @@ describe('DashboardView', () => {
     // Since we can't easily mock Date directly without setup, we check for presence of Good Morning/Afternoon/Evening
     const greeting = screen.getByText(/Good (Morning|Afternoon|Evening)/);
     expect(greeting).toBeInTheDocument();
+  });
+
+  test('shows Quick Start and deep-links when no repos exist', () => {
+    render(
+      <DashboardView
+        repos={[]}
+        mounts={[]}
+        jobs={[]}
+        activityLogs={[]}
+        {...mockHandlers}
+      />
+    );
+
+    const quickStart = screen.getByTestId('dashboard-quick-start');
+    expect(within(quickStart).getByText('Quick Start')).toBeInTheDocument();
+
+    // Button clicks should navigate via onChangeView (scope to Quick Start card to avoid duplicates)
+    fireEvent.click(within(quickStart).getByText(/Add Connection/i));
+    expect(mockHandlers.onChangeView).toHaveBeenCalledWith(View.CONNECTIONS);
+
+    fireEvent.click(within(quickStart).getByText(/Add Repository/i));
+    expect(mockHandlers.onChangeView).toHaveBeenCalledWith(View.REPOSITORIES);
+
+    fireEvent.click(within(quickStart).getByText(/Create Job/i));
+    expect(mockHandlers.onChangeView).toHaveBeenCalledWith(View.JOBS);
   });
 
   test('displays activity log entries', () => {

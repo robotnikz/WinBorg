@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HardDrive, Server, Settings, LayoutDashboard, Activity, Github, Code2, ArrowUpCircle, Briefcase } from 'lucide-react';
+import { HardDrive, Server, Settings, LayoutDashboard, Activity, Github, Code2, ArrowUpCircle, Briefcase, Link2 } from 'lucide-react';
 import { View } from '../types';
 import { getShellOrNull } from '../services/electron';
 import AppLogo from './AppLogo';
@@ -26,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
   const navItems = [
     { view: View.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+    { view: View.CONNECTIONS, label: 'Connections', icon: Link2 },
     { view: View.REPOSITORIES, label: 'Repositories', icon: Server },
     { view: View.JOBS, label: 'Jobs', icon: Briefcase },
     { view: View.ARCHIVES, label: 'Restore', icon: HardDrive },
@@ -66,6 +67,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
       {/* NAV ITEMS */}
       <nav className="flex-1 space-y-1 px-3">
+        <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
+          Core
+        </div>
         {navItems.map((item) => (
           <button
             key={item.view}
@@ -84,6 +88,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
 
       {/* BOTTOM SECTION */}
       <div className="p-3">
+        <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
+          System
+        </div>
         {/* Secondary: Activity */}
         <button
           onClick={() => onChangeView(View.ACTIVITY)}

@@ -5,9 +5,18 @@ export enum View {
   JOBS = 'JOBS',
   MOUNTS = 'MOUNTS',
   ARCHIVES = 'ARCHIVES',
+  CONNECTIONS = 'CONNECTIONS',
   SETTINGS = 'SETTINGS',
   ACTIVITY = 'ACTIVITY',
   REPO_DETAILS = 'REPO_DETAILS'
+}
+
+export interface SshConnection {
+  id: string;
+  name: string;
+  serverUrl: string; // e.g. ssh://user@host:22
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ArchiveStats {
@@ -23,6 +32,7 @@ export interface Repository {
   id: string;
   name: string;
   url: string; // ssh://user@host:port/path
+  connectionId?: string; // Optional reference to a stored SSH connection
   lastBackup: string;
   encryption: 'repokey' | 'keyfile' | 'none';
   status: 'connected' | 'disconnected' | 'error' | 'connecting';

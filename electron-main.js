@@ -195,7 +195,11 @@ function safeSendToRenderer(channel, payload) {
 }
 
 async function wslWriteFile(wslBaseArgs, filePath, content, { timeoutMs = 30000, restrictPerms = true } = {}) {
-    const script = restrictPerms ? 'umask 077; cat > "$1"' : 'cat > "$1"';
+    // NOTE: filePath may contain '~' which is NOT expanded when used as a positional parameter.
+    // Expand it explicitly and ensure the parent directory exists.
+    const script = restrictPerms
+        ? 'umask 077; dest="$1"; if [[ "$dest" == ~* ]]; then dest="${dest/#~/$HOME}"; fi; mkdir -p "$(dirname "$dest")"; cat > "$dest"'
+        : 'dest="$1"; if [[ "$dest" == ~* ]]; then dest="${dest/#~/$HOME}"; fi; mkdir -p "$(dirname "$dest")"; cat > "$dest"';
     const res = await spawnCapture('wsl', [...wslBaseArgs, '--exec', 'bash', '-c', script, 'winborg', filePath], {
         timeoutMs,
         stdin: content
@@ -223,6 +227,7 @@ let dbCache = {
     jobs: [],
     archives: [],
     activityLogs: [],
+    connections: [],
     settings: {
         useWsl: true,
         borgPath: 'borg',
@@ -233,7 +238,9 @@ let dbCache = {
         limitBandwidth: false,
         bandwidthLimit: 1000,
         stopOnBattery: true,
-        stopOnLowSignal: false
+        stopOnLowSignal: false,
+        // UI prefs
+        hideConnectionCreatedModal: false
     }
 };
 
@@ -295,12 +302,129 @@ function normalizeDbCache(value) {
     base.jobs = Array.isArray(value.jobs) ? value.jobs : base.jobs;
     base.archives = Array.isArray(value.archives) ? value.archives : base.archives;
     base.activityLogs = Array.isArray(value.activityLogs) ? value.activityLogs : base.activityLogs;
+    base.connections = Array.isArray(value.connections) ? value.connections : base.connections;
 
     if (isPlainObject(value.settings)) {
         base.settings = { ...base.settings, ...value.settings };
     }
 
+    // --- MIGRATION (v1.?.?): derive connections from legacy repo URLs ---
+    // Older versions stored SSH host/user/port inside repo.url only.
+    // On upgrade we create a connections[] list and backfill repo.connectionId.
+    try {
+        migrateConnectionsFromRepos(base);
+    } catch (e) {
+        // Best-effort only; never block app startup.
+        console.warn('[DB] Connection migration failed:', e);
+    }
+
     return base;
+}
+
+function normalizeServerUrl(serverUrl) {
+    const s = String(serverUrl || '').trim();
+    if (!s) return '';
+    // Ensure it starts with ssh://
+    if (!/^ssh:\/\//i.test(s)) return s;
+    // Remove trailing slash
+    return s.endsWith('/') ? s.slice(0, -1) : s;
+}
+
+function parseServerUrlFromRepoUrl(repoUrl) {
+    const u = String(repoUrl || '').trim();
+    if (!u.toLowerCase().startsWith('ssh://')) return null;
+    const afterProto = u.substring('ssh://'.length);
+    const slashIndex = afterProto.indexOf('/');
+    if (slashIndex === -1) return normalizeServerUrl(u);
+    const hostPart = afterProto.substring(0, slashIndex);
+    return normalizeServerUrl(`ssh://${hostPart}`);
+}
+
+function fnv1a32(str) {
+    // Simple deterministic hash for stable IDs (non-crypto).
+    let h = 0x811c9dc5;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        // h *= 16777619 (with 32-bit overflow)
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h >>> 0;
+}
+
+function stableConnectionId(serverUrl) {
+    const norm = normalizeServerUrl(serverUrl);
+    const hash = fnv1a32(norm).toString(16).padStart(8, '0');
+    return `conn_${hash}`;
+}
+
+function guessConnectionName(serverUrl) {
+    const s = normalizeServerUrl(serverUrl);
+    if (!s.toLowerCase().startsWith('ssh://')) return s || 'SSH Connection';
+    // Prefer user@host:port for uniqueness
+    return s.replace(/^ssh:\/\//i, '');
+}
+
+function migrateConnectionsFromRepos(db) {
+    if (!db || !Array.isArray(db.repos)) return;
+    if (!Array.isArray(db.connections)) db.connections = [];
+
+    const existing = new Map();
+    for (const c of db.connections) {
+        const serverUrl = normalizeServerUrl(c?.serverUrl);
+        if (serverUrl) existing.set(serverUrl, c);
+    }
+
+    let changed = false;
+
+    for (const repo of db.repos) {
+        if (!repo || typeof repo !== 'object') continue;
+        if (repo.connectionId) continue;
+        const serverUrl = parseServerUrlFromRepoUrl(repo.url);
+        if (!serverUrl) continue;
+
+        let conn = existing.get(serverUrl);
+        if (!conn) {
+            const now = new Date().toISOString();
+            conn = {
+                id: stableConnectionId(serverUrl),
+                name: guessConnectionName(serverUrl),
+                serverUrl,
+                createdAt: now,
+                updatedAt: now,
+            };
+            db.connections.push(conn);
+            existing.set(serverUrl, conn);
+            changed = true;
+        }
+
+        repo.connectionId = conn.id;
+        changed = true;
+    }
+
+    // De-duplicate connections by serverUrl (if a user imported/merged data)
+    if (db.connections.length > 1) {
+        const seen = new Set();
+        const deduped = [];
+        for (const c of db.connections) {
+            const serverUrl = normalizeServerUrl(c?.serverUrl);
+            if (!serverUrl) continue;
+            if (seen.has(serverUrl)) {
+                changed = true;
+                continue;
+            }
+            seen.add(serverUrl);
+            deduped.push({
+                ...c,
+                id: typeof c.id === 'string' && c.id ? c.id : stableConnectionId(serverUrl),
+                name: typeof c.name === 'string' && c.name ? c.name : guessConnectionName(serverUrl),
+                serverUrl,
+            });
+        }
+        db.connections = deduped;
+    }
+
+    return changed;
 }
 
 // --- LOAD DATA ON STARTUP ---
@@ -1025,8 +1149,12 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !closeT
 ipcMain.handle('get-db', () => dbCache);
 
 ipcMain.handle('save-db', (event, partialData) => {
-    // Merge new data into cache
-    dbCache = { ...dbCache, ...partialData };
+    // Merge new data into cache (shallow) + deep merge settings to avoid dropping unknown keys.
+    const next = { ...dbCache, ...(partialData || {}) };
+    if (partialData && typeof partialData === 'object' && partialData.settings && typeof partialData.settings === 'object') {
+        next.settings = { ...(dbCache.settings || {}), ...partialData.settings };
+    }
+    dbCache = next;
     
     // Sync critical variables for main process usage
     if (partialData.settings) {
@@ -1120,13 +1248,14 @@ ipcMain.handle('import-app-data', async (event, { includeSecrets } = { includeSe
         scheduleStrict: false
     };
 
-    dbCache = {
+    dbCache = normalizeDbCache({
         ...dbCache,
         ...importedDb,
         repos: Array.isArray(importedDb.repos) ? importedDb.repos : [],
         jobs: Array.isArray(importedDb.jobs) ? importedDb.jobs : [],
+        connections: Array.isArray(importedDb.connections) ? importedDb.connections : [],
         settings: { ...fallbackSettings, ...(importedDb.settings || {}) }
-    };
+    });
 
     notificationConfig = { ...notificationConfig, ...importedNotifications };
 
@@ -1531,7 +1660,7 @@ ipcMain.handle('system-check-borg', systemHandlers.checkBorg);
 ipcMain.handle('system-install-borg', systemHandlers.installBorg);
 ipcMain.handle('system-fix-wsl-fuse', systemHandlers.fixWslFuse);
 
-ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
+ipcMain.handle('ssh-key-manage', async (event, { action, type, privateKey, publicKey }) => {
     // type default = 'ed25519' (could be rsa)
     const keyType = type || 'ed25519'; 
     const keyFile = `~/.ssh/id_${keyType}`;
@@ -1554,6 +1683,37 @@ ipcMain.handle('ssh-key-manage', async (event, { action, type }) => {
                 exists: (res.stdout || '').trim().includes('exists'), 
                 path: keyFilePub 
             };
+        }
+
+        if (action === 'import') {
+            const priv = typeof privateKey === 'string' ? privateKey : '';
+            const pub = typeof publicKey === 'string' ? publicKey : '';
+
+            if (!priv.trim()) {
+                return { success: false, error: 'Private key is required.' };
+            }
+
+            // Ensure ~/.ssh exists and is locked down
+            await runWsl('mkdir -p ~/.ssh && chmod 700 ~/.ssh');
+
+            // Write private key with restrictive perms (umask 077)
+            await wslWriteFile(wslBaseArgs, keyFile, priv.replace(/\r\n/g, '\n'));
+
+            if (pub.trim()) {
+                // Public key is not sensitive, but we still keep perms reasonably strict.
+                await wslWriteFile(wslBaseArgs, keyFilePub, pub.replace(/\r\n/g, '\n'), { restrictPerms: false });
+            } else {
+                // Derive public key from private key.
+                const res = await runWsl(`ssh-keygen -y -f ${keyFile} > ${keyFilePub}`);
+                if (res.code !== 0) {
+                    return { success: false, error: (res.stderr || res.stdout || '').toString() || 'Failed to derive public key.' };
+                }
+            }
+
+            // Normalize permissions
+            await runWsl(`chmod 600 ${keyFile} || true; chmod 644 ${keyFilePub} || true`);
+
+            return { success: true };
         }
         
         if (action === 'generate') {

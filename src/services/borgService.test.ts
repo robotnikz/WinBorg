@@ -306,6 +306,21 @@ describe('borgService', () => {
             expect(res).toEqual({ success: true, exists: false });
         });
 
+        it('manageSSHKey(import) forwards private/public key payload', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const res = await borgService.manageSSHKey('import', 'ed25519', {
+                privateKey: '-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----',
+                publicKey: 'ssh-ed25519 AAAA test@winborg'
+            });
+            expect(mockInvoke).toHaveBeenCalledWith('ssh-key-manage', {
+                action: 'import',
+                type: 'ed25519',
+                privateKey: '-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----',
+                publicKey: 'ssh-ed25519 AAAA test@winborg'
+            });
+            expect(res).toEqual({ success: true });
+        });
+
         it('installSSHKey calls ssh-key-install with correct args', async () => {
             mockInvoke.mockResolvedValue({ success: true });
             const res = await borgService.installSSHKey('user@host', 'pw', '23');
@@ -439,10 +454,10 @@ describe('borgService', () => {
             spy.mockRestore();
         });
 
-        it('returns true without spawning when URL is not ssh', async () => {
+        it('returns false without spawning when URL is not ssh', async () => {
             const spy = vi.spyOn(borgService, 'runCommand').mockResolvedValue(true);
             const res = await borgService.testConnection('C:\\Backups\\repo', vi.fn());
-            expect(res).toBe(true);
+            expect(res).toBe(false);
             expect(spy).not.toHaveBeenCalled();
             spy.mockRestore();
         });
