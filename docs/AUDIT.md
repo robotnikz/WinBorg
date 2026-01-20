@@ -15,7 +15,7 @@ WinBorg is an Electron app that orchestrates backups via WSL2 + Borg.
 ### High-risk inputs
 
 - SSH targets/URLs and custom ports
-- Local paths and mount points
+- Local mount points / destination paths
 - Passphrases / passwords
 - Environment variables passed into WSL/Borg (`WSLENV`, `BORG_RSH`, etc.)
 

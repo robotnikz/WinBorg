@@ -42,7 +42,7 @@ test.describe('Repositories flow', () => {
 
     await page.getByPlaceholder('e.g. Work Backups').fill('My Repo');
     await page.getByPlaceholder('ssh://user@example.com:22').fill('ssh://user@example.com:22');
-    await page.getByPlaceholder(/my-backups/i).fill('/./repo');
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
 
     // Required by modal validation unless encryption is set to "none".
     await page
@@ -70,6 +70,32 @@ test.describe('Repositories flow', () => {
     await expect(repoCard.getByText('Online')).toBeVisible();
   });
 
+  test('rejects non-SSH repository URLs (SSH-only)', async () => {
+    await addMockElectronInitScript(page.context(), {
+      initialDb: baseDb,
+      system: baseSystem,
+    });
+    await page.reload();
+
+    await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
+
+    await page.getByRole('button', { name: 'Add Repository' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Repository' })).toBeVisible();
+
+    await page.getByPlaceholder('e.g. Work Backups').fill('Bad Repo');
+    await page.getByPlaceholder('ssh://user@example.com:22').fill('C:\\Backups');
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
+
+    // Hint should indicate SSH-only.
+    await expect(page.getByText(/SSH-only: please enter a valid ssh:\/\//i)).toBeVisible();
+
+    // No test button if URL is not ssh://
+    await expect(page.getByRole('button', { name: 'Test SSH & Remote Connection' })).toHaveCount(0);
+
+    // Connect should remain disabled
+    await expect(page.getByRole('button', { name: 'Connect', exact: true })).toBeDisabled();
+  });
+
   test('ssh test connection failure shows actionable error', async () => {
     await addMockElectronInitScript(page.context(), {
       initialDb: baseDb,
@@ -85,7 +111,7 @@ test.describe('Repositories flow', () => {
 
     await page.getByPlaceholder('e.g. Work Backups').fill('My Repo');
     await page.getByPlaceholder('ssh://user@example.com:22').fill('ssh://user@example.com:22');
-    await page.getByPlaceholder(/my-backups/i).fill('/./repo');
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
 
     await page
       .locator('label', { hasText: 'Passphrase' })
@@ -95,10 +121,10 @@ test.describe('Repositories flow', () => {
 
     await page.getByRole('button', { name: 'Test SSH & Remote Connection' }).click();
     await expect(page.getByText('Connection Failed', { exact: true })).toBeVisible();
-    await expect(page.getByText(/SSH Connection Failed/i)).toBeVisible();
+    await expect(page.getByText(/Deploy your SSH key via the Connections menu/i)).toBeVisible();
   });
 
-  test('ssh failure can be fixed via Install SSH Key flow', async () => {
+  test('ssh failure can be fixed via Connections -> Deploy Key flow', async () => {
     await addMockElectronInitScript(page.context(), {
       initialDb: baseDb,
       system: baseSystem,
@@ -106,14 +132,33 @@ test.describe('Repositories flow', () => {
     });
     await page.reload();
 
+    // First, create a connection and deploy the SSH key via Connections.
+    await page.locator('nav').getByRole('button', { name: 'Connections', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Connections', exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Add Connection' }).click();
+    await page.getByPlaceholder('e.g. Hetzner StorageBox').fill('Test Server');
+    await page.getByPlaceholder('ssh://user@host:22').fill('ssh://user@example.com:22');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+    const postCreateDialog = page.getByRole('dialog', { name: 'Connection created' });
+    await expect(postCreateDialog).toBeVisible();
+    await expect(postCreateDialog.getByText('Test Server', { exact: true })).toBeVisible();
+    await postCreateDialog.getByRole('button', { name: 'Deploy Key', exact: true }).click();
+    const deployDialog = page.getByRole('dialog', { name: 'Deploy SSH Key' });
+    await expect(deployDialog.getByRole('heading', { name: 'Deploy SSH Key' })).toBeVisible();
+    await deployDialog.getByPlaceholder('Server Password').fill('pw');
+    await deployDialog.getByRole('button', { name: 'Deploy Key', exact: true }).click();
+    await expect(deployDialog.getByRole('heading', { name: 'Deploy SSH Key' })).toBeHidden();
+
     await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
 
     await page.getByRole('button', { name: 'Add Repository' }).click();
     await expect(page.getByRole('heading', { name: 'Add Repository' })).toBeVisible();
 
     await page.getByPlaceholder('e.g. Work Backups').fill('My Repo');
-    await page.getByPlaceholder('ssh://user@example.com:22').fill('ssh://user@example.com:22');
-    await page.getByPlaceholder(/my-backups/i).fill('/./repo');
+    // With a saved connection, the modal defaults to selecting it.
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
 
     await page
       .locator('label', { hasText: 'Passphrase' })
@@ -122,16 +167,6 @@ test.describe('Repositories flow', () => {
       .fill('correct horse battery staple');
 
     await page.getByRole('button', { name: 'Test SSH & Remote Connection' }).click();
-    await expect(page.getByText('Connection Failed', { exact: true })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Install SSH Key', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Install SSH Key' })).toBeVisible();
-    await page.getByPlaceholder('Server Password').fill('pw');
-    await page.getByRole('button', { name: 'Install Key', exact: true }).click();
-
-    await expect(page.getByRole('heading', { name: 'Install SSH Key' })).toBeHidden();
-
-    // handleInstallKey triggers an automatic re-test.
     await expect(page.getByText('Connection successful')).toBeVisible();
   });
 
@@ -150,7 +185,7 @@ test.describe('Repositories flow', () => {
 
     await page.getByPlaceholder('e.g. Work Backups').fill('My Repo');
     await page.getByPlaceholder('ssh://user@example.com:22').fill('ssh://user@example.com:22');
-    await page.getByPlaceholder(/my-backups/i).fill('/./repo');
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
 
     await page
       .locator('label', { hasText: 'Passphrase' })
@@ -178,7 +213,7 @@ test.describe('Repositories flow', () => {
 
     await page.getByPlaceholder('e.g. Work Backups').fill('My Repo');
     await page.getByPlaceholder('ssh://user@example.com:22').fill('ssh://user@example.com:22');
-    await page.getByPlaceholder(/my-backups/i).fill('/./repo');
+    await page.getByPlaceholder('e.g. /home/user/backups/repo1').fill('/./repo');
 
     await page
       .locator('label', { hasText: 'Passphrase' })

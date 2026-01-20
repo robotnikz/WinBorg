@@ -57,10 +57,19 @@ WinBorg Manager is a modern Windows 10/11 desktop app that brings **[BorgBackup]
 ## 🚀 Quickstart (5 minutes)
 
 1. **Download the installer**: https://github.com/robotnikz/WinBorg/releases/latest
-2. Launch WinBorg → follow onboarding for **WSL2 + Ubuntu + BorgBackup**.
-3. **Add a repository** (e.g. BorgBase / Hetzner StorageBox / NAS via SSH).
-4. **Create a job** (e.g. Documents/Desktop/Pictures) → **Run**.
-5. Recommended: do a **test restore** (extract a file from an older archive).
+2. Launch WinBorg → complete onboarding for **WSL2 + Ubuntu + BorgBackup**.
+  - WinBorg uses Borg *inside WSL*, but you manage everything from the Windows UI.
+3. Create your Connection (SSH):
+  - Go to **Connections** → **Add Connection**.
+  - Enter a server URL like `ssh://user@host:22` (some providers use non-standard ports).
+  - Generate an SSH key if needed, then click **Deploy Key** and finally **Test SSH**.
+4. Add your repository:
+  - Go to **Repositories** → **Add Repository**.
+  - Select an existing **Connection** and enter only the **repo path** (e.g. `/./backup`), then click **Test SSH & Remote Connection** → **Connect** / **Initialize**.
+5. Create your first backup:
+  - Go to **Jobs** → **Create Job** → pick source folders (Documents/Desktop/Pictures) → **Run**.
+  - Verify you see a new archive under **Archives**.
+6. Recommended (quick sanity check): do a small **test restore** (extract a file from an older archive).
 
 If anything gets stuck, see [docs/OPERATIONS.md](docs/OPERATIONS.md) and [docs/TESTING.md](docs/TESTING.md).
 
@@ -124,7 +133,7 @@ This means:
 
 ### Setup & Security
 - Guided system checks and installation for **WSL2**, **Ubuntu**, **BorgBackup**
-- SSH key management: generate keys, deploy keys, test connectivity
+- SSH key management (Connections): generate keys, deploy keys per connection, test connectivity
 - Optional provisioning: install Borg on a remote Debian/Ubuntu server
 - **Key export / recovery** for Borg repositories
 
@@ -172,7 +181,7 @@ This means:
 - **WSL setup required / install fails**: ensure virtualization (VT-x/AMD-V) is enabled; reboot after `wsl --install`.
 - **Ubuntu asks for username/password**: expected; complete Ubuntu first-run setup.
 - **BorgBackup not found**: use WinBorg auto-install or run `sudo apt update && sudo apt install -y borgbackup` in Ubuntu.
-- **SSH permission denied (publickey)**: use WinBorg’s “Install SSH Key”; verify host/user/port (Hetzner StorageBox often uses port 23).
+- **SSH permission denied (publickey)**: go to **Connections** → **Deploy Key**; verify host/user/port (Hetzner StorageBox often uses port 23).
 - **Mounts fail**: FUSE preflight runs; if `/dev/fuse` is missing, update WSL and reboot/shutdown; see [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---

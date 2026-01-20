@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { BackupJob, Repository, View } from '../types';
 import Button from '../components/Button';
@@ -15,6 +15,9 @@ interface JobsViewProps {
   onUpdateJob: (job: BackupJob) => void;
   onDeleteJob: (jobId: string) => void;
   onRunJob: (jobId: string) => void;
+
+  openJobsRepoId?: string | null;
+  onOpenJobsConsumed?: () => void;
 }
 
 const JobsView: React.FC<JobsViewProps> = ({
@@ -25,6 +28,8 @@ const JobsView: React.FC<JobsViewProps> = ({
   onUpdateJob,
   onDeleteJob,
   onRunJob,
+  openJobsRepoId,
+  onOpenJobsConsumed,
 }) => {
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
 
@@ -48,6 +53,16 @@ const JobsView: React.FC<JobsViewProps> = ({
         return a.repo.name.localeCompare(b.repo.name);
       });
   }, [repos, jobs]);
+
+  useEffect(() => {
+    if (!openJobsRepoId) return;
+
+    const repo = repos.find((r) => r.id === openJobsRepoId) ?? null;
+    if (!repo) return;
+
+    setJobsRepo(repo);
+    onOpenJobsConsumed?.();
+  }, [openJobsRepoId, onOpenJobsConsumed, repos]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">

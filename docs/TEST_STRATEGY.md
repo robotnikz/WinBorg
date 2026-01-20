@@ -153,7 +153,7 @@ High-risk areas → primary test types:
 These are the “must not break” workflows. The goal is to keep them protected primarily by deterministic unit/regression + App-seam integration tests, and only a small smoke layer in Playwright.
 
 - Add repository + connect (happy path)
-  - `src/views/RepositoriesView.test.tsx` (modal validation + “Test Connection” → “Connect”)
+  - `src/views/RepositoriesView.test.tsx` (modal validation + “Test SSH & Remote Connection” → “Connect”)
   - `src/App.connect.integration.test.tsx` (App handler parses `borg list --json`, marks repo Online, populates archives)
 - Repo actions wiring (UI → handler)
   - `src/components/RepoCard.test.tsx` (Unlock/Edit/Jobs/One-off backup callbacks)

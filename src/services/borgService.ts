@@ -132,9 +132,13 @@ export interface FileEntry {
 export const borgService = {
 
   // --- SSH KEY MANAGEMENT ---
-  manageSSHKey: async (action: 'check' | 'generate' | 'read', type: 'ed25519' | 'rsa' = 'ed25519'): Promise<{success: boolean, exists?: boolean, key?: string, path?: string, error?: string}> => {
-      return getIpc().invoke('ssh-key-manage', { action, type });
-  },
+    manageSSHKey: async (
+            action: 'check' | 'generate' | 'read' | 'import',
+            type: 'ed25519' | 'rsa' = 'ed25519',
+            payload?: { privateKey: string; publicKey?: string }
+    ): Promise<{success: boolean, exists?: boolean, key?: string, path?: string, error?: string}> => {
+            return getIpc().invoke('ssh-key-manage', { action, type, ...(payload || {}) });
+    },
 
   installSSHKey: async (target: string, password: string, port?: string): Promise<{success: boolean, error?: string}> => {
       return getIpc().invoke('ssh-key-install', { target, password, port });
@@ -303,9 +307,8 @@ export const borgService = {
           ];
           return await borgService.runCommand(sshArgs, onLog, { forceBinary: 'ssh' });
       } else {
-          // Local path check
-          onLog(`Checking local path: ${parsed.path}`);
-          return true; // Trivial for local
+          onLog('Only SSH repositories are supported. Please use an ssh:// URL.\n');
+          return false;
       }
   },
 
@@ -494,7 +497,7 @@ export const borgService = {
       let success = false;
       const noOpLog = () => {};
 
-      if (parsed.isSsh) {
+    if (parsed.isSsh) {
            const userHost = `${parsed.user ? parsed.user + '@' : ''}${parsed.host}`;
            const customBinary = overrides?.remotePath && overrides.remotePath !== 'borg' ? overrides.remotePath : 'borg';
            // If remote path is custom, we might assume the connection is set up to use it? 
@@ -514,12 +517,8 @@ export const borgService = {
            ];
            success = await borgService.runCommand(args, noOpLog, { forceBinary: 'ssh', commandId: `lock-check-${Date.now()}` });
       } else {
-           if (config.useWsl) {
-               success = await borgService.runCommand([testCmd], noOpLog, { forceBinary: 'wsl', commandId: `lock-check-${Date.now()}` });
-           } else {
-               const psCmd = `Test-Path "${lockFile}"`;
-               success = await borgService.runCommand(['-Command', psCmd], noOpLog, { forceBinary: 'powershell', commandId: `lock-check-${Date.now()}` });
-           }
+           // SSH-only repositories
+           return false;
       }
       return success;
   },
@@ -549,17 +548,8 @@ export const borgService = {
           ];
           return await borgService.runCommand(args, onLog, { ...overrides, forceBinary: 'ssh' });
       } else {
-          const basePath = parsed.path!;
-          const rosterPath = `${basePath}/lock.roster`;
-          const exclusivePath = `${basePath}/lock.exclusive`;
-          onLog(`Deleting local lock files in: ${basePath}`);
-          
-          if (config.useWsl) {
-               return await borgService.runCommand(['-rf', rosterPath, exclusivePath], onLog, { ...overrides, forceBinary: 'rm' });
-          } else {
-              onLog("Manual local deletion on Native Windows not fully supported via UI.");
-              return false;
-          }
+          onLog('Only SSH repositories are supported.\n');
+          return false;
       }
   },
 

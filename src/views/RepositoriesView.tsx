@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Repository, BackupJob } from '../types';
+import { Repository, BackupJob, SshConnection } from '../types';
 import RepoCard from '../components/RepoCard';
 import MaintenanceModal from '../components/MaintenanceModal';
 import KeyExportModal from '../components/KeyExportModal';
@@ -8,15 +8,17 @@ import DeleteRepoModal from '../components/DeleteRepoModal';
 import CreateBackupModal from '../components/CreateBackupModal';
 import JobsModal from '../components/JobsModal';
 import Button from '../components/Button';
-import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, Key, Copy, RefreshCw, Server, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck, Copy } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
 
 interface RepositoriesViewProps {
   repos: Repository[];
   jobs: BackupJob[];
-  onAddRepo: (repoData: { name: string; url: string; encryption: 'repokey' | 'keyfile' | 'none', passphrase?: string, trustHost?: boolean, remotePath?: string }) => void;
-  onEditRepo: (id: string, repoData: { name: string; url: string; encryption: 'repokey' | 'keyfile' | 'none', passphrase?: string, trustHost?: boolean, remotePath?: string }) => void;
+    connections: SshConnection[];
+    onOpenConnections?: () => void;
+    onAddRepo: (repoData: { name: string; url: string; encryption: 'repokey' | 'keyfile' | 'none', passphrase?: string, trustHost?: boolean, remotePath?: string, connectionId?: string }) => void;
+    onEditRepo: (id: string, repoData: { name: string; url: string; encryption: 'repokey' | 'keyfile' | 'none', passphrase?: string, trustHost?: boolean, remotePath?: string, connectionId?: string }) => void;
   onConnect: (repo: Repository) => void;
   onMount: (repo: Repository) => void;
   onCheck: (repo: Repository) => void;
@@ -39,7 +41,7 @@ interface RepositoriesViewProps {
 }
 
 const RepositoriesView: React.FC<RepositoriesViewProps> = ({ 
-    repos, jobs, onAddRepo, onEditRepo, onConnect, onMount, onCheck, onDelete, onBreakLock,
+    repos, jobs, connections, onOpenConnections, onAddRepo, onEditRepo, onConnect, onMount, onCheck, onDelete, onBreakLock,
                 onAddJob, onUpdateJob, onDeleteJob, onRunJob, onBackupStarted, onBackupFinished, onBackupCancelled,
                 openJobsRepoId, onOpenJobsConsumed
 }) => {
@@ -59,48 +61,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testLog, setTestLog] = useState('');
 
-  // SSH STATE
-  const [sshShowDetails, setSshShowDetails] = useState(false);
-  const [sshKeyStatus, setSshKeyStatus] = useState<'loading' | 'found' | 'missing' | null>(null);
-  const [sshPublicKey, setSshPublicKey] = useState<string | null>(null);
-  const [isSshAction, setIsSshAction] = useState(false);
-
-  const handleCheckKey = async () => {
-    setSshKeyStatus('loading');
-    try {
-        const res = await borgService.manageSSHKey('check');
-        if (res.exists) {
-            setSshKeyStatus('found');
-            const keyRes = await borgService.manageSSHKey('read');
-            if (keyRes.success) setSshPublicKey(keyRes.key || '');
-        } else {
-            setSshKeyStatus('missing');
-            setSshPublicKey(null);
-        }
-    } catch (e) {
-        console.error(e);
-        setSshKeyStatus('missing');
-    }
-  };
-
-  const handleGenerateKey = async () => {
-    if (!confirm("This will overwrite any existing 'id_ed25519' key in your WSL distribution. Continue?")) return;
-    setIsSshAction(true);
-    try {
-        const res = await borgService.manageSSHKey('generate');
-        if (res.success) {
-            await handleCheckKey();
-        }
-    } finally {
-        setIsSshAction(false);
-    }
-  };
-
-  useEffect(() => {
-    if (sshShowDetails && sshKeyStatus === null) {
-        handleCheckKey();
-    }
-  }, [sshShowDetails]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
 
   // Modals
   const [maintenanceRepo, setMaintenanceRepo] = useState<Repository | null>(null);
@@ -126,12 +87,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   // Terminal/Log Feedback
   const [localLogData, setLocalLogData] = useState<{title: string, logs: string[]} | null>(null);
 
-  // SSH Install Modal State
-  const [installKeyTarget, setInstallKeyTarget] = useState<string | null>(null);
-  const [installKeyPort, setInstallKeyPort] = useState<string | null>(null);
-  const [installKeyPassword, setInstallKeyPassword] = useState('');
-  const [isInstallingKey, setIsInstallingKey] = useState(false);
-
   // Borg Install Modal State
   const [installBorgTarget, setInstallBorgTarget] = useState<string | null>(null);
   const [installBorgPort, setInstallBorgPort] = useState<string | null>(null);
@@ -145,7 +100,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   const [showPassphrase, setShowPassphrase] = useState(false);
 
     useEffect(() => {
-        const anyOverlayOpen = !!localLogData || !!installKeyTarget || !!installBorgTarget || isModalOpen;
+        const anyOverlayOpen = !!localLogData || !!installBorgTarget || isModalOpen;
         if (!anyOverlayOpen) return;
 
         const onKeyDown = (e: KeyboardEvent) => {
@@ -153,11 +108,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
             if (localLogData) {
                 setLocalLogData(null);
-                return;
-            }
-
-            if (installKeyTarget) {
-                if (!isInstallingKey) setInstallKeyTarget(null);
                 return;
             }
 
@@ -173,7 +123,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [localLogData, installKeyTarget, isInstallingKey, installBorgTarget, isInstallingBorg, isModalOpen, isInitializing]);
+    }, [localLogData, installBorgTarget, isInstallingBorg, isModalOpen, isInitializing]);
 
   // Helper to parse target
   const parseTargetFromUrl = (urlToParse?: string) => {
@@ -231,38 +181,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
     }
   };
 
-  const handleInstallKey = async () => {
-    if (!installKeyTarget || !installKeyPassword) return;
-    setIsInstallingKey(true);
-    const toastId = toast.show("Deploying SSH key...", 'loading', 0);
-    
-    try {
-        const res = await borgService.installSSHKey(installKeyTarget, installKeyPassword, installKeyPort || undefined);
-        toast.dismiss(toastId);
-        
-        if (res.success) {
-            toast.show("SSH Key deployed successfully!", 'success');
-            setInstallKeyTarget(null);
-            setInstallKeyPort(null);
-            setInstallKeyPassword('');
-            
-            // AUTOMATICALLY RE-TEST POOLING
-            // Now that keys are present, we immediately check if Borg is installed.
-            // This provides a seamless flow: Key Install -> (Auto Check) -> Borg Install (if needed) or Success
-            handleTestConnection();
-            
-        } else {
-            toast.show("Failed to deploy key", 'error');
-            alert("Error deploying key:\n" + res.error);
-        }
-    } catch (err: any) {
-        toast.dismiss(toastId);
-        toast.show("Error: " + err.message, 'error');
-    } finally {
-        setIsInstallingKey(false);
-    }
-  };
-  
   const [repoForm, setRepoForm] = useState<{
     name: string;
     url: string;
@@ -288,6 +206,12 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       let server = serverSource;
       while (server.endsWith('/')) {
           server = server.slice(0, -1);
+      }
+
+      // SSH-only: without a server URL we do not build a URL from path alone.
+      // (Previously this enabled local repository paths.)
+      if (!String(server || '').trim()) {
+          return '';
       }
 
       // Normalize path slashes
@@ -324,7 +248,20 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   };
 
   const handleOpenAdd = () => {
-      setRepoForm({ name: '', url: '', serverUrl: '', repoPath: '', encryption: 'repokey', passphrase: '', trustHost: false, remoteBinaryPath: undefined });
+      const first = (connections || [])[0];
+      const initialServerUrl = first?.serverUrl || '';
+
+      setSelectedConnectionId(first?.id || '');
+      setRepoForm({
+          name: '',
+          url: initialServerUrl ? updateUrlFromParts(initialServerUrl, '') : '',
+          serverUrl: initialServerUrl,
+          repoPath: '',
+          encryption: 'repokey',
+          passphrase: '',
+          trustHost: false,
+          remoteBinaryPath: undefined
+      });
       setConfirmPassphrase('');
       setEditingRepoId(null);
       setAddMode('connect');
@@ -336,6 +273,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   };
 
   const handleOpenEdit = (repo: Repository) => {
+      setInitError(null);
       // Parse URL
       let sUrl = '';
       let rPath = '';
@@ -349,8 +287,8 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
               sUrl = repo.url;
           }
       } else {
-          // Fallback for non-ssh or local
-          rPath = repo.url;
+          // SSH-only: legacy/non-ssh repos are no longer supported.
+          setInitError('This repository is not an SSH repo. Local repos are no longer supported; please edit it to an ssh:// URL (or recreate it).');
       }
 
       setRepoForm({
@@ -363,6 +301,15 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
           trustHost: repo.trustHost || false,
           remoteBinaryPath: repo.remotePath
       });
+
+      // Prefer persisted connectionId; otherwise match by serverUrl
+      if (repo.connectionId) {
+          setSelectedConnectionId(repo.connectionId);
+      } else {
+          const match = (connections || []).find(c => normalizeServerUrl(c.serverUrl) === normalizeServerUrl(sUrl));
+          setSelectedConnectionId(match?.id || '');
+      }
+
       setConfirmPassphrase('');
       setEditingRepoId(repo.id);
       setAddMode('connect'); 
@@ -371,12 +318,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       setTestLog('');
   };  
 
-  // Force check on open
-  useEffect(() => {
-    if (isModalOpen) {
-        handleCheckKey();
-    }
-  }, [isModalOpen]);
+  function normalizeServerUrl(serverUrl: string) {
+      const s = String(serverUrl || '').trim();
+      if (!s) return '';
+      return s.endsWith('/') ? s.slice(0, -1) : s;
+  }
 
   const handleTestConnection = async () => {
       setIsTesting(true);
@@ -432,14 +378,9 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
          setIsTesting(false);
          
       } else {
-        const success = await borgService.testConnection(
-            repoForm.url,
-            (log) => setTestLog(prev => prev + log),
-            { disableHostCheck: repoForm.trustHost }
-        );
-        
-        setTestResult(success ? 'success' : 'error');
-        setIsTesting(false);
+                setTestLog(prev => prev + "❌ Only SSH repositories are supported. Please use an ssh:// URL.\n");
+                setTestResult('error');
+                setIsTesting(false);
       }
   };
   
@@ -479,11 +420,17 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       }
       
       const combined = updateUrlFromParts(serverUrl, repoPath);
+      setSelectedConnectionId('');
       setRepoForm(prev => ({ ...prev, name, url: combined, serverUrl, repoPath, trustHost: true }));
   };
 
   const handleSave = async () => {
     if (!repoForm.name || !repoForm.url) return;
+
+        if (!repoForm.url.startsWith('ssh://')) {
+                setInitError('Only SSH repositories are supported. Please use an ssh:// URL.');
+                return;
+        }
     
     if (addMode === 'init' && repoForm.encryption !== 'none') {
         if (repoForm.passphrase !== confirmPassphrase) {
@@ -500,6 +447,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         onEditRepo(editingRepoId, {
             ...repoForm,
             remotePath: repoForm.remoteBinaryPath,
+            connectionId: selectedConnectionId || undefined,
             passphrase: undefined 
         });
         if (repoForm.passphrase) {
@@ -515,7 +463,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         }
 
         if (addMode === 'connect') {
-            onAddRepo({ ...repoForm, id: newId, remotePath: repoForm.remoteBinaryPath } as any);
+            onAddRepo({ ...repoForm, id: newId, remotePath: repoForm.remoteBinaryPath, connectionId: selectedConnectionId || undefined } as any);
             setIsModalOpen(false);
         } else {
             setIsInitializing(true);
@@ -532,7 +480,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             setIsInitializing(false);
 
             if (success) {
-                onAddRepo({ ...repoForm, id: newId, remotePath: repoForm.remoteBinaryPath || detectedRemotePath } as any);
+                onAddRepo({ ...repoForm, id: newId, remotePath: repoForm.remoteBinaryPath || detectedRemotePath, connectionId: selectedConnectionId || undefined } as any);
                 setIsModalOpen(false);
             } else {
                 await borgService.deletePassphrase(newId);
@@ -644,66 +592,6 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                   </div>
               </div>
           </div>
-      )}
-
-      {/* SSH Install Key Modal */}
-      {installKeyTarget && (
-                <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-                    onMouseDown={(e) => {
-                        if (e.target !== e.currentTarget) return;
-                        if (!isInstallingKey) setInstallKeyTarget(null);
-                    }}
-                >
-                     <div
-                         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
-                         role="dialog"
-                         aria-modal="true"
-                         aria-label="Install SSH Key"
-                     >
-                <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Key className="w-4 h-4 text-indigo-500"/> Install SSH Key
-                    </h3>
-                    {!isInstallingKey && (
-                                                <button onClick={() => setInstallKeyTarget(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
-                            <X size={18} />
-                        </button>
-                    )}
-                </div>
-                <div className="p-5 space-y-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-300">
-                        Enter the password for <strong>{installKeyTarget}</strong> to install the public key.
-                    </div>
-                    <div>
-                        <input 
-                            type="password" 
-                            autoFocus
-                            placeholder="Server Password"
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all text-slate-900 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                            value={installKeyPassword}
-                            onChange={e => setInstallKeyPassword(e.target.value)}
-                            onKeyDown={e => {
-                                if(e.key === 'Enter' && installKeyPassword && !isInstallingKey) {
-                                    handleInstallKey();
-                                }
-                            }}
-                        />
-                    </div>
-                </div>
-                <div className="p-4 bg-gray-50/50 dark:bg-slate-900/50 flex justify-end gap-2 border-t border-gray-100 dark:border-slate-700">
-                    <Button variant="ghost" size="sm" onClick={() => setInstallKeyTarget(null)} disabled={isInstallingKey}>Cancel</Button>
-                    <Button 
-                        size="sm" 
-                        disabled={!installKeyPassword || isInstallingKey} 
-                        onClick={handleInstallKey}
-                    >
-                        {isInstallingKey ? <Loader2 className="w-3 h-3 animate-spin mr-2"/> : <Server className="w-3 h-3 mr-2"/>}
-                        {isInstallingKey ? 'Installing...' : 'Install Key'}
-                    </Button>
-                </div>
-           </div>
-        </div>
       )}
 
       {installBorgTarget && (
@@ -850,55 +738,56 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                     </div>
                     <div className="flex gap-4">
                         <div className="flex-[3]">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Server URL (Root)</label>
-                            <input 
-                                type="text" 
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Connection</label>
+                            <select
                                 disabled={isInitializing}
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-mono transition-all text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                placeholder="ssh://user@example.com:22"
-                                value={repoForm.serverUrl} 
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    
-                                    // Hetzner Storage Box Auto-Detection
-                                    if (val.includes('your-storagebox.de') && val.includes('/home/')) {
-                                        try {
-                                            const homeIndex = val.indexOf('/home/');
-                                            let serverPart = val.substring(0, homeIndex);
-                                            if (serverPart.endsWith('/')) serverPart = serverPart.slice(0, -1);
-                                            
-                                            // Enforce Port 23 for Hetzner
-                                            if (!serverPart.includes(':23')) {
-                                                if (/:\d+$/.test(serverPart)) {
-                                                    serverPart = serverPart.replace(/:\d+$/, ':23');
-                                                } else {
-                                                    serverPart += ':23';
-                                                }
-                                            }
-                                            
-                                            const pathPart = val.substring(homeIndex);
-                                            
-                                            setRepoForm(prev => ({ 
-                                                ...prev, 
-                                                serverUrl: serverPart, 
-                                                repoPath: pathPart,
-                                                url: updateUrlFromParts(serverPart, pathPart) 
-                                            }));
-                                            return;
-                                        } catch (err) { console.error("Auto-detect failed", err); }
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all text-slate-900 dark:text-white"
+                                value={selectedConnectionId}
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    setSelectedConnectionId(id);
+                                    const conn = (connections || []).find(c => c.id === id);
+                                    if (conn) {
+                                        setRepoForm(prev => ({ ...prev, serverUrl: conn.serverUrl, url: updateUrlFromParts(conn.serverUrl, prev.repoPath) }));
+                                    } else {
+                                        // Custom/legacy
+                                        setRepoForm(prev => ({ ...prev, serverUrl: prev.serverUrl, url: updateUrlFromParts(prev.serverUrl, prev.repoPath) }));
                                     }
-
-                                    setRepoForm(prev => ({ ...prev, serverUrl: val, url: updateUrlFromParts(val, prev.repoPath) }));
                                 }}
-                            />
+                            >
+                                <option value="" className="dark:bg-slate-900">Custom (legacy)</option>
+                                {(connections || []).map((c) => (
+                                    <option key={c.id} value={c.id} className="dark:bg-slate-900">{c.name}</option>
+                                ))}
+                            </select>
+                            {selectedConnectionId === '' && (
+                                <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    <span className="font-semibold">Custom (legacy):</span> This server is not saved in Connections. Use this for one-off/legacy URLs.
+                                </div>
+                            )}
+                            {selectedConnectionId === '' && (
+                                <div className="mt-2">
+                                    <input
+                                        type="text"
+                                        disabled={isInitializing}
+                                        className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-mono transition-all text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                                        placeholder="ssh://user@example.com:22"
+                                        value={repoForm.serverUrl}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setRepoForm(prev => ({ ...prev, serverUrl: val, url: updateUrlFromParts(val, prev.repoPath) }));
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="flex-[2]">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Repo Name (Folder)</label>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Repo Path</label>
                             <input 
                                 type="text" 
                                 disabled={isInitializing}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-mono transition-all text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
-                                placeholder="e.g. 'my-backups' (in /home/user/)"
+                                placeholder="e.g. /home/user/backups/repo1"
                                 value={repoForm.repoPath}
                                 onChange={e => {
                                     const val = e.target.value;
@@ -907,9 +796,44 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                             />
                         </div>
                     </div>
+
+                    {/* Live preview of the full URL */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Repository URL Preview</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                disabled={isInitializing}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-lg focus:outline-none text-sm font-mono text-slate-800 dark:text-slate-200"
+                                value={repoForm.url || ''}
+                            />
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={isInitializing || !repoForm.url}
+                                onClick={async () => {
+                                    try {
+                                        await navigator.clipboard.writeText(repoForm.url || '');
+                                        toast.success('Repository URL copied');
+                                    } catch {
+                                        toast.error('Copy failed');
+                                    }
+                                }}
+                                title="Copy"
+                            >
+                                <Copy className="w-3 h-3" />
+                            </Button>
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                            {repoForm.url?.startsWith('ssh://')
+                                ? 'This is the full SSH URL that will be used for this repository.'
+                                : 'SSH-only: please enter a valid ssh:// server URL.'}
+                        </div>
+                    </div>
                     
                     {/* Test Connection Button */}
-                   {!editingRepoId && (addMode === 'connect' || (addMode === 'init' && repoForm.url.startsWith('ssh://'))) && repoForm.url && (
+                   {!editingRepoId && repoForm.url?.startsWith('ssh://') && (
                        <div>
                            <Button 
                                 variant="secondary" 
@@ -919,7 +843,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                 disabled={isTesting}
                            >
                                {isTesting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Terminal className="w-3 h-3 mr-2" />}
-                               {isTesting ? 'Testing Connection...' : 'Test ' + (repoForm.url.startsWith('ssh://') ? 'SSH & Remote ' : '') + 'Connection'}
+                               {isTesting ? 'Testing Connection...' : 'Test SSH & Remote Connection'}
                            </Button>
                            {testResult === 'success' && (
                                <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
@@ -937,7 +861,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                        {addRepoStep === 'borg_fail' 
                                          ? "BorgBackup is not installed or detected on the remote server. You can install it automatically or continue if you are sure it exists." 
                                          : (addRepoStep === 'ssh_fail' 
-                                             ? "Could not establish an SSH connection. Please ensure your SSH Public Key is deployed to the server."
+                                             ? "Could not establish an SSH connection. Deploy your SSH key via the Connections menu and retry."
                                              : "An error occurred while testing the connection."
                                            )
                                        }
@@ -974,83 +898,38 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                    )}
 
                                    {(addRepoStep !== 'borg_fail') && (
+                                       <>
+                                       {addRepoStep === 'ssh_fail' && onOpenConnections && (
+                                           <div className="mt-3 flex justify-center">
+                                               <Button size="sm" onClick={() => onOpenConnections()}>
+                                                   Open Connections
+                                               </Button>
+                                           </div>
+                                       )}
                                        <div className="mt-2 p-2 bg-black/5 dark:bg-black/30 rounded font-mono text-[10px] break-all max-h-24 overflow-y-auto">
                                            {testLog.split('\n').map((line, i) => (
                                                <div key={i} className={line.toLowerCase().includes('error') || line.toLowerCase().includes('fail') ? 'text-red-600 dark:text-red-400 font-bold' : ''}>{line}</div>
                                            ))}
                                        </div>
+                                       </>
                                    )}
                                </div>
                            )}
                        </div>
                    )}
                     
-                    {/* SSH Key Management */}
+                    {/* SSH / Connections */}
                     <div className="space-y-3">
-                         {/* SSH Keys Panel */}
-                        <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg space-y-3">
-                            <div className="flex items-center justify-between">
-                               <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                   <Key className="w-3 h-3" /> SSH Authentication 
-                                   <span className="text-[10px] font-normal text-slate-400 capitalize flex-1">
-                                       &mdash; {sshKeyStatus === 'found' ? 'Key Present' : sshKeyStatus === 'missing' ? 'No Key' : 'Checking...'}
-                                   </span>
-                               </div>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <div className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">SSH Authentication</div>
+                            <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                SSH keys and deployments are managed in <b>Connections</b>. Select a connection above and, if SSH fails, deploy your key from the Connections menu.
                             </div>
-                            
-                            {sshKeyStatus === 'loading' && <div className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/> Checking keys...</div>}
-                            
-                            {sshKeyStatus === 'missing' && (
-                                <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/10 p-2 rounded border border-amber-100 dark:border-amber-900/30 flex items-center justify-between">
-                                    <span>No SSH key found in WSL (~/.ssh/id_ed25519).</span>
-                                    <Button size="sm" variant="primary" onClick={handleGenerateKey} disabled={isSshAction}>
-                                        {isSshAction ? <Loader2 className="w-3 h-3 animate-spin mr-1"/> : <RefreshCw className="w-3 h-3 mr-1"/>}
-                                        {isSshAction ? 'Gen...' : 'Generate '}
+                            {onOpenConnections && (
+                                <div className="mt-3 flex justify-center">
+                                    <Button size="sm" variant="secondary" onClick={() => onOpenConnections()}>
+                                        Open Connections
                                     </Button>
-                                </div>
-                            )}
-                            
-                            {sshKeyStatus === 'found' && sshPublicKey && (
-                                <div className="space-y-2">
-                                    <div className="relative group">
-                                        <textarea 
-                                            readOnly 
-                                            value={sshPublicKey} 
-                                            className="w-full h-16 p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded resize-none focus:outline-none text-slate-700 dark:text-gray-300"
-                                        />
-                                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button 
-                                                onClick={() => { navigator.clipboard.writeText(sshPublicKey); toast.show("SSH Public Key copied to clipboard", 'success'); }}
-                                                className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded text-slate-500 hover:text-blue-500"
-                                                title="Copy Public Key"
-                                                aria-label="Copy Public Key"
-                                            >
-                                                <Copy className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleCheckKey()}
-                                            className="px-2 py-1.5 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
-                                            title="Refresh"
-                                            aria-label="Refresh"
-                                        >
-                                            <RefreshCw className="w-3 h-3" />
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                const { target, port } = parseTargetFromUrl();
-                                                setInstallKeyTarget(target);
-                                                setInstallKeyPort(port || null);
-                                                setInstallKeyPassword('');
-                                            }}
-                                            disabled={addRepoStep !== 'ssh_fail'}
-                                            className={`flex-1 px-3 py-1.5 text-[10px] uppercase font-bold text-white bg-indigo-500 rounded flex items-center justify-center gap-1.5 transition-colors ${addRepoStep !== 'ssh_fail' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-600'}`}
-                                        >
-                                            <Server className="w-3 h-3" /> Install SSH Key
-                                        </button>
-                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1211,9 +1090,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                         isInitializing || 
                         !repoForm.name || 
                         !repoForm.url || 
+                        !repoForm.url.startsWith('ssh://') ||
                         // Strict validation for New/Connect modes (not Editing)
                         (!editingRepoId && (
-                            testResult !== 'success' || // Must have verified connection
+                            // Must have verified connection for SSH-only repos
+                            (testResult !== 'success') ||
                             (repoForm.encryption !== 'none' && !repoForm.passphrase) || // Must have passphrase (not none)
                             (addMode === 'init' && repoForm.passphrase !== confirmPassphrase) // Must match passphrase if initializing
                         ))

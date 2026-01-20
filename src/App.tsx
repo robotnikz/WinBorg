@@ -12,7 +12,7 @@ import RepoDetailsView from './views/RepoDetailsView';
 import TerminalModal from './components/TerminalModal';
 import FuseSetupModal from './components/FuseSetupModal';
 import CreateBackupModal from './components/CreateBackupModal';
-import { View, Repository, MountPoint, Archive, ActivityLogEntry, BackupJob } from './types';
+import { View, Repository, MountPoint, Archive, ActivityLogEntry, BackupJob, SshConnection } from './types';
 import { borgService } from './services/borgService';
 import { formatDate } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
@@ -22,6 +22,7 @@ import OnboardingModal from './components/OnboardingModal';
 import UpdateModal from './components/UpdateModal';
 import { getIpcRendererOrNull } from './services/electron';
 import RestoreView, { RestoreTab } from './views/RestoreView';
+import ConnectionsView from './views/ConnectionsView';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -147,6 +148,7 @@ const App: React.FC = () => {
   const [archives, setArchives] = useState<Archive[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [mounts, setMounts] = useState<MountPoint[]>([]);
+    const [connections, setConnections] = useState<SshConnection[]>([]);
   
   // --- UPDATE STATE ---
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -194,6 +196,61 @@ const App: React.FC = () => {
   // --- LOAD DATA FROM BACKEND (PERSISTENCE) ---
   useEffect(() => {
       if (dataLoadedRef.current) return;
+
+      const normalizeServerUrl = (serverUrl: string) => {
+          const s = String(serverUrl || '').trim();
+          if (!s) return '';
+          return s.endsWith('/') ? s.slice(0, -1) : s;
+      };
+
+      const parseServerUrlFromRepoUrl = (repoUrl: string): string | null => {
+          const u = String(repoUrl || '').trim();
+          if (!u.toLowerCase().startsWith('ssh://')) return null;
+          const afterProto = u.substring('ssh://'.length);
+          const slashIndex = afterProto.indexOf('/');
+          if (slashIndex === -1) return normalizeServerUrl(u);
+          const hostPart = afterProto.substring(0, slashIndex);
+          return normalizeServerUrl(`ssh://${hostPart}`);
+      };
+
+      const fnv1a32 = (str: string) => {
+          let h = 0x811c9dc5;
+          for (let i = 0; i < str.length; i++) {
+              h ^= str.charCodeAt(i);
+              h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+          }
+          return h >>> 0;
+      };
+
+      const stableConnectionId = (serverUrl: string) => {
+          const hash = fnv1a32(normalizeServerUrl(serverUrl)).toString(16).padStart(8, '0');
+          return `conn_${hash}`;
+      };
+
+      const guessConnectionName = (serverUrl: string) => {
+          const s = normalizeServerUrl(serverUrl);
+          return s.toLowerCase().startsWith('ssh://') ? s.replace(/^ssh:\/\//i, '') : (s || 'SSH Connection');
+      };
+
+      const deriveConnectionsFromRepos = (reposToScan: Repository[]): { connections: SshConnection[]; repos: Repository[] } => {
+          const now = new Date().toISOString();
+          const serverToConn = new Map<string, SshConnection>();
+          const derived: SshConnection[] = [];
+          const updatedRepos = reposToScan.map((r) => {
+              if (!r?.url || r.connectionId) return r;
+              const serverUrl = parseServerUrlFromRepoUrl(r.url);
+              if (!serverUrl) return r;
+              const norm = normalizeServerUrl(serverUrl);
+              let conn = serverToConn.get(norm);
+              if (!conn) {
+                  conn = { id: stableConnectionId(norm), name: guessConnectionName(norm), serverUrl: norm, createdAt: now, updatedAt: now };
+                  serverToConn.set(norm, conn);
+                  derived.push(conn);
+              }
+              return { ...r, connectionId: conn.id };
+          });
+          return { connections: derived, repos: updatedRepos };
+      };
       
       const load = async () => {
           try {
@@ -211,6 +268,7 @@ const App: React.FC = () => {
               let initialJobs = db.jobs || [];
               let initialArchives = db.archives || [];
               let initialLogs = db.activityLogs || [];
+              let initialConnections = db.connections || [];
 
               if (initialRepos.length === 0) {
                   const lsRepos = localStorage.getItem('winborg_repos');
@@ -228,7 +286,7 @@ const App: React.FC = () => {
               }
 
               // Sanitize Repos (remove legacy plain text passwords if any existed)
-              const safeRepos = initialRepos.map((r: Repository) => ({
+              const sanitizedRepos: Repository[] = (initialRepos || []).map((r: Repository) => ({
                   ...r,
                   passphrase: undefined,
                   status: 'disconnected', 
@@ -236,6 +294,15 @@ const App: React.FC = () => {
                   checkProgress: r.checkStatus === 'running' ? undefined : r.checkProgress,
                   activeCommandId: undefined
               }));
+
+              // Connections migration fallback (main process also migrates; this is for tests/browser mode/older DB mocks)
+              let effectiveRepos: Repository[] = sanitizedRepos;
+              let effectiveConnections: SshConnection[] = Array.isArray(initialConnections) ? initialConnections : [];
+              if (effectiveConnections.length === 0) {
+                  const derived = deriveConnectionsFromRepos(sanitizedRepos);
+                  effectiveConnections = derived.connections;
+                  effectiveRepos = derived.repos;
+              }
 
               // Normalize Jobs (multi-source migration + legacy field compatibility)
               const safeJobs = (initialJobs || []).map((j: any) => {
@@ -254,21 +321,23 @@ const App: React.FC = () => {
                   };
               });
 
-              setRepos(safeRepos);
+              setRepos(effectiveRepos);
               setJobs(safeJobs);
               setArchives(initialArchives);
               setActivityLogs(initialLogs);
+              setConnections(effectiveConnections);
               
               setIsLoaded(true);
               dataLoadedRef.current = true;
 
               // Immediately save to backend to finalize migration
-              if (initialRepos.length > 0 || initialJobs.length > 0) {
+              if (effectiveRepos.length > 0 || initialJobs.length > 0 || effectiveConnections.length > 0) {
                   ipcRenderer.invoke('save-db', { 
-                      repos: safeRepos, 
+                      repos: effectiveRepos,
                       jobs: safeJobs, 
                       archives: initialArchives, 
-                      activityLogs: initialLogs 
+                      activityLogs: initialLogs,
+                      connections: effectiveConnections
                   });
               }
 
@@ -288,9 +357,33 @@ const App: React.FC = () => {
           const ipcRenderer = getIpcRendererOrNull();
           if (!ipcRenderer) return;
           // We save essentially everything except mounts (ephemeral)
-          ipcRenderer.invoke('save-db', { repos, jobs, archives, activityLogs });
+          ipcRenderer.invoke('save-db', { repos, jobs, archives, activityLogs, connections });
       } catch(e) {}
-  }, [repos, jobs, archives, activityLogs, isLoaded]);
+  }, [repos, jobs, archives, activityLogs, connections, isLoaded]);
+
+  const handleAddConnection = (conn: SshConnection) => {
+      setConnections(prev => {
+          const next = [...prev, conn];
+          return next;
+      });
+      toast.success('Connection added');
+  };
+
+  const handleUpdateConnection = (conn: SshConnection) => {
+      setConnections(prev => prev.map(c => c.id === conn.id ? conn : c));
+      toast.success('Connection updated');
+  };
+
+  const handleDeleteConnection = (id: string) => {
+      setConnections(prev => prev.filter(c => c.id !== id));
+      // Keep repos intact; only clear the reference.
+      setRepos(prev => prev.map(r => r.connectionId === id ? { ...r, connectionId: undefined } : r));
+      toast.info('Connection removed');
+  };
+
+  const handleReorderConnections = (next: SshConnection[]) => {
+      setConnections(next);
+  };
 
   // --- BACKGROUND LISTENER ---
   useEffect(() => {
@@ -876,6 +969,7 @@ const App: React.FC = () => {
        id: repoData.id || Math.random().toString(36).substr(2, 9),
        name: repoData.name,
        url: repoData.url,
+             connectionId: repoData.connectionId,
        encryption: repoData.encryption,
        trustHost: repoData.trustHost,
        remotePath: repoData.remotePath,
@@ -1003,6 +1097,8 @@ const App: React.FC = () => {
           <RepositoriesView 
             repos={repos} 
             jobs={jobs}
+                        connections={connections}
+                        onOpenConnections={() => setCurrentView(View.CONNECTIONS)}
             onAddRepo={handleAddRepo} 
             onEditRepo={handleEditRepo}
             onConnect={handleConnect}
@@ -1021,6 +1117,16 @@ const App: React.FC = () => {
                         onOpenJobsConsumed={() => setOpenJobsRepoId(null)}
           />
         );
+            case View.CONNECTIONS:
+                return (
+                    <ConnectionsView
+                        connections={connections}
+                        onAddConnection={handleAddConnection}
+                        onUpdateConnection={handleUpdateConnection}
+                        onDeleteConnection={handleDeleteConnection}
+                        onReorderConnections={handleReorderConnections}
+                    />
+                );
             case View.JOBS:
                 return (
                     <JobsView
@@ -1031,6 +1137,8 @@ const App: React.FC = () => {
                         onUpdateJob={handleUpdateJob}
                         onDeleteJob={handleDeleteJob}
                         onRunJob={handleRunJob}
+                        openJobsRepoId={openJobsRepoId}
+                        onOpenJobsConsumed={() => setOpenJobsRepoId(null)}
                     />
                 );
             case View.MOUNTS:
@@ -1099,7 +1207,7 @@ const App: React.FC = () => {
               onAbortCheck={handleAbortCheck}
                             onManageJobs={(repo) => {
                                 setOpenJobsRepoId(repo.id);
-                                setCurrentView(View.REPOSITORIES);
+                                setCurrentView(View.JOBS);
                             }}
                   onOneOffBackup={(r) => setBackupModal({ repo: r, isOpen: true })}
               isDarkMode={isDarkMode}

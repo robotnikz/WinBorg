@@ -50,9 +50,10 @@ vi.mock('./utils/eventBus', () => ({
 
 const mockBorg = vi.hoisted(() => ({
   // RepositoriesView add/connect flow
-  manageSSHKey: vi.fn(async (action: 'check' | 'generate' | 'read') => {
+  manageSSHKey: vi.fn(async (action: 'check' | 'generate' | 'read' | 'import') => {
     if (action === 'check') return { success: true, exists: false };
     if (action === 'read') return { success: true, key: '' };
+    if (action === 'import') return { success: true };
     return { success: true };
   }),
   testConnection: vi.fn(),
@@ -125,6 +126,9 @@ describe('App add repo + connect flow (integration)', () => {
     mockBorg.testConnection.mockResolvedValue(true);
     mockBorg.checkLockStatus.mockResolvedValue(false);
 
+    mockBorg.testSshConnection.mockResolvedValue({ success: true });
+    mockBorg.checkBorgInstalledRemote.mockResolvedValue({ success: true, version: '1.2.3', path: '/usr/bin/borg' });
+
     mockBorg.getArchiveInfo.mockResolvedValue({ size: '1MB', duration: '1s' });
 
     mockBorg.runCommand.mockImplementation(async (args: string[], onLog: (l: string) => void) => {
@@ -193,26 +197,33 @@ describe('App add repo + connect flow (integration)', () => {
       target: { value: 'My Repo' },
     });
     fireEvent.change(screen.getByPlaceholderText('ssh://user@example.com:22'), {
-      target: { value: 'C:\\Backups' },
+      target: { value: 'ssh://user@example.com:22' },
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: /Test Connection/i }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. /home/user/backups/repo1'), {
+      target: { value: '/./repo' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Test SSH & Remote Connection/i }));
 
     await waitFor(() => {
-      expect(mockBorg.testConnection).toHaveBeenCalled();
+      expect(mockBorg.testSshConnection).toHaveBeenCalled();
+      expect(mockBorg.checkBorgInstalledRemote).toHaveBeenCalled();
     });
 
     await screen.findByText(/Connection successful/i);
 
     // Avoid passphrase requirement by choosing no encryption for this test.
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'none' } });
+    const selects = screen.getAllByRole('combobox');
+    const encryptionSelect = selects.find((el) => (el as HTMLSelectElement).value === 'repokey') ?? selects[0];
+    fireEvent.change(encryptionSelect, { target: { value: 'none' } });
 
     fireEvent.click(screen.getByRole('button', { name: /^Connect$/i }));
 
     // App handleAddRepo triggers handleConnect, which runs `borg list --json`.
     await waitFor(() => {
       expect(mockBorg.runCommand).toHaveBeenCalledWith(
-        ['list', '--json', 'C:\\Backups'],
+        ['list', '--json', 'ssh://user@example.com:22/./repo'],
         expect.any(Function),
         expect.objectContaining({ repoId: expect.any(String) })
       );

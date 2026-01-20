@@ -204,6 +204,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
       return `${Math.round(repo.checkProgress)}%`; 
   };
 
+    const showQuickStart = repos.length === 0;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
         
@@ -220,6 +222,35 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                  </button>
             </div>
         </div>
+
+                {showQuickStart && (
+                    <div data-testid="dashboard-quick-start" className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <div className="text-sm font-bold text-slate-800 dark:text-white">Quick Start</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    New here? Create a connection (SSH), add a repository, then create a job.
+                                </div>
+                                <div className="mt-3 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                                    <div><span className="font-semibold">1.</span> Connections (optional) → Deploy your SSH key</div>
+                                    <div><span className="font-semibold">2.</span> Repositories → Add and connect a repo</div>
+                                    <div><span className="font-semibold">3.</span> Jobs → Create a schedule and run</div>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2 shrink-0">
+                                <Button size="sm" onClick={() => onChangeView(View.CONNECTIONS)}>
+                                    <Plus className="w-3 h-3 mr-2" /> Add Connection
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={() => onChangeView(View.REPOSITORIES)}>
+                                    <Server className="w-3 h-3 mr-2" /> Add Repository
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={() => onChangeView(View.JOBS)}>
+                                    <CalendarClock className="w-3 h-3 mr-2" /> Create Job
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
         {/* STATS GRID */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
