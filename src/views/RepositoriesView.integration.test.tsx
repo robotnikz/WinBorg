@@ -46,6 +46,7 @@ describe('RepositoriesView (integration wiring)', () => {
   const baseProps = {
     repos: [connectedRepo],
     jobs: [],
+    connections: [],
     onAddRepo: vi.fn(),
     onEditRepo: vi.fn(),
     onConnect: vi.fn(),

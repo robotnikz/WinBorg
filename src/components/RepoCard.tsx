@@ -144,7 +144,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
             <button 
               onClick={() => onConnect?.(repo)}
               disabled={repo.status === 'connecting'}
-              title={repo.status === 'connected' ? "Refresh repository information" : "Connect via SSH/Local Path"}
+              title={repo.status === 'connected' ? "Refresh repository information" : "Connect via SSH"}
               className={`flex-1 h-9 px-3 py-2 text-xs font-semibold rounded-lg transition-all border flex items-center justify-center gap-2 ${
                   repo.status === 'connected' 
                   ? 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-200 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600' 
