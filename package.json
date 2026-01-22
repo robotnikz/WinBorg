@@ -30,6 +30,8 @@
     "pretest:e2e:smoke": "npm run build",
     "pretest:e2e:manual": "npm run build",
     "pretest:e2e:full": "npm run build"
+    ,
+    "screenshots": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep @screenshots"
   },
   "build": {
     "appId": "com.winborg.manager",

@@ -44,7 +44,12 @@ WinBorg Manager is a modern Windows 10/11 desktop app that brings **[BorgBackup]
 <div align="center">
   <img src="public/dashboard.png" alt="Dashboard" width="45%" />
   &nbsp;
+   <img src="public/connections.png" alt="Connections" width="45%" />
+   <br/>
+   <br/>
   <img src="public/repos.png" alt="Repositories" width="45%" />
+   &nbsp;
+   <img src="public/jobs.png" alt="Jobs" width="45%" />
   <br/>
   <br/>
   <img src="public/archives.png" alt="Archives" width="45%" />
