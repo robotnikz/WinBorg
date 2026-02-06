@@ -87,7 +87,7 @@
     "jsdom": "^27.4.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "react-dom": "^19.2.4",
     "semantic-release": "^25.0.2",
     "typescript": "^5.2.2",
     "vite": "^7.3.1",
