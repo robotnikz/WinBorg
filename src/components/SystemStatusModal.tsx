@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { X, CheckCircle2, AlertTriangle, Terminal, HardDrive, Wifi, Server } from 'lucide-react';
 import { getAppVersion } from '../utils/appVersion';
 import { getIpcRendererOrNull } from '../services/electron';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface SystemStatusModalProps {
   isOpen: boolean;
@@ -22,13 +23,15 @@ const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, onClose }
   const [loading, setLoading] = useState(true);
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       checkSystemStatus();
-      setTimeout(() => closeButtonRef.current?.focus(), 0);
     }
   }, [isOpen]);
+
+  useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,6 +93,8 @@ const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, onClose }
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-700"
         role="dialog"
         aria-modal="true"

@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useId } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Trash2, HardDrive, AlertCircle, X, CheckCircle2, Loader2, Terminal } from 'lucide-react';
 import { borgService } from '../services/borgService';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface MaintenanceModalProps {
   repo: Repository;
@@ -18,6 +19,8 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
   const [activeTab, setActiveTab] = useState<MaintenanceTab>('prune');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentLog, setCurrentLog] = useState<string>('');
+    const titleId = useId();
+    const repoNameId = useId();
   
   // Prune Settings
   const [keepDaily, setKeepDaily] = useState(7);
@@ -25,12 +28,9 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
   const [keepMonthly, setKeepMonthly] = useState(6);
 
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (isOpen && !isProcessing) {
-            setTimeout(() => closeButtonRef.current?.focus(), 0);
-        }
-    }, [isOpen, isProcessing]);
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
     useEffect(() => {
         if (!isOpen || isProcessing) return;
@@ -109,17 +109,20 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
                  role="dialog"
                  aria-modal="true"
-                 aria-label={`Repository Maintenance: ${repo.name}`}
+                 aria-labelledby={titleId}
+                 aria-describedby={repoNameId}
              >
            
            {/* Header */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div>
-                   <h3 className="font-bold text-slate-800 dark:text-slate-100">Repository Maintenance</h3>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">{repo.name}</p>
+                   <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100">Repository Maintenance</h3>
+                   <p id={repoNameId} className="text-xs text-slate-500 dark:text-slate-400">{repo.name}</p>
                </div>
                                                          <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors disabled:opacity-50" aria-label="Close" title="Close">
                  <X size={20} />

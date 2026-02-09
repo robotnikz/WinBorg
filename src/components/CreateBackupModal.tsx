@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Folder, Save, X, Clock, Terminal, Loader2, Server } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface CreateBackupModalProps {
   initialRepo: Repository;
@@ -21,6 +22,8 @@ interface CreateBackupModalProps {
 }
 
 const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repos = [], isOpen, onClose, onLog, onSuccess, onBackupStarted, onBackupFinished, onBackupCancelled }) => {
+    const titleId = useId();
+    const subtitleId = useId();
   const [selectedRepoId, setSelectedRepoId] = useState(initialRepo.id);
   const [sourcePath, setSourcePath] = useState('');
     const [excludePatternsText, setExcludePatternsText] = useState('');
@@ -40,6 +43,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   const isMountedRef = useRef(false);
   const cancelledRef = useRef(false);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
       isMountedRef.current = true;
@@ -58,9 +62,10 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
           setCurrentLog('');
           setActiveCommandId(null);
           cancelledRef.current = false;
-          setTimeout(() => closeButtonRef.current?.focus(), 0);
       }
   }, [isOpen, initialRepo]);
+
+  useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
   useEffect(() => {
       if (!isOpen || isProcessing || isCancelling) return;
@@ -189,19 +194,22 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
                  role="dialog"
                  aria-modal="true"
-                 aria-label="Create New Backup"
+                 aria-labelledby={titleId}
+                 aria-describedby={subtitleId}
              >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div>
-                   <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                   <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                        <Save className="w-5 h-5 text-green-600" />
                        Create New Backup
                    </h3>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">
+                   <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">
                        {availableRepos.length > 1 ? 'Select target repository below' : `Upload to ${activeRepo.name}`}
                    </p>
                </div>
