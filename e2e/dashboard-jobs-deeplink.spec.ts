@@ -78,7 +78,7 @@ test.describe('Dashboard Jobs deep-link', () => {
     await expect(repoCard).toBeVisible();
 
     // Dashboard only shows the per-repo Jobs button when connected.
-    await repoCard.getByRole('button', { name: 'Connect Source', exact: true }).click();
+    await repoCard.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(repoCard.getByText('Online', { exact: true })).toBeVisible();
 
     const jobsButton = repoCard.getByRole('button', { name: 'Jobs', exact: true });
