@@ -89,6 +89,6 @@ test.describe('Dashboard Jobs deep-link', () => {
     await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
 
     // And open the Jobs modal for the clicked repo.
-    await expect(page.getByRole('dialog', { name: 'Backup Jobs for Repo B' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Jobs for Repo B' })).toBeVisible();
   });
 });

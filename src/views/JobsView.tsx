@@ -32,6 +32,7 @@ const JobsView: React.FC<JobsViewProps> = ({
   onOpenJobsConsumed,
 }) => {
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
+  const [jobsModalOpenTo, setJobsModalOpenTo] = useState<'list' | 'create'>('list');
 
   const reposWithJobSummary = useMemo(() => {
     return repos
@@ -61,15 +62,21 @@ const JobsView: React.FC<JobsViewProps> = ({
     if (!repo) return;
 
     setJobsRepo(repo);
+    setJobsModalOpenTo('list');
     onOpenJobsConsumed?.();
   }, [openJobsRepoId, onOpenJobsConsumed, repos]);
+
+  const openJobsForRepo = (repo: Repository, openTo: 'list' | 'create') => {
+    setJobsRepo(repo);
+    setJobsModalOpenTo(openTo);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Jobs</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage backup jobs and schedules per repository.</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage jobs and schedules per repository.</p>
         </div>
       </div>
 
@@ -121,9 +128,9 @@ const JobsView: React.FC<JobsViewProps> = ({
                 </div>
 
                 <div className="shrink-0">
-                  <Button onClick={() => setJobsRepo(repo)}>
+                  <Button onClick={() => openJobsForRepo(repo, totalJobs === 0 ? 'create' : 'list')}>
                     <Briefcase className="w-4 h-4 mr-2" />
-                    Manage Jobs
+                    {totalJobs === 0 ? 'Create First Job' : 'Manage Jobs'}
                   </Button>
                 </div>
               </div>
@@ -137,6 +144,7 @@ const JobsView: React.FC<JobsViewProps> = ({
           repo={jobsRepo}
           jobs={jobs.filter((j) => j.repoId === jobsRepo.id)}
           isOpen={true}
+          openTo={jobsModalOpenTo}
           onClose={() => setJobsRepo(null)}
           onAddJob={onAddJob}
           onUpdateJob={onUpdateJob}

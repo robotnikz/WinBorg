@@ -146,6 +146,7 @@ const App: React.FC = () => {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [jobs, setJobs] = useState<BackupJob[]>([]);
   const [archives, setArchives] = useState<Archive[]>([]);
+    const [archivesRepoId, setArchivesRepoId] = useState<string | null>(null);
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [mounts, setMounts] = useState<MountPoint[]>([]);
     const [connections, setConnections] = useState<SshConnection[]>([]);
@@ -267,6 +268,7 @@ const App: React.FC = () => {
               let initialRepos = db.repos || [];
               let initialJobs = db.jobs || [];
               let initialArchives = db.archives || [];
+              let initialArchivesRepoId = db.archivesRepoId || null;
               let initialLogs = db.activityLogs || [];
               let initialConnections = db.connections || [];
 
@@ -322,8 +324,10 @@ const App: React.FC = () => {
               });
 
               setRepos(effectiveRepos);
+              reposRef.current = effectiveRepos;
               setJobs(safeJobs);
               setArchives(initialArchives);
+              setArchivesRepoId(initialArchivesRepoId);
               setActivityLogs(initialLogs);
               setConnections(effectiveConnections);
               
@@ -336,6 +340,7 @@ const App: React.FC = () => {
                       repos: effectiveRepos,
                       jobs: safeJobs, 
                       archives: initialArchives, 
+                      archivesRepoId: initialArchivesRepoId,
                       activityLogs: initialLogs,
                       connections: effectiveConnections
                   });
@@ -357,9 +362,9 @@ const App: React.FC = () => {
           const ipcRenderer = getIpcRendererOrNull();
           if (!ipcRenderer) return;
           // We save essentially everything except mounts (ephemeral)
-          ipcRenderer.invoke('save-db', { repos, jobs, archives, activityLogs, connections });
+          ipcRenderer.invoke('save-db', { repos, jobs, archives, archivesRepoId, activityLogs, connections });
       } catch(e) {}
-  }, [repos, jobs, archives, activityLogs, connections, isLoaded]);
+  }, [repos, jobs, archives, archivesRepoId, activityLogs, connections, isLoaded]);
 
   const handleAddConnection = (conn: SshConnection) => {
       setConnections(prev => {
@@ -700,6 +705,7 @@ const App: React.FC = () => {
                 })).reverse();
 
                 setArchives(newArchives);
+                setArchivesRepoId(repo.id);
                 addActivity('Connection Successful', `Connected to ${repo.name}`, 'success');
                 toast.success(`Connected to ${repo.name}`);
 
@@ -1148,6 +1154,7 @@ const App: React.FC = () => {
                         tab={'mounts'}
                         onTabChange={setRestoreTab}
                         archives={archives}
+                        archivesRepoId={archivesRepoId}
                         repos={repos}
                         onArchiveMount={handleArchiveMount}
                         onRefreshArchives={handleRefreshArchives}
@@ -1168,6 +1175,7 @@ const App: React.FC = () => {
                             tab={restoreTab}
                             onTabChange={setRestoreTab}
                             archives={archives}
+                            archivesRepoId={archivesRepoId}
                             repos={repos}
                             onArchiveMount={handleArchiveMount}
                             onRefreshArchives={handleRefreshArchives}

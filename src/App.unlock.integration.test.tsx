@@ -120,10 +120,28 @@ describe('App unlock flow (integration)', () => {
       return Promise.resolve(null);
     });
 
+    mockBorg.runCommand.mockImplementation(async (args: string[], onLog: (log: string) => void) => {
+      if (args[0] === 'list') {
+        onLog(
+          JSON.stringify({
+            archives: [{ id: 'a1', name: 'a1', time: '2024-01-01T00:00:00.000Z' }],
+          })
+        );
+        return true;
+      }
+
+      if (args[0] === 'info') {
+        onLog(JSON.stringify({ cache: { stats: { unique_csize: 0, total_size: 0 } } }));
+        return true;
+      }
+
+      return true;
+    });
+
     mockBorg.breakLock.mockResolvedValue(true);
     mockBorg.forceDeleteLockFiles.mockResolvedValue(true);
-    // After unlock, lock status should become false.
-    mockBorg.checkLockStatus.mockResolvedValue(false);
+    // Connect flow checks lock status; after unlock, it should become false.
+    mockBorg.checkLockStatus.mockResolvedValueOnce(true).mockResolvedValue(false);
 
     render(<App />);
 
@@ -135,12 +153,20 @@ describe('App unlock flow (integration)', () => {
     // Locked badge initially present.
     expect(screen.getByText(/Locked/i)).toBeInTheDocument();
 
+    // App sanitizes loaded repos to disconnected; connect first so Unlock action appears.
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Unlock/i })).toBeInTheDocument(), {
+      timeout: 3000,
+    });
+
     fireEvent.click(screen.getByRole('button', { name: /Unlock/i }));
 
     await waitFor(() => {
       expect(mockBorg.breakLock).toHaveBeenCalledTimes(1);
       expect(mockBorg.forceDeleteLockFiles).toHaveBeenCalledTimes(1);
-      expect(mockBorg.checkLockStatus).toHaveBeenCalledTimes(1);
+      // Called once during connect, once after unlock.
+      expect(mockBorg.checkLockStatus).toHaveBeenCalledTimes(2);
     }, { timeout: 3000 });
 
     expect(mockBorg.breakLock).toHaveBeenCalledWith(
