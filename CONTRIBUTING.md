@@ -2,6 +2,14 @@
 
 Thanks for your interest in contributing to WinBorg.
 
+## Public repository
+
+This repository is public. Please avoid committing or posting sensitive information in code, docs, issues, or PRs:
+
+- No tokens/passwords/private keys
+- No real customer data or internal hostnames/URLs
+- Use placeholders like `user@host` and `/./backup`
+
 ## Before you start
 - Please read the project overview and user-facing behavior in `README.md`.
 - For bug reports and feature ideas, prefer opening an issue (GitHub issue templates are provided).

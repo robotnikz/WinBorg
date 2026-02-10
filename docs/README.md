@@ -2,6 +2,14 @@
 
 This folder contains developer-facing documentation for WinBorg.
 
+## Public repository note
+
+This repository is public. Please keep documentation safe to publish:
+
+- Do not include real customer/user data, real hostnames, IPs, emails, or internal URLs.
+- Do not include secrets (tokens, passwords, private keys). Use placeholders like `user@host`.
+- If you need to share sensitive operational details, keep them in a private/internal location instead of `docs/`.
+
 ## Start here
 
 - [Architecture](ARCHITECTURE.md)
