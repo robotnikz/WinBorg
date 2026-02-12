@@ -16,12 +16,13 @@ interface RepoCardProps {
   onMaintenance?: (repo: Repository) => void;
   onExportKey?: (repo: Repository) => void;
   onBackup?: (repo: Repository) => void;
-  onManageJobs?: (repo: Repository) => void;
+  onManageJobs?: (repo: Repository, openTo?: 'list' | 'create') => void;
 }
 
 const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onDelete, onEdit, onCheck, onBreakLock, onMaintenance, onExportKey, onBackup, onManageJobs }) => {
-  
   const nextRun = jobs ? getNextRunForRepo(jobs, repo.id) : null;
+  const repoJobsCount = jobs ? jobs.filter((j) => j.repoId === repo.id).length : null;
+  const hasNoJobs = repoJobsCount === 0;
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200/75 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all duration-200 group relative overflow-hidden flex flex-col h-full">
@@ -79,7 +80,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                        <ShieldCheck className="w-3.5 h-3.5" /> Verify
                     </button>
                  )}
-                 {onBreakLock && (
+                {onBreakLock && repo.status === 'connected' && repo.isLocked && (
                      <button 
                        onClick={() => onBreakLock(repo)}
                        className="px-2 py-1 text-[10px] font-medium text-slate-600 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded transition-colors flex items-center gap-1"
@@ -93,22 +94,22 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
             {/* Config Icons */}
             <div className="flex items-center gap-0.5 border-l border-gray-200 dark:border-slate-700 pl-1">
                 {onMaintenance && repo.status === 'connected' && (
-                  <button onClick={() => onMaintenance(repo)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 rounded" title="Maintenance: Prune old archives & Compact space" aria-label="Maintenance">
+                  <button onClick={() => onMaintenance(repo)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 rounded focus-visible:outline-none focus-visible:ring-2" title="Maintenance: Prune old archives & Compact space" aria-label="Maintenance">
                         <Wrench className="w-3.5 h-3.5" />
                     </button>
                 )}
-                {onExportKey && repo.encryption !== 'none' && (
-                  <button onClick={() => onExportKey(repo)} className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 rounded" title="Export / Backup Encryption Key" aria-label="Export Encryption Key">
+                {onExportKey && repo.status === 'connected' && repo.encryption !== 'none' && (
+                  <button onClick={() => onExportKey(repo)} className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 rounded focus-visible:outline-none focus-visible:ring-2" title="Export / Backup Encryption Key" aria-label="Export Encryption Key">
                         <Key className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onEdit && (
-                  <button onClick={() => onEdit(repo)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded" title="Edit Connection Settings" aria-label="Edit Repository">
+                  <button onClick={() => onEdit(repo)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded focus-visible:outline-none focus-visible:ring-2" title="Edit Connection Settings" aria-label="Edit Repository">
                         <Edit2 className="w-3.5 h-3.5" />
                     </button>
                 )}
                 {onDelete && (
-                  <button onClick={() => onDelete(repo)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded" title="Remove Repository or Destroy Data" aria-label="Remove Repository">
+                  <button onClick={() => onDelete(repo)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded focus-visible:outline-none focus-visible:ring-2" title="Remove Repository or Destroy Data" aria-label="Remove Repository">
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
                 )}
@@ -166,12 +167,13 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                 </button>
                 {onManageJobs && (
                     <button 
-                        onClick={() => onManageJobs(repo)}
-                        title="Manage Backup Jobs & Schedules"
-                        aria-label="Manage Backup Jobs & Schedules"
-                        className="h-9 px-3 py-2 text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg text-purple-700 dark:text-purple-400 transition-colors shadow-sm"
+                    onClick={() => onManageJobs(repo, hasNoJobs ? 'create' : 'list')}
+                  title={hasNoJobs ? 'Create First Job' : 'Manage Jobs'}
+                  aria-label={hasNoJobs ? 'Create First Job' : 'Manage Jobs'}
+                    className="h-9 px-3 py-2 text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 rounded-lg text-purple-700 dark:text-purple-400 transition-colors shadow-sm flex items-center justify-center gap-2"
                     >
                         <Briefcase className="w-4 h-4" />
+                    {hasNoJobs ? 'Create First Job' : null}
                     </button>
                 )}
                 {onBackup && (
@@ -179,7 +181,7 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                         onClick={() => onBackup(repo)}
                         title="Create a One-off Snapshot now"
                     aria-label="Create a One-off Snapshot now"
-                        className="px-3 py-2 text-xs font-semibold bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 transition-colors shadow-sm"
+                    className="px-3 py-2 text-xs font-semibold bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2"
                     >
                         <UploadCloud className="w-4 h-4" />
                     </button>

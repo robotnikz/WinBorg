@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { Repository, BackupJob, SshConnection } from '../types';
 import RepoCard from '../components/RepoCard';
 import MaintenanceModal from '../components/MaintenanceModal';
@@ -45,6 +45,10 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                 onAddJob, onUpdateJob, onDeleteJob, onRunJob, onBackupStarted, onBackupFinished, onBackupCancelled,
                 openJobsRepoId, onOpenJobsConsumed
 }) => {
+    const logTitleId = useId();
+    const installBorgTitleId = useId();
+    const installBorgDescriptionId = useId();
+    const addEditTitleId = useId();
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRepoId, setEditingRepoId] = useState<string | null>(null);
@@ -74,12 +78,14 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
   
   // Jobs Modal
   const [jobsRepo, setJobsRepo] = useState<Repository | null>(null);
+    const [jobsModalOpenTo, setJobsModalOpenTo] = useState<'list' | 'create'>('list');
 
     useEffect(() => {
         if (!openJobsRepoId) return;
         const targetRepo = repos.find(r => r.id === openJobsRepoId) || null;
         if (targetRepo) {
             setJobsRepo(targetRepo);
+            setJobsModalOpenTo('list');
             onOpenJobsConsumed?.();
         }
     }, [openJobsRepoId, repos, onOpenJobsConsumed]);
@@ -552,6 +558,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
              repo={jobsRepo}
              jobs={jobs}
              isOpen={!!jobsRepo}
+             openTo={jobsModalOpenTo}
              onClose={() => setJobsRepo(null)}
              onAddJob={onAddJob}
              onUpdateJob={onUpdateJob}
@@ -573,12 +580,12 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                   className="bg-[#1e1e1e] w-full max-w-3xl rounded-xl shadow-2xl border border-gray-700 flex flex-col max-h-[85vh]"
                   role="dialog"
                   aria-modal="true"
-                  aria-label={localLogData.title}
+                  aria-labelledby={logTitleId}
               >
                   <div className="px-5 py-3 bg-[#252526] border-b border-gray-700 flex justify-between items-center rounded-t-xl">
                       <div className="flex items-center gap-2 text-gray-200">
                           <Terminal className="w-4 h-4 text-blue-400" />
-                          <span className="font-mono text-sm font-semibold">{localLogData.title}</span>
+                          <span id={logTitleId} className="font-mono text-sm font-semibold">{localLogData.title}</span>
                       </div>
                       <button onClick={() => setLocalLogData(null)} className="text-gray-400 hover:text-white transition-colors" aria-label="Close" title="Close"><X className="w-4 h-4" /></button>
                   </div>
@@ -606,10 +613,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                          className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
                          role="dialog"
                          aria-modal="true"
-                         aria-label="Install BorgBackup"
+                         aria-labelledby={installBorgTitleId}
+                         aria-describedby={installBorgDescriptionId}
                      >
                 <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <h3 id={installBorgTitleId} className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Cloud className="w-4 h-4 text-blue-500"/> Install BorgBackup
                     </h3>
                     {!isInstallingBorg && (
@@ -619,7 +627,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                     )}
                 </div>
                 <div className="p-5 space-y-4">
-                    <div className="text-sm text-slate-600 dark:text-slate-300">
+                    <div id={installBorgDescriptionId} className="text-sm text-slate-600 dark:text-slate-300">
                         <p className="mb-2">Enter the password for <strong>{installBorgTarget}</strong> to install BorgBackup.</p>
                         <p className="text-xs text-slate-400">This will run <code>apt-get install borgbackup</code>. A sudo password may be required.</p>
                     </div>
@@ -668,10 +676,10 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                          className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
                          role="dialog"
                          aria-modal="true"
-                         aria-label={editingRepoId ? 'Edit Repository' : 'Add Repository'}
+                                                 aria-labelledby={addEditTitleId}
                      >
              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 shrink-0">
-               <h3 className="font-bold text-lg text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
+                             <h3 id={addEditTitleId} className="font-bold text-lg text-slate-800 dark:text-white">{editingRepoId ? 'Edit Repository' : 'Add Repository'}</h3>
                                                          <button onClick={() => setIsModalOpen(false)} disabled={isInitializing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Close" title="Close">
                  <X size={18} />
                </button>
@@ -1149,7 +1157,10 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
             onMaintenance={() => { setMaintenanceRepo(repo); setIsMaintenanceOpen(true); }}
             onExportKey={() => setExportKeyRepo(repo)}
                         onBackup={(r) => setBackupModal({ repo: r, isOpen: true })}
-            onManageJobs={(r) => setJobsRepo(r)}
+                        onManageJobs={(r, openTo) => {
+                            setJobsRepo(r);
+                            setJobsModalOpenTo(openTo ?? 'list');
+                        }}
           />
         ))}
         {filteredRepos.length === 0 && (

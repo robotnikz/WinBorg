@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { Repository, Archive } from '../types';
 import Button from './Button';
 import { FileEntry, borgService } from '../services/borgService';
 import { X, Folder, File, Download, ChevronRight, ChevronDown, Loader2, ArrowLeft, Search, Home, FolderInput } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface ArchiveBrowserModalProps {
   repo: Repository;
@@ -24,6 +25,8 @@ interface TreeNode {
 }
 
 const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive, isOpen, onClose, onLog, onExtractSuccess }) => {
+    const titleId = useId();
+    const subtitleId = useId();
   const [loading, setLoading] = useState(true);
   const [fileList, setFileList] = useState<FileEntry[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>([]); // Current directory stack
@@ -32,13 +35,13 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
   const [search, setSearch] = useState('');
 
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     const selectedPathSet = useMemo(() => new Set(selectedPaths), [selectedPaths]);
 
   useEffect(() => {
       if (isOpen) {
           loadFiles();
-          setTimeout(() => searchInputRef.current?.focus(), 0);
       } else {
           setFileList([]);
           setCurrentPath([]);
@@ -46,6 +49,8 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
           setSearch('');
       }
   }, [isOpen]);
+
+  useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: searchInputRef });
 
   useEffect(() => {
       if (!isOpen || extracting) return;
@@ -223,20 +228,24 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
                  role="dialog"
                  aria-modal="true"
-                 aria-label={`Archive Browser: ${archive.name}`}
+                 aria-labelledby={titleId}
+                 aria-describedby={subtitleId}
              >
            
            {/* Header */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div>
-                   <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                   <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                        <Folder className="w-5 h-5 text-blue-500" />
                        Archive Browser
+                       <span className="sr-only">: {archive.name}</span>
                    </h3>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">{archive.name} • {fileList.length} items loaded</p>
+                   <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">{archive.name} • {fileList.length} items loaded</p>
                </div>
                              <button
                                  onClick={onClose}

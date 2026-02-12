@@ -57,12 +57,11 @@ test.describe('Jobs flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    // Open Jobs modal (icon-only button).
-    await page.getByTitle('Manage Backup Jobs & Schedules').click();
-    await expect(page.getByText('Backup Jobs')).toBeVisible();
-
-    // Create first job.
-    await page.getByRole('button', { name: 'Create First Job' }).click();
+    // Open Jobs modal (repo has 0 jobs -> CTA is "Create First Job").
+    await page.getByRole('button', { name: 'Create First Job', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: /Jobs for My Repo/i })).toBeVisible();
+    // Repo CTA opens modal directly in create view.
+    await expect(page.getByRole('button', { name: 'Save Job', exact: true })).toBeVisible();
 
     await page.getByPlaceholder('e.g. My Documents').fill('Docs');
 
@@ -94,12 +93,11 @@ test.describe('Jobs flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    // Open Jobs modal (icon-only button).
-    await page.getByTitle('Manage Backup Jobs & Schedules').click();
-    await expect(page.getByText('Backup Jobs')).toBeVisible();
+    // Open Jobs modal (repo has 0 jobs -> CTA is "Create First Job").
+    await page.getByRole('button', { name: 'Create First Job', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: /Jobs for My Repo/i })).toBeVisible();
 
     // Create a job.
-    await page.getByRole('button', { name: 'Create First Job' }).click();
     await page.getByPlaceholder('e.g. My Documents').fill('Docs');
     await page.getByRole('button', { name: /Add Folder/i }).click();
     await expect(page.getByText('C:\\Temp')).toBeVisible();
@@ -129,12 +127,11 @@ test.describe('Jobs flow', () => {
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect(page.getByText('Online')).toBeVisible();
 
-    // Open Jobs modal (icon-only button).
-    await page.getByTitle('Manage Backup Jobs & Schedules').click();
-    await expect(page.getByText('Backup Jobs')).toBeVisible();
+    // Open Jobs modal (repo has 0 jobs -> CTA is "Create First Job").
+    await page.getByRole('button', { name: 'Create First Job', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: /Jobs for My Repo/i })).toBeVisible();
 
     // Create a job.
-    await page.getByRole('button', { name: 'Create First Job' }).click();
     await page.getByPlaceholder('e.g. My Documents').fill('Docs');
     await page.getByRole('button', { name: /Add Folder/i }).click();
     await expect(page.getByText('C:\\Temp')).toBeVisible();

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Download, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import Button from './Button';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface UpdateModalProps {
     isOpen: boolean;
@@ -58,6 +59,7 @@ function toPlainText(input: string): string {
 const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, version, downloading, progress, readyToInstall, releaseNotes }) => {
     const titleId = useId();
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     const [showChangelog, setShowChangelog] = useState(false);
     const changelogText = useMemo(() => {
@@ -72,8 +74,6 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, ve
     useEffect(() => {
         if (!isOpen || downloading) return;
 
-        setTimeout(() => closeButtonRef.current?.focus(), 0);
-
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
         };
@@ -81,6 +81,8 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, ve
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [isOpen, downloading, onClose]);
+
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
     if (!isOpen) return null;
 
@@ -93,6 +95,8 @@ const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, onUpdate, ve
             }}
         >
             <div
+                ref={dialogRef}
+                tabIndex={-1}
                 className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200"
                 role="dialog"
                 aria-modal="true"

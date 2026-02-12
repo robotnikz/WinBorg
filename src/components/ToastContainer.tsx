@@ -69,7 +69,7 @@ export const ToastContainer: React.FC = () => {
 
           <button 
             onClick={() => removeToast(toast.id)} 
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2"
             title="Dismiss"
             aria-label="Dismiss"
           >

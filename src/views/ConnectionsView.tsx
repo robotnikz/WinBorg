@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useId } from 'react';
 import { Check, Cloud, Copy, Key, Link2, Loader2, Pencil, Plus, RefreshCw, Server, Trash2, TriangleAlert, ArrowUp, ArrowDown, ArrowUpCircle, X } from 'lucide-react';
 import Button from '../components/Button';
 import { borgService } from '../services/borgService';
@@ -56,6 +56,12 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
   onDeleteConnection,
   onReorderConnections,
 }) => {
+  const importTitleId = useId();
+  const importDescriptionId = useId();
+  const deployTitleId = useId();
+  const deployDescriptionId = useId();
+  const createdTitleId = useId();
+  const createdDescriptionId = useId();
   const [sshKeyStatus, setSshKeyStatus] = useState<'idle' | 'loading' | 'found' | 'missing'>('idle');
   const [sshPublicKey, setSshPublicKey] = useState<string>('');
   const [isGeneratingKey, setIsGeneratingKey] = useState(false);
@@ -412,10 +418,11 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
             role="dialog"
             aria-modal="true"
-            aria-label="Import SSH Key"
+            aria-labelledby={importTitleId}
+            aria-describedby={importDescriptionId}
           >
             <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <h3 id={importTitleId} className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-indigo-500" /> Import SSH Key
               </h3>
               {!importBusy && (
@@ -426,7 +433,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             </div>
 
             <div className="p-5 space-y-4">
-              <div className="text-sm text-slate-600 dark:text-slate-300">
+              <div id={importDescriptionId} className="text-sm text-slate-600 dark:text-slate-300">
                 Paste your private key (OpenSSH PEM). WinBorg will store it inside WSL under <code>~/.ssh/id_ed25519</code> and derive <code>.pub</code> if needed.
               </div>
 
@@ -615,10 +622,11 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200"
             role="dialog"
             aria-modal="true"
-            aria-label="Deploy SSH Key"
+            aria-labelledby={deployTitleId}
+            aria-describedby={deployDescriptionId}
           >
             <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <h3 id={deployTitleId} className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-indigo-500" /> Deploy SSH Key
               </h3>
               {!deployBusy && (
@@ -629,7 +637,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             </div>
 
             <div className="p-5 space-y-3">
-              <div className="text-sm text-slate-600 dark:text-slate-300">
+              <div id={deployDescriptionId} className="text-sm text-slate-600 dark:text-slate-300">
                 Enter the password for <strong>{deployConn.name}</strong> to install the public key.
               </div>
 
@@ -674,10 +682,11 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-600 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200"
             role="dialog"
             aria-modal="true"
-            aria-label="Connection created"
+            aria-labelledby={createdTitleId}
+            aria-describedby={createdDescriptionId}
           >
             <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <h3 id={createdTitleId} className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Check className="w-4 h-4 text-emerald-500" /> Connection created
               </h3>
               {!testBusyId && (
@@ -693,7 +702,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
             </div>
 
             <div className="p-5 space-y-4">
-              <div className="text-sm text-slate-600 dark:text-slate-300">
+              <div id={createdDescriptionId} className="text-sm text-slate-600 dark:text-slate-300">
                 Next steps for <strong>{postCreateConn.name}</strong>:
               </div>
 
