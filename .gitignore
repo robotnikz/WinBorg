@@ -149,6 +149,9 @@ id_ed25519.pub
 secrets.json
 secrets.*.json
 
+# Local-only docs (keep out of public repo)
+docs/UX_AUDIT_REPORT.md
+
 
 # VSCode settings
 .vscode/

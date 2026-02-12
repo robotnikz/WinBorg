@@ -1,10 +1,11 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useId } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { AlertTriangle, Trash2, Eraser, X, Loader2, Terminal } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface DeleteRepoModalProps {
   repo: Repository;
@@ -15,6 +16,7 @@ interface DeleteRepoModalProps {
 }
 
 const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose, onConfirmForget, onLog }) => {
+    const titleId = useId();
   const [deleteMode, setDeleteMode] = useState<'forget' | 'empty' | 'destroy'>('forget');
   const [confirmName, setConfirmName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -22,12 +24,9 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
   const [error, setError] = useState<string | null>(null);
   const [fullLogs, setFullLogs] = useState<string[]>([]);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (isOpen && !isProcessing) {
-            closeButtonRef.current?.focus();
-        }
-    }, [isOpen, isProcessing]);
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
     useEffect(() => {
             if (!isOpen || isProcessing) return;
@@ -108,16 +107,21 @@ const DeleteRepoModal: React.FC<DeleteRepoModalProps> = ({ repo, isOpen, onClose
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
                  role="dialog"
                  aria-modal="true"
-                 aria-label={`Delete Repository: ${repo.name}`}
+                 aria-labelledby={titleId}
              >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                    <AlertTriangle className="w-5 h-5" />
-                   <h3 className="font-bold">Delete Repository</h3>
+                   <h3 id={titleId} className="font-bold">
+                       Delete Repository
+                       <span className="sr-only">: {repo.name}</span>
+                   </h3>
                </div>
                                                          <button ref={closeButtonRef} onClick={onClose} disabled={isProcessing} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">
                  <X size={20} />

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useId } from 'react';
 import { Terminal, X, Loader2 } from 'lucide-react';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface TerminalModalProps {
   isOpen: boolean;
@@ -10,8 +11,10 @@ interface TerminalModalProps {
 }
 
 const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onClose, isProcessing }) => {
+  const titleId = useId();
   const bottomRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -19,11 +22,7 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
     }
   }, [logs]);
 
-  useEffect(() => {
-    if (isOpen && !isProcessing && onClose) {
-      closeButtonRef.current?.focus();
-    }
-  }, [isOpen, isProcessing, onClose]);
+  useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
   useEffect(() => {
     if (!isOpen || isProcessing || !onClose) return;
@@ -47,16 +46,18 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className="bg-[#1e1e1e] w-full max-w-2xl rounded-lg shadow-2xl border border-gray-700 overflow-hidden flex flex-col max-h-[80vh]"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-black/20">
           <div className="flex items-center gap-2 text-gray-300">
             <Terminal className="w-4 h-4" />
-            <span className="text-sm font-mono font-medium">{title}</span>
+            <span id={titleId} className="text-sm font-mono font-medium">{title}</span>
           </div>
           {!isProcessing && onClose && (
             <button

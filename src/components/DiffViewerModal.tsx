@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useId, useRef } from 'react';
 import { X, FilePlus, FileMinus, FileDiff, File, Search, AlertCircle, ArrowRight } from 'lucide-react';
 import Button from './Button';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface DiffViewerModalProps {
   isOpen: boolean;
@@ -23,13 +24,15 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
   const [search, setSearch] = useState('');
     const titleId = useId();
     const searchInputRef = useRef<HTMLInputElement>(null);
+        const dialogRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isOpen) {
-            // Ensure focus lands inside the dialog for keyboard users.
-            setTimeout(() => searchInputRef.current?.focus(), 0);
+            // state reset only; focus handled by useModalFocusTrap
         }
     }, [isOpen]);
+
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: searchInputRef });
 
     useEffect(() => {
         if (!isOpen || isProcessing) return;
@@ -93,6 +96,8 @@ const DiffViewerModal: React.FC<DiffViewerModalProps> = ({ isOpen, archiveOld, a
             }}
         >
             <div
+                ref={dialogRef}
+                tabIndex={-1}
                 className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[85vh] rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
                 role="dialog"
                 aria-modal="true"

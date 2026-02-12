@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { within } from '@testing-library/react';
 
 import App from './App';
 
@@ -10,7 +11,16 @@ vi.mock('./components/FuseSetupModal', () => ({ default: () => null }));
 
 // Keep other views out of the way; this test exercises the real MountsView + App handler.
 vi.mock('./views/DashboardView', () => ({ default: () => <div data-testid="view-dashboard" /> }));
-vi.mock('./views/RepositoriesView', () => ({ default: () => <div data-testid="view-repos" /> }));
+vi.mock('./views/RepositoriesView', () => ({
+  default: ({ repos, onConnect }: any) => (
+    <div data-testid="view-repos">
+      <div data-testid="repo-status">{repos?.[0]?.status || 'none'}</div>
+      <button onClick={() => onConnect(repos[0])} disabled={!repos?.length}>
+        Connect first repo
+      </button>
+    </div>
+  ),
+}));
 vi.mock('./views/ArchivesView', () => ({ default: () => <div data-testid="view-archives" /> }));
 vi.mock('./views/ActivityView', () => ({ default: () => <div data-testid="view-activity" /> }));
 vi.mock('./views/SettingsView', () => ({ default: () => <div data-testid="view-settings" /> }));
@@ -18,6 +28,7 @@ vi.mock('./views/SettingsView', () => ({ default: () => <div data-testid="view-s
 vi.mock('./components/Sidebar', () => ({
   default: ({ onChangeView }: any) => (
     <div data-testid="sidebar">
+      <button onClick={() => onChangeView('REPOSITORIES')}>Go to Repositories</button>
       <button onClick={() => onChangeView('MOUNTS')}>Go to Mounts</button>
     </div>
   ),
@@ -75,19 +86,6 @@ describe('App mount flow (integration)', () => {
   });
 
   it('mounts an archive via MountsView and opens the path', async () => {
-    const realSetTimeout = globalThis.setTimeout;
-    const setTimeoutSpy = vi
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation(((cb: any, ms?: any, ...args: any[]) => {
-        // App schedules a delayed lock check after mount/unmount.
-        // For determinism (and no leaked timers), run that callback immediately.
-        if (ms === 1000) {
-          cb(...args);
-          return 0 as any;
-        }
-        return realSetTimeout(cb, ms as any, ...args) as any;
-      }) as any);
-
     mockIpcRenderer.invoke.mockImplementation((channel: string) => {
       if (channel === 'get-db') {
         return Promise.resolve({
@@ -105,7 +103,8 @@ describe('App mount flow (integration)', () => {
           ],
           jobs: [],
           mounts: [],
-          archives: [{ id: 'a1', name: 'arch 1', time: 'now', duration: '1s', size: '1MB' }],
+          archives: [],
+          archivesRepoId: null,
           activityLogs: [],
         });
       }
@@ -114,10 +113,54 @@ describe('App mount flow (integration)', () => {
       return Promise.resolve(null);
     });
 
+    mockBorg.runCommand.mockImplementation(async (args: string[], onLog: (line: string) => void) => {
+      // Connect flow: ['list','--json', repo.url]
+      if (args[0] === 'list' && args.includes('--json')) {
+        onLog(
+          JSON.stringify({
+            archives: [{ id: 'a1', name: 'arch 1', time: '2023-01-01T10:00:00' }],
+          })
+        );
+        return true;
+      }
+
+      // Repo stats flow: ['info','--json', repo.url]
+      if (args[0] === 'info' && args.includes('--json')) {
+        onLog(
+          JSON.stringify({
+            repository: { stats: { unique_csize: 0, total_size: 0 } },
+          })
+        );
+        return true;
+      }
+
+      return true;
+    });
+
     mockBorg.mount.mockResolvedValue({ success: true, mountId: 'm1' });
     mockBorg.checkLockStatus.mockResolvedValue(false);
+    mockBorg.getArchiveInfo.mockResolvedValue({ size: '1MB', duration: '1s' });
 
     render(<App />);
+
+    // Wait for the early system-check overlay to finish so views can render
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Checking system')).not.toBeInTheDocument();
+    });
+
+    // Connect repo first (App sanitizes loaded repos to disconnected on startup)
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Repositories' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('repo-status')).toHaveTextContent('disconnected');
+      expect(screen.getByRole('button', { name: 'Connect first repo' })).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Connect first repo' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('repo-status')).toHaveTextContent('connected');
+    });
 
     // Navigate to mounts
     fireEvent.click(screen.getByRole('button', { name: 'Go to Mounts' }));
@@ -128,7 +171,23 @@ describe('App mount flow (integration)', () => {
     // Open mount creation
     fireEvent.click(screen.getByRole('button', { name: /New Mount/i }));
 
-    // Trigger mount
+    // Wait for MountsView to populate selects (repo + archive)
+    await waitFor(() => {
+      const selects = screen.getAllByRole('combobox');
+      expect(selects.length).toBeGreaterThanOrEqual(2);
+      // Ensure archive select has our archive option
+      expect(within(selects[1]).getByRole('option', { name: /arch 1/i })).toBeInTheDocument();
+    });
+
+    // Explicitly choose repo + archive (covers async initial state)
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'r1' } });
+    fireEvent.change(selects[1], { target: { value: 'arch 1' } });
+
+    // Trigger mount (button is disabled until repo-scoped archives are available)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mount Archive/i })).not.toBeDisabled();
+    });
     fireEvent.click(screen.getByRole('button', { name: /Mount Archive/i }));
 
     await waitFor(() => {
@@ -157,6 +216,5 @@ describe('App mount flow (integration)', () => {
       await Promise.resolve();
     });
 
-    setTimeoutSpy.mockRestore();
   });
 });

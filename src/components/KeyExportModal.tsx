@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { Repository } from '../types';
 import Button from './Button';
 import { Key, X, Copy, Check, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { borgService } from '../services/borgService';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface KeyExportModalProps {
   repo: Repository;
@@ -15,14 +16,18 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+    const titleId = useId();
+    const subtitleId = useId();
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
         fetchKey();
-        setTimeout(() => closeButtonRef.current?.focus(), 0);
     }
   }, [isOpen]);
+
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
   useEffect(() => {
       if (!isOpen) return;
@@ -76,10 +81,13 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
                  role="dialog"
                  aria-modal="true"
-                 aria-label={`Repository Key Recovery for ${repo.name}`}
+                 aria-labelledby={titleId}
+                 aria-describedby={subtitleId}
              >
            
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50">
@@ -88,8 +96,8 @@ const KeyExportModal: React.FC<KeyExportModalProps> = ({ repo, isOpen, onClose }
                        <Key className="w-5 h-5" />
                    </div>
                    <div>
-                       <h3 className="font-bold text-slate-800 dark:text-slate-100">Repository Key Recovery</h3>
-                       <p className="text-xs text-slate-500 dark:text-slate-400">Export for {repo.name}</p>
+                       <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100">Repository Key Recovery</h3>
+                       <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">Export for {repo.name}</p>
                    </div>
                </div>
                                                          <button ref={closeButtonRef} onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close" title="Close">

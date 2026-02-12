@@ -1,14 +1,16 @@
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { Repository, BackupJob } from '../types';
 import Button from './Button';
 import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Calendar, ShieldAlert, ChevronDown, ChevronUp, ArrowUp, ArrowDown, Copy, Pencil, Sparkles } from 'lucide-react';
 import { borgService } from '../services/borgService';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface JobsModalProps {
   repo: Repository;
   jobs: BackupJob[];
   isOpen: boolean;
+    openTo?: 'list' | 'create';
   onClose: () => void;
   onAddJob: (job: BackupJob) => void;
     onUpdateJob: (job: BackupJob) => void;
@@ -16,13 +18,16 @@ interface JobsModalProps {
   onRunJob: (jobId: string) => void;
 }
 
-const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAddJob, onUpdateJob, onDeleteJob, onRunJob }) => {
-  const [view, setView] = useState<'list' | 'create'>('list');
+const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'list', onClose, onAddJob, onUpdateJob, onDeleteJob, onRunJob }) => {
+        const titleId = useId();
+        const subtitleId = useId();
+    const [view, setView] = useState<'list' | 'create'>(openTo);
   const [activeTab, setActiveTab] = useState<'general' | 'schedule' | 'retention'>('general');
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [editingJob, setEditingJob] = useState<BackupJob | null>(null);
 
     const closeButtonRef = useRef<HTMLButtonElement>(null);
+        const dialogRef = useRef<HTMLDivElement>(null);
   
   // Job Form State
   const [jobName, setJobName] = useState('');
@@ -118,10 +123,16 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
   const [scheduleType, setScheduleType] = useState<'daily' | 'hourly' | 'manual'>('daily');
   const [scheduleTime, setScheduleTime] = useState('14:00');
 
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
+
     useEffect(() => {
         if (!isOpen) return;
-        closeButtonRef.current?.focus();
-    }, [isOpen]);
+
+        setView(openTo);
+        setExpandedJobId(null);
+        setEditingJob(null);
+        setActiveTab('general');
+    }, [isOpen, openTo]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -299,20 +310,24 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, onClose, onAd
             }}
         >
              <div
+                 ref={dialogRef}
+                 tabIndex={-1}
                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
                  role="dialog"
                  aria-modal="true"
-                 aria-label={`Backup Jobs for ${repo.name}`}
+                 aria-labelledby={titleId}
+                 aria-describedby={subtitleId}
              >
            
            {/* HEADER */}
            <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex justify-between items-center bg-gray-50 dark:bg-slate-900/50 shrink-0">
                <div>
-                   <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                   <h3 id={titleId} className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                        <Briefcase className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                       Backup Jobs
+                       Jobs{' '}
+                       <span className="sr-only">for {repo.name}</span>
                    </h3>
-                   <p className="text-xs text-slate-500 dark:text-slate-400">Manage persistent tasks for {repo.name}</p>
+                   <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">Manage persistent tasks for {repo.name}</p>
                </div>
                              <button
                                  ref={closeButtonRef}
