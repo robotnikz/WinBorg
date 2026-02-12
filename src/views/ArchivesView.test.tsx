@@ -56,6 +56,7 @@ const mockRepo: Repository = {
 describe('ArchivesView', () => {
     const defaultProps = {
         archives: mockArchives,
+        archivesRepoId: mockRepo.id,
         repos: [mockRepo],
         onMount: vi.fn(),
         onRefresh: vi.fn(),

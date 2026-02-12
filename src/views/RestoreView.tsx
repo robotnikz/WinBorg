@@ -13,6 +13,7 @@ interface RestoreViewProps {
 
   // Archives
   archives: Archive[];
+  archivesRepoId?: string | null;
   repos: Repository[];
   onArchiveMount: (repo: Repository, archiveName: string) => void;
   onRefreshArchives: () => void;
@@ -29,6 +30,7 @@ const RestoreView: React.FC<RestoreViewProps> = ({
   tab,
   onTabChange,
   archives,
+  archivesRepoId,
   repos,
   onArchiveMount,
   onRefreshArchives,
@@ -94,6 +96,7 @@ const RestoreView: React.FC<RestoreViewProps> = ({
       {localTab === 'archives' ? (
         <ArchivesView
           archives={archives}
+          archivesRepoId={archivesRepoId}
           repos={repos}
           onMount={onArchiveMount}
           onRefresh={onRefreshArchives}
@@ -104,6 +107,7 @@ const RestoreView: React.FC<RestoreViewProps> = ({
           mounts={mounts}
           repos={repos}
           archives={archives}
+          archivesRepoId={archivesRepoId}
           onUnmount={onUnmount}
           onMount={onMount}
           preselectedRepoId={preselectedRepoId}

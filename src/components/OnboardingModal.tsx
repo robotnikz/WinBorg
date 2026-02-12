@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import { ShieldAlert, CheckCircle2, Download, Terminal, XCircle, Loader2 } from 'lucide-react';
 import Button from './Button';
 import { getIpcRendererOrNull } from '../services/electron';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface OnboardingModalProps {
   onComplete: () => void;
@@ -12,6 +13,10 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
   const [errorDetails, setErrorDetails] = useState('');
     const [wslAction, setWslAction] = useState<'install-wsl' | 'install-ubuntu'>('install-wsl');
     const [showDetails, setShowDetails] = useState(false);
+        const titleId = useId();
+        const dialogRef = useRef<HTMLDivElement>(null);
+
+    useModalFocusTrap(true, dialogRef);
 
   useEffect(() => {
     checkPrerequisites();
@@ -117,11 +122,11 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
 
   return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-gray-200 dark:border-[#333] overflow-hidden" role="dialog" aria-modal="true" aria-label="System Setup">
+            <div ref={dialogRef} tabIndex={-1} className="w-full max-w-md bg-white dark:bg-[#1e1e1e] rounded-xl shadow-2xl border border-gray-200 dark:border-[#333] overflow-hidden" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         
         {/* Header */}
         <div className="bg-gray-50 dark:bg-[#252526] px-6 py-4 border-b border-gray-200 dark:border-[#333] flex items-center justify-between">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
+            <h3 id={titleId} className="font-semibold text-lg flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5 text-blue-500" />
                 System Setup
             </h3>
