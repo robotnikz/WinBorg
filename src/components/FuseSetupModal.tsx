@@ -1,8 +1,9 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useId } from 'react';
 import { Copy, AlertTriangle } from 'lucide-react';
 import Button from './Button';
 import { getIpcRendererOrNull } from '../services/electron';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface FuseSetupModalProps {
   isOpen: boolean;
@@ -13,12 +14,15 @@ interface FuseSetupModalProps {
 const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRepairButton = false }) => {
     const [isRepairing, setIsRepairing] = useState(false);
     const [repairMessage, setRepairMessage] = useState<string | null>(null);
+    const titleId = useId();
+    const descriptionId = useId();
     const copyButtonRef = useRef<HTMLButtonElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: copyButtonRef });
 
     useEffect(() => {
         if (!isOpen || isRepairing) return;
-
-        setTimeout(() => copyButtonRef.current?.focus(), 0);
 
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -44,10 +48,13 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                 }}
         >
                 <div
+                    ref={dialogRef}
+                    tabIndex={-1}
                     className="bg-white rounded-xl shadow-2xl border border-red-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
                     role="dialog"
                     aria-modal="true"
-                    aria-label="WSL Configuration Required"
+                    aria-labelledby={titleId}
+                    aria-describedby={descriptionId}
                 >
             <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -55,8 +62,8 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                         <AlertTriangle className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-slate-900">WSL Configuration Required</h3>
-                        <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                        <h3 id={titleId} className="text-lg font-bold text-slate-900">WSL Configuration Required</h3>
+                        <p id={descriptionId} className="text-sm text-slate-600 mt-2 leading-relaxed">
                             To allow Windows Explorer to access the mounted archive, we need to enable <code>allow_other</code> in WSL FUSE settings.
                         </p>
                         <p className="text-xs text-slate-500 mt-2 leading-relaxed">

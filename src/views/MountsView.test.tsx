@@ -37,6 +37,7 @@ describe('MountsView', () => {
         ]}
         repos={[{ id: 'r1', name: 'Repo1', status: 'connected' } as any]}
         archives={[]}
+        archivesRepoId={'r1'}
         onUnmount={() => {}}
         onMount={() => {}}
       />
@@ -64,6 +65,7 @@ describe('MountsView', () => {
         ]}
         repos={[{ id: 'r1', name: 'Repo1', status: 'connected' } as any]}
         archives={[]}
+        archivesRepoId={'r1'}
         onUnmount={() => {}}
         onMount={() => {}}
       />
@@ -89,6 +91,7 @@ describe('MountsView', () => {
         ]}
         repos={[{ id: 'r1', name: 'Repo1', status: 'connected' } as any]}
         archives={[]}
+        archivesRepoId={'r1'}
         onUnmount={onUnmount}
         onMount={() => {}}
       />
@@ -108,6 +111,7 @@ describe('MountsView', () => {
         mounts={[]}
         repos={[{ id: 'r1', name: 'Repo1', status: 'connected', url: 'ssh://x' } as any]}
         archives={[{ id: 'a1', name: 'my archive (1)', time: 'now' } as any]}
+        archivesRepoId={'r1'}
         onUnmount={() => {}}
         onMount={onMount}
       />

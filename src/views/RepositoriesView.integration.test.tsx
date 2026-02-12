@@ -67,7 +67,7 @@ describe('RepositoriesView (integration wiring)', () => {
   it('opens Jobs modal from RepoCard quick action', () => {
     render(<RepositoriesView {...baseProps} />);
 
-    fireEvent.click(screen.getByTitle('Manage Backup Jobs & Schedules'));
+    fireEvent.click(screen.getByTitle('Create First Job'));
 
     expect(screen.getByTestId('jobs-modal')).toHaveTextContent('JobsModal for r1');
   });

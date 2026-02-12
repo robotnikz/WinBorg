@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { Archive, Repository } from '../types';
 import Button from '../components/Button';
 import { Database, Clock, HardDrive, Search, Calendar, RefreshCw, DownloadCloud, Loader2, ListChecks, FolderSearch, GitCompare, Trash2, FileBox } from 'lucide-react';
@@ -11,13 +11,16 @@ import { borgService } from '../services/borgService';
 
 interface ArchivesViewProps {
   archives: Archive[];
+    archivesRepoId?: string | null;
   repos: Repository[];
   onMount: (repo: Repository, archiveName: string) => void;
   onRefresh: () => void;
   onGetInfo?: (archiveName: string) => Promise<void>;
 }
 
-const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, onRefresh, onGetInfo }) => {
+const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, archivesRepoId, repos, onMount, onRefresh, onGetInfo }) => {
+    const deleteTitleId = useId();
+    const deleteDescriptionId = useId();
   const [search, setSearch] = useState('');
   const [loadingInfo, setLoadingInfo] = useState<string | null>(null);
   const [isFetchingAll, setIsFetchingAll] = useState(false);
@@ -44,31 +47,34 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   // Success Modal State
   const [successPath, setSuccessPath] = useState<string | null>(null);
 
-  // Basic filtering
-    const filteredArchives = useMemo(() => {
-        const needle = search.trim().toLowerCase();
-        if (!needle) return archives;
-        return archives.filter((a) => a.name.toLowerCase().includes(needle));
-    }, [archives, search]);
+    // Helper to find the active connected repo
+        const activeRepo = useMemo(() => repos.find((r) => r.status === 'connected'), [repos]);
 
-  // Helper to find the active connected repo
-    const activeRepo = useMemo(() => repos.find((r) => r.status === 'connected'), [repos]);
+        const canShowArchives = !!activeRepo && String(archivesRepoId || '') === String(activeRepo.id || '');
+        const displayArchives = canShowArchives ? archives : [];
+
+    // Basic filtering
+        const filteredArchives = useMemo(() => {
+                const needle = search.trim().toLowerCase();
+                if (!needle) return displayArchives;
+                return displayArchives.filter((a) => a.name.toLowerCase().includes(needle));
+        }, [displayArchives, search]);
 
     const selectedArchiveSet = useMemo(() => new Set(selectedArchives), [selectedArchives]);
 
-  // Stats
-  const totalArchives = archives.length;
+    // Stats
+    const totalArchives = displayArchives.length;
   
   const handleGetInfo = async (archiveName: string) => {
       setLoadingInfo(archiveName);
-      if (onGetInfo) {
+      if (onGetInfo && canShowArchives) {
           await onGetInfo(archiveName);
           setLoadingInfo(null);
       }
   };
 
   const handleFetchAllStats = async () => {
-      if (!onGetInfo || !activeRepo) return;
+      if (!onGetInfo || !activeRepo || !canShowArchives) return;
       
       setIsFetchingAll(true);
       const targets = filteredArchives.filter(a => a.size === 'Unknown');
@@ -95,7 +101,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   };
 
   const handleCompare = async () => {
-      if (selectedArchives.length !== 2 || !activeRepo) return;
+      if (!canShowArchives || selectedArchives.length !== 2 || !activeRepo) return;
       setIsDiffing(true);
       setIsDiffOpen(true);
       setDiffLogs([]);
@@ -104,8 +110,8 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       let newArchive = selectedArchives[1];
 
       // Simple heuristic: if we find them in the list, the one with higher index is older (assuming sorted descending).
-       const idx1 = archives.findIndex(a => a.name === oldArchive);
-       const idx2 = archives.findIndex(a => a.name === newArchive);
+       const idx1 = displayArchives.findIndex(a => a.name === oldArchive);
+       const idx2 = displayArchives.findIndex(a => a.name === newArchive);
        if (idx1 < idx2) {
            [oldArchive, newArchive] = [newArchive, oldArchive];
        }
@@ -141,7 +147,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
   };
 
   const confirmDelete = async () => {
-      if (!itemsToDelete || !activeRepo) return;
+      if (!itemsToDelete || !activeRepo || !canShowArchives) return;
       setIsDeleting(true);
       
       for (const archiveName of itemsToDelete) {
@@ -153,6 +159,14 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       setItemsToDelete(null);
       setSelectedArchives([]);
   };
+
+    useEffect(() => {
+        if (canShowArchives) return;
+        setSelectedArchives([]);
+        setBrowserArchive(null);
+        setItemsToDelete(null);
+        setIsDiffOpen(false);
+    }, [canShowArchives]);
 
     useEffect(() => {
         if (!itemsToDelete) return;
@@ -171,7 +185,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       
       {/* Browser Modal */}
-      {browserArchive && activeRepo && (
+      {browserArchive && activeRepo && canShowArchives && (
           <ArchiveBrowserModal 
              archive={browserArchive}
              repo={activeRepo}
@@ -208,15 +222,16 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                   className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 max-w-sm w-full border border-gray-200 dark:border-slate-700 animate-in zoom-in-95 duration-200"
                   role="dialog"
                   aria-modal="true"
-                  aria-label="Delete Archives"
+                  aria-labelledby={deleteTitleId}
+                  aria-describedby={deleteDescriptionId}
                   tabIndex={-1}
                   ref={deleteDialogRef}
               >
                   <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mb-4 mx-auto">
                       <Trash2 className="w-6 h-6" />
                   </div>
-                  <h3 className="text-lg font-bold text-center text-slate-800 dark:text-white mb-2">Delete Archives?</h3>
-                  <p className="text-sm text-center text-slate-500 dark:text-slate-400 mb-6">
+                  <h3 id={deleteTitleId} className="text-lg font-bold text-center text-slate-800 dark:text-white mb-2">Delete Archives?</h3>
+                  <p id={deleteDescriptionId} className="text-sm text-center text-slate-500 dark:text-slate-400 mb-6">
                       Are you sure you want to permanently delete {itemsToDelete.length} {itemsToDelete.length === 1 ? 'archive' : 'archives'}?<br/>
                       This action cannot be undone.
                   </p>
@@ -254,13 +269,13 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
             <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Archives</h1>
             <p
                 className={`text-sm mt-1 ${
-                    activeRepo
+                    canShowArchives
                         ? 'text-slate-500 dark:text-slate-400'
                         : 'text-red-600 dark:text-red-400 font-bold'
                 }`}
-                role={!activeRepo ? 'alert' : undefined}
+                role={!canShowArchives ? 'alert' : undefined}
             >
-                {activeRepo ? `Snapshots for ${activeRepo.name}` : 'Connect to a repository to view archives'}
+                {canShowArchives ? `Snapshots for ${activeRepo?.name || ''}` : 'Connect to a repository to view archives'}
             </p>
         </div>
         
@@ -278,7 +293,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
             </div>
             
             {/* Diff Button */}
-            {selectedArchives.length === 2 && (
+            {canShowArchives && selectedArchives.length === 2 && (
                 <Button 
                     onClick={handleCompare}
                     className="bg-purple-600 hover:bg-purple-700 text-white animate-in zoom-in"
@@ -289,7 +304,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
             )}
             
             {/* Bulk Delete Button */}
-            {selectedArchives.length > 0 && (
+            {canShowArchives && selectedArchives.length > 0 && (
                 <Button 
                     variant="danger"
                     onClick={() => handleDeleteClick(selectedArchives)}
@@ -307,13 +322,13 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                         onClick={handleFetchAllStats} 
                         title="Fetch size & duration for all archives" 
                         aria-label="Fetch size & duration for all archives"
-                        disabled={!activeRepo || isFetchingAll || filteredArchives.every(a => a.size !== 'Unknown')}
+                        disabled={!canShowArchives || isFetchingAll || filteredArchives.every(a => a.size !== 'Unknown')}
                         className={isFetchingAll ? "bg-blue-50 text-blue-600 border-blue-200" : "dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200"}
                     >
                         {isFetchingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
                     </Button>
 
-                    <Button variant="secondary" onClick={onRefresh} title="Refresh Archives List" aria-label="Refresh Archives List" disabled={!activeRepo || isFetchingAll} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200">
+                    <Button variant="secondary" onClick={onRefresh} title="Refresh Archives List" aria-label="Refresh Archives List" disabled={!canShowArchives || isFetchingAll} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600 border-gray-200">
                         <RefreshCw className="w-4 h-4" />
                     </Button>
                 </div>
@@ -322,7 +337,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
       </div>
       
       {/* SUMMARY STATS (New!) */}
-      {activeRepo && archives.length > 0 && (
+      {canShowArchives && displayArchives.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
                   <div className="p-3 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
@@ -339,7 +354,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                       <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                      <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title={archives[0].time}>{archives[0].time}</div>
+                      <div className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title={displayArchives[0].time}>{displayArchives[0].time}</div>
                       <div className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Latest</div>
                   </div>
               </div>
@@ -365,8 +380,8 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                         <tr>
                             <td colSpan={6} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500">
                                 <Database className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                                <p className="mb-4 text-sm">{activeRepo ? "No archives found matching your criteria." : "Connect to a repository to view history."}</p>
-                                {activeRepo && (
+                                <p className="mb-4 text-sm">{canShowArchives ? "No archives found matching your criteria." : "Connect to a repository to view history."}</p>
+                                {canShowArchives && (
                                     <Button variant="secondary" onClick={onRefresh} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
                                         <RefreshCw className="w-4 h-4 mr-2" />
                                         Reload List
@@ -385,6 +400,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                         className="rounded border-gray-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500 cursor-pointer w-4 h-4"
                                         checked={isSelected}
                                         onChange={() => toggleSelection(archive.name)}
+                                        aria-label={`Select archive ${archive.name}`}
                                     />
                                 </td>
                                 <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
@@ -407,7 +423,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             onClick={() => handleGetInfo(archive.name)}
                                             className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded transition-colors"
                                             title="Click to calculate size"
-                                            disabled={loadingInfo === archive.name || isFetchingAll}
+                                            disabled={!canShowArchives || loadingInfo === archive.name || isFetchingAll}
                                         >
                                             {loadingInfo === archive.name ? <Loader2 className="w-3 h-3 animate-spin"/> : <DownloadCloud className="w-3 h-3" />}
                                             Calc
@@ -427,7 +443,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             variant="secondary" 
                                             className="h-10 w-10 p-0 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-600/70 dark:text-slate-100 dark:border-slate-500 dark:hover:bg-slate-600"
                                             onClick={() => setBrowserArchive(archive)}
-                                            disabled={isFetchingAll}
+                                            disabled={!canShowArchives || isFetchingAll}
                                             title="Browse Files"
                                             aria-label="Browse Files"
                                         >
@@ -438,7 +454,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             variant="secondary" 
                                             className="h-10 w-10 p-0 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 dark:bg-slate-600/70 dark:text-slate-100 dark:border-slate-500 dark:hover:bg-slate-600"
                                             onClick={() => activeRepo && onMount(activeRepo, archive.name)}
-                                            disabled={isFetchingAll}
+                                            disabled={!canShowArchives || isFetchingAll}
                                             title="Mount Archive"
                                             aria-label="Mount Archive"
                                         >
@@ -450,7 +466,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, repos, onMount, o
                                             className="h-10 w-10 p-0 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-100 dark:bg-red-900/25 dark:text-red-300 dark:hover:bg-red-900/45 dark:border-red-900/60"
                                             title="Delete Archive"
                                             aria-label="Delete Archive"
-                                            disabled={isFetchingAll}
+                                            disabled={!canShowArchives || isFetchingAll}
                                         >
                                             <Trash2 className="w-5 h-5" />
                                         </button>

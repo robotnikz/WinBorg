@@ -40,9 +40,9 @@ describe('RepoCard', () => {
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onEdit).toHaveBeenCalledWith(baseRepo);
 
-    fireEvent.click(screen.getByTitle('Manage Backup Jobs & Schedules'));
+    fireEvent.click(screen.getByTitle('Create First Job'));
     expect(onManageJobs).toHaveBeenCalledTimes(1);
-    expect(onManageJobs).toHaveBeenCalledWith(baseRepo);
+    expect(onManageJobs).toHaveBeenCalledWith(baseRepo, 'create');
 
     fireEvent.click(screen.getByTitle('Create a One-off Snapshot now'));
     expect(onBackup).toHaveBeenCalledTimes(1);
@@ -59,7 +59,7 @@ describe('RepoCard', () => {
       />
     );
 
-    expect(screen.queryByTitle('Manage Backup Jobs & Schedules')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Create First Job')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Create a One-off Snapshot now')).not.toBeInTheDocument();
   });
 });

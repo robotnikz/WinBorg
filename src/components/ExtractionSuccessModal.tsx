@@ -1,8 +1,9 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useId } from 'react';
 import { CheckCircle2, FolderOpen, X } from 'lucide-react';
 import Button from './Button';
 import { borgService } from '../services/borgService';
+import { useModalFocusTrap } from '../utils/useModalFocus';
 
 interface ExtractionSuccessModalProps {
   isOpen: boolean;
@@ -11,11 +12,15 @@ interface ExtractionSuccessModalProps {
 }
 
 const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen, onClose, path }) => {
+  const titleId = useId();
+  const descriptionId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
   useEffect(() => {
     if (!isOpen) return;
-    setTimeout(() => closeButtonRef.current?.focus(), 0);
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -41,10 +46,13 @@ const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen,
       }}
     >
        <div
+         ref={dialogRef}
+         tabIndex={-1}
          className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 p-6 relative"
          role="dialog"
          aria-modal="true"
-         aria-label="Download Successful"
+         aria-labelledby={titleId}
+         aria-describedby={descriptionId}
        >
            
            <button ref={closeButtonRef} onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" aria-label="Close dialog" title="Close dialog">
@@ -56,8 +64,8 @@ const ExtractionSuccessModal: React.FC<ExtractionSuccessModalProps> = ({ isOpen,
                    <CheckCircle2 className="w-8 h-8" />
                </div>
                
-               <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Download Successful</h3>
-               <p className="text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed">
+                 <h3 id={titleId} className="text-xl font-bold text-slate-800 dark:text-white mb-2">Download Successful</h3>
+                 <p id={descriptionId} className="text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed">
                    Your selected files have been successfully extracted from the archive.
                </p>
 
