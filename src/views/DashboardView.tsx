@@ -217,7 +217,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             
             <div className="flex items-center gap-3">
-                 <button onClick={toggleTheme} title="Toggle Theme" aria-label="Toggle Theme" className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                 <button onClick={toggleTheme} title="Toggle Theme" aria-label="Toggle Theme" className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 focus-visible:outline-none focus-visible:ring-2">
                      {isDarkMode ? <Sun className="w-5 h-5"/> : <Moon className="w-5 h-5"/>}
                  </button>
             </div>
@@ -331,14 +331,15 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                           const nextRun = jobs ? getNextRunForRepo(jobs, repo.id) : null;
                           const hasAnyJobs = !!jobs?.some(j => j.repoId === repo.id);
                           const health = getRepoHealth(repo);
+                          const showHealth = repo.status === 'connected';
                                                     const connectionLabel = repo.status === 'connected'
                                                         ? 'Online'
                                                         : repo.status === 'connecting'
                                                             ? 'Connecting'
                                                             : 'Offline';
                           const borderColor = 
-                                health === 'critical' ? 'border-red-500' :
-                                health === 'warning' ? 'border-yellow-500' :
+                                (showHealth && health === 'critical') ? 'border-red-500' :
+                                (showHealth && health === 'warning') ? 'border-yellow-500' :
                                 repo.checkStatus === 'running' ? 'border-blue-500' :
                                 'border-transparent'; // Default handled by card bg
 
@@ -367,15 +368,28 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                                                                         {connectionLabel}
                                                                                     </div>
 
-                                                                                    <div className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide ${
-                                                                                        health === 'critical'
-                                                                                            ? 'bg-red-100/70 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                                                                            : health === 'warning'
-                                                                                                ? 'bg-yellow-100/70 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
-                                                                                                : 'bg-green-100/70 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                                                    }`} title="Backup health based on last snapshot">
-                                                                                        {health === 'critical' ? 'At Risk' : health === 'warning' ? 'Warning' : 'Healthy'}
-                                                                                    </div>
+                                                                                    {showHealth && (
+                                                                                        <div
+                                                                                            className={`px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide ${
+                                                                                                health === 'critical'
+                                                                                                    ? 'bg-red-100/70 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                                                                                    : health === 'warning'
+                                                                                                        ? 'bg-yellow-100/70 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                                                                                                        : health === 'unknown'
+                                                                                                            ? 'bg-gray-100/80 text-gray-600 dark:bg-slate-700 dark:text-slate-300'
+                                                                                                            : 'bg-green-100/70 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                                            }`}
+                                                                                            title="Based on last snapshot age"
+                                                                                        >
+                                                                                            {health === 'critical'
+                                                                                                ? 'Overdue'
+                                                                                                : health === 'warning'
+                                                                                                    ? 'Stale'
+                                                                                                    : health === 'unknown'
+                                                                                                        ? 'Unknown'
+                                                                                                        : 'Fresh'}
+                                                                                        </div>
+                                                                                    )}
                                                                             </div>
                                   </div>
 
@@ -459,7 +473,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                           <>
                                               <button 
                                                 onClick={() => onViewDetails?.(repo)}
-                                                                                                className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center"
+                                                                                                className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center focus-visible:outline-none focus-visible:ring-2"
                                                 title="View Details & History"
                                                                                                 aria-label="View Details & History"
                                               >
@@ -468,7 +482,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                                                                             {onOneOffBackup && (
                                                                                                 <button 
                                                                                                     onClick={() => onOneOffBackup(repo)}
-                                                                                                    className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center"
+                                                                                                    className="h-9 w-9 px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex justify-center items-center focus-visible:outline-none focus-visible:ring-2"
                                                                                                     title="One-off Backup"
                                                                                                     aria-label="One-off Backup"
                                                                                                 >
@@ -497,7 +511,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                               className="w-full py-2 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-xs font-semibold hover:bg-slate-700 hover:shadow-lg transition-all flex justify-center items-center gap-2"
                                           >
                                               {repo.status === 'connecting' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                              Connect Source
+                                              Connect
                                           </button>
                                       )}
                                   </div>
