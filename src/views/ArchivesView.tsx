@@ -87,7 +87,6 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, archivesRepoId, r
           } catch (e) {
               console.error(`Failed to fetch info for ${archive.name}`, e);
           }
-          await new Promise(r => setTimeout(r, 200));
       }
       
       setLoadingInfo(null);

@@ -560,12 +560,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
               </div>
               <div className="p-2 border-t border-gray-100 dark:border-slate-700">
+                  {activityLogs.length > 20 && (
                   <button 
                     onClick={() => onChangeView(View.ACTIVITY)}
                     className="w-full py-2 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
                   >
-                      View Full History
+                      View Full History ({activityLogs.length} entries)
                   </button>
+                  )}
               </div>
           </div>
       </div>

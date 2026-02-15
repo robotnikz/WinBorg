@@ -96,7 +96,15 @@ const MountsView: React.FC<MountsViewProps> = ({
     let pathToSend = path;
     if (path.startsWith('/')) {
       const windowsStyle = path.replace(/\//g, '\\');
-      pathToSend = `\\\\wsl.localhost\\Ubuntu${windowsStyle}`;
+      // Determine the actual WSL distro name from the backend instead of hardcoding
+      ipcRenderer.invoke('get-preferred-wsl-distro').then((distro: string) => {
+        const distroName = distro || 'Ubuntu';
+        ipcRenderer.send('open-path', `\\\\wsl.localhost\\${distroName}${windowsStyle}`);
+      }).catch(() => {
+        // Fallback to Ubuntu if we can't determine the distro
+        ipcRenderer.send('open-path', `\\\\wsl.localhost\\Ubuntu${windowsStyle}`);
+      });
+      return;
     }
     ipcRenderer.send('open-path', pathToSend);
   };

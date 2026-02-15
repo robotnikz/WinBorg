@@ -31,18 +31,20 @@ export const formatBytes = (bytes: number, decimals = 2) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+// Cache the date formatter for consistent locale and better performance.
+const _dateFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
 export const formatDate = (isoString: string): string => {
     try {
         const date = new Date(isoString);
         if (isNaN(date.getTime())) return isoString;
-        // Returns format like: "Dec 28, 2025 04:00"
-        return date.toLocaleDateString('de-DE', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        return _dateFormatter.format(date);
     } catch (e) {
         return isoString;
     }

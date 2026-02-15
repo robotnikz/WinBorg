@@ -193,11 +193,14 @@ describe('ArchivesView', () => {
     });
 
     it('requests info for archives with Unknown stats', async () => {
+        defaultProps.onGetInfo.mockResolvedValue(undefined);
         render(<ArchivesView {...defaultProps} />);
         
         const fetchBtn = screen.getByTitle('Fetch size & duration for all archives');
         fireEvent.click(fetchBtn);
         
-        expect(defaultProps.onGetInfo).toHaveBeenCalledWith('archive-old');
+        await waitFor(() => {
+            expect(defaultProps.onGetInfo).toHaveBeenCalledWith('archive-old');
+        });
     });
 });

@@ -462,7 +462,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         setIsModalOpen(false);
 
     } else {
-        const newId = Math.random().toString(36).substr(2, 9);
+        const newId = crypto.randomUUID();
         
         if (repoForm.passphrase) {
             await borgService.savePassphrase(newId, repoForm.passphrase);

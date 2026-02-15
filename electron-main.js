@@ -542,6 +542,15 @@ ipcMain.handle('get-app-version', async () => {
     }
 });
 
+// Expose preferred WSL distro name to renderer (for correct Explorer paths).
+ipcMain.handle('get-preferred-wsl-distro', async () => {
+    try {
+        return await getPreferredWslDistro();
+    } catch (e) {
+        return 'Ubuntu'; // Fallback
+    }
+});
+
 function escapePythonSingleQuotedString(value) {
     return String(value ?? '')
         .replace(/\\/g, "\\\\")
@@ -1124,6 +1133,20 @@ function cleanupAndQuit() {
 }
 
 app.whenReady().then(() => {
+    // --- CONTENT SECURITY POLICY ---
+    const { session } = require('electron');
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        const csp = isDev
+            ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*"
+            : "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'";
+        callback({
+            responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [csp]
+            }
+        });
+    });
+
     const shouldStartMinimized = process.argv.includes('--hidden');
     createWindow(shouldStartMinimized);
     createTray();
@@ -1141,17 +1164,49 @@ app.whenReady().then(() => {
     }
 });
 
-app.on('before-quit', () => { isQuitting = true; });
+app.on('before-quit', () => {
+    isQuitting = true;
+    // Flush any pending debounced persistence writes so we never lose data on quit.
+    if (_persistDbTimer) {
+        clearTimeout(_persistDbTimer);
+        _persistDbTimer = null;
+        persistDb();
+    }
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin' && !closeToTray) cleanupAndQuit(); });
 
 // --- IPC HANDLERS FOR PERSISTENCE ---
 
 ipcMain.handle('get-db', () => dbCache);
 
+// Debounce persistence writes to avoid excessive disk I/O during rapid state updates.
+let _persistDbTimer = null;
+function debouncedPersistDb(delayMs = 2000) {
+    if (_persistDbTimer) clearTimeout(_persistDbTimer);
+    _persistDbTimer = setTimeout(() => {
+        _persistDbTimer = null;
+        persistDb();
+    }, delayMs);
+}
+
 ipcMain.handle('save-db', (event, partialData) => {
+    // Input validation: partialData must be a plain object
+    if (!partialData || typeof partialData !== 'object' || Array.isArray(partialData)) {
+        console.warn('[save-db] Invalid payload, ignoring.');
+        return false;
+    }
+
+    // Only allow known top-level keys
+    const allowedKeys = new Set(['repos', 'jobs', 'archives', 'activityLogs', 'connections', 'settings']);
+    for (const key of Object.keys(partialData)) {
+        if (!allowedKeys.has(key)) {
+            delete partialData[key];
+        }
+    }
+
     // Merge new data into cache (shallow) + deep merge settings to avoid dropping unknown keys.
-    const next = { ...dbCache, ...(partialData || {}) };
-    if (partialData && typeof partialData === 'object' && partialData.settings && typeof partialData.settings === 'object') {
+    const next = { ...dbCache, ...partialData };
+    if (partialData.settings && typeof partialData.settings === 'object') {
         next.settings = { ...(dbCache.settings || {}), ...partialData.settings };
     }
     dbCache = next;
@@ -1163,7 +1218,7 @@ ipcMain.handle('save-db', (event, partialData) => {
     if (partialData.repos) availableRepos = partialData.repos;
     if (partialData.jobs) scheduledJobs = partialData.jobs;
     
-    persistDb();
+    debouncedPersistDb();
     updateTrayMenu();
     return true;
 });

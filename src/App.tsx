@@ -108,37 +108,39 @@ const App: React.FC = () => {
         const ipcRenderer = getIpcRendererOrNull();
         if (!ipcRenderer) return;
 
-    ipcRenderer.on('update-available', (event: any, info: any) => {
+    const handleUpdateAvailable = (_event: any, info: any) => {
         setUpdateAvailable(true);
         setUpdateInfo(info);
         setShowUpdateModal(true);
-    });
+    };
 
-    ipcRenderer.on('download-progress', (event: any, progressObj: any) => {
+    const handleDownloadProgress = (_event: any, progressObj: any) => {
         setIsDownloadingUpdate(true);
         setUpdateProgress(progressObj.percent);
-    });
+    };
 
-    ipcRenderer.on('update-downloaded', () => {
+    const handleUpdateDownloaded = () => {
         setIsDownloadingUpdate(false);
         setIsUpdateReady(true);
         setUpdateProgress(100);
-        // Prompt user to restart now? The modal will likely handle this transition if it's open.
-        // If modal was closed, we might want to show a toast or notification.
-        // toast.success("Update downloaded. Restart to install.");
-    });
+    };
 
-    ipcRenderer.on('update-error', (event: any, message: string) => {
+    const handleUpdateError = (_event: any, message: string) => {
         setIsDownloadingUpdate(false);
         setUpdateProgress(0);
         toast.error(`Updater Error: ${message}`);
-    });
+    };
+
+    ipcRenderer.on('update-available', handleUpdateAvailable);
+    ipcRenderer.on('download-progress', handleDownloadProgress);
+    ipcRenderer.on('update-downloaded', handleUpdateDownloaded);
+    ipcRenderer.on('update-error', handleUpdateError);
 
     return () => {
-       ipcRenderer.removeAllListeners('update-available');
-       ipcRenderer.removeAllListeners('download-progress');
-       ipcRenderer.removeAllListeners('update-downloaded');
-       ipcRenderer.removeAllListeners('update-error');
+       ipcRenderer.removeListener('update-available', handleUpdateAvailable);
+       ipcRenderer.removeListener('download-progress', handleDownloadProgress);
+       ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded);
+       ipcRenderer.removeListener('update-error', handleUpdateError);
     };
   }, []);
 
@@ -439,7 +441,7 @@ const App: React.FC = () => {
 
           const handleActivityLog = (_: any, log: ActivityLogEntry) => {
               const newLog: ActivityLogEntry = {
-                  id: Math.random().toString(36).substr(2, 9),
+                  id: crypto.randomUUID(),
                   time: new Date().toISOString(),
                   ...log
               };
@@ -480,7 +482,7 @@ const App: React.FC = () => {
   // Helper to add activity
   const addActivity = (title: string, detail: string, status: 'success' | 'warning' | 'error' | 'info', cmd?: string) => {
       const newLog: ActivityLogEntry = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: crypto.randomUUID(),
           title,
           detail,
           time: new Date().toISOString(),
@@ -972,7 +974,7 @@ const App: React.FC = () => {
 
   const handleAddRepo = (repoData: any) => {
     const newRepo: Repository = {
-       id: repoData.id || Math.random().toString(36).substr(2, 9),
+       id: repoData.id || crypto.randomUUID(),
        name: repoData.name,
        url: repoData.url,
              connectionId: repoData.connectionId,

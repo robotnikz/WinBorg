@@ -66,7 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
       </div>
 
       {/* NAV ITEMS */}
-      <nav className="flex-1 space-y-1 px-3">
+      <nav aria-label="Main navigation" className="flex-1 space-y-1 px-3">
         <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
           Core
         </div>
@@ -74,6 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
           <button
             key={item.view}
             onClick={() => onChangeView(item.view)}
+            aria-current={currentView === item.view ? 'page' : undefined}
             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 ${
               currentView === item.view
                 ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600 dark:text-blue-400 ring-1 ring-black/5 dark:ring-white/5'
@@ -94,6 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
         {/* Secondary: Activity */}
         <button
           onClick={() => onChangeView(View.ACTIVITY)}
+          aria-current={currentView === View.ACTIVITY ? 'page' : undefined}
           className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 mb-3 ${
             currentView === View.ACTIVITY
               ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600 dark:text-blue-400'
@@ -109,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
         {/* Settings Button */}
         <button
           onClick={() => onChangeView(View.SETTINGS)}
+          aria-current={currentView === View.SETTINGS ? 'page' : undefined}
           className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 mb-3 ${
             currentView === View.SETTINGS
               ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600 dark:text-blue-400'

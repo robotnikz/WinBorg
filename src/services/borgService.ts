@@ -179,7 +179,7 @@ export const borgService = {
     onLog: (text: string) => void,
     overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string }
   ): Promise<boolean> => {
-    const commandId = overrides?.commandId || Math.random().toString(36).substring(7);
+    const commandId = overrides?.commandId || crypto.randomUUID();
     const config = getBorgConfig();
 
     // Prepare Environment Variables
