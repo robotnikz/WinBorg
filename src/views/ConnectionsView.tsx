@@ -329,11 +329,11 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative pb-12">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
             <Link2 className="w-6 h-6 text-blue-400" />
             Connections
           </h2>
-          <p className="text-sm text-slate-400">Manage SSH connections used when adding/editing repositories.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Manage SSH connections used when adding/editing repositories.</p>
         </div>
         <Button onClick={startAdd}>
           <Plus className="w-4 h-4 mr-2" /> Add Connection
@@ -341,9 +341,9 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
       </div>
 
       {/* SSH key section */}
-      <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5 backdrop-blur-sm">
+      <div className="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-sm dark:shadow-none">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 text-gray-200">
+          <div className="flex items-center gap-2 text-slate-700 dark:text-gray-200">
             <Key className="w-4 h-4 text-indigo-400" />
             <span className="font-semibold">SSH Key (WSL)</span>
           </div>
@@ -362,13 +362,13 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
         </div>
 
         {sshKeyStatus === 'loading' && (
-          <div className="text-sm text-slate-400 flex items-center gap-2">
+          <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Checking SSH key...
           </div>
         )}
 
         {sshKeyStatus === 'missing' && (
-          <div className="text-sm text-amber-200 bg-amber-900/20 border border-amber-900/30 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg p-3 flex items-start gap-2">
             <TriangleAlert className="w-4 h-4 mt-0.5" />
             <div>
               <div className="font-semibold">No SSH key found</div>
@@ -379,12 +379,12 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
 
         {sshKeyStatus === 'found' && (
           <div className="space-y-2">
-            <div className="text-xs text-slate-400">Public key:</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Public key:</div>
             <div className="relative group">
               <textarea
                 readOnly
                 value={sshPublicKey}
-                className="w-full h-20 p-2 text-[10px] font-mono bg-black/40 border border-white/10 rounded resize-none focus:outline-none text-slate-200"
+                className="w-full h-20 p-2 text-[10px] font-mono bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-white/10 rounded resize-none focus:outline-none text-slate-700 dark:text-slate-200"
               />
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
@@ -392,7 +392,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
                     navigator.clipboard.writeText(sshPublicKey);
                     toast.success('Copied');
                   }}
-                  className="p-1 rounded bg-white/10 hover:bg-white/20 text-slate-200"
+                  className="p-1 rounded bg-gray-200 hover:bg-gray-300 dark:bg-white/10 dark:hover:bg-white/20 text-slate-600 dark:text-slate-200"
                   title="Copy"
                   aria-label="Copy"
                 >
@@ -400,7 +400,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
                 </button>
               </div>
             </div>
-            <div className="text-xs text-slate-500">Key is stored inside WSL under ~/.ssh/id_ed25519</div>
+            <div className="text-xs text-slate-500 dark:text-slate-500">Key is stored inside WSL under ~/.ssh/id_ed25519</div>
           </div>
         )}
       </div>
@@ -485,28 +485,28 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
 
       {/* Add/Edit panel */}
       {isEditing && (
-        <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5 backdrop-blur-sm">
+        <div className="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-gray-200 font-semibold">{editId ? 'Edit Connection' : 'New Connection'}</div>
-            <button onClick={cancelEdit} className="text-slate-400 hover:text-white" aria-label="Close" title="Close">
+            <div className="text-slate-700 dark:text-gray-200 font-semibold">{editId ? 'Edit Connection' : 'New Connection'}</div>
+            <button onClick={cancelEdit} className="text-slate-400 hover:text-slate-600 dark:hover:text-white" aria-label="Close" title="Close">
               <X className="w-4 h-4" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Name</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Name</label>
               <input
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-white"
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-slate-800 dark:text-white"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="e.g. Hetzner StorageBox"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">Server URL</label>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">Server URL</label>
               <input
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-mono text-white"
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-mono text-slate-800 dark:text-white"
                 value={formServerUrl}
                 onChange={(e) => setFormServerUrl(e.target.value)}
                 placeholder="ssh://user@host:22"
@@ -524,36 +524,36 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
       {/* Connections list */}
       <div className="space-y-3">
         {sortedConnections.length === 0 ? (
-          <div className="bg-gray-800/30 p-6 rounded-xl border border-white/5 text-slate-300">
+          <div className="bg-white dark:bg-gray-800/30 p-6 rounded-xl border border-gray-200 dark:border-white/5 text-slate-600 dark:text-slate-300 shadow-sm dark:shadow-none">
             <div className="font-semibold mb-1">No connections yet</div>
-            <div className="text-sm text-slate-400">Add a connection to select it when creating repositories.</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Add a connection to select it when creating repositories.</div>
           </div>
         ) : (
           sortedConnections.map((c, idx) => (
-            <div key={c.id} className="bg-gray-800/50 p-4 rounded-xl border border-white/5 backdrop-blur-sm">
+            <div key={c.id} className="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-sm dark:shadow-none">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-white font-semibold truncate">{c.name}</div>
-                  <div className="text-xs text-slate-400 font-mono break-all">{c.serverUrl}</div>
+                  <div className="text-slate-800 dark:text-white font-semibold truncate">{c.name}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-mono break-all">{c.serverUrl}</div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => moveConnection(idx, -1)}
                     disabled={idx === 0}
-                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-40"
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 disabled:opacity-40"
                     title="Move up"
                     aria-label="Move up"
                   >
-                    <ArrowUp className="w-4 h-4 text-slate-200" />
+                    <ArrowUp className="w-4 h-4 text-slate-500 dark:text-slate-200" />
                   </button>
                   <button
                     onClick={() => moveConnection(idx, 1)}
                     disabled={idx === sortedConnections.length - 1}
-                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-40"
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 disabled:opacity-40"
                     title="Move down"
                     aria-label="Move down"
                   >
-                    <ArrowDown className="w-4 h-4 text-slate-200" />
+                    <ArrowDown className="w-4 h-4 text-slate-500 dark:text-slate-200" />
                   </button>
                 </div>
               </div>
@@ -601,7 +601,7 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
                 </Button>
               </div>
 
-              <div className="mt-3 text-[11px] text-slate-500 flex items-center gap-2">
+              <div className="mt-3 text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-2">
                 <Cloud className="w-3 h-3" /> BorgBackup deployment remains in the repository setup flow.
               </div>
             </div>
