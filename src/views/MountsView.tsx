@@ -116,7 +116,7 @@ const MountsView: React.FC<MountsViewProps> = ({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Active Mounts</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><HardDrive className="w-6 h-6 text-blue-400" />Active Mounts</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             Access your archives directly in {useWsl ? 'WSL / Windows' : 'File Explorer'}.
           </p>

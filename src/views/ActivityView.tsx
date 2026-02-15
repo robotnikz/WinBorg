@@ -53,7 +53,7 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto pb-12">
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Activity Log</h1>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><Activity className="w-6 h-6 text-blue-400" />Activity Log</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
                         History of operations and background tasks
                         {logs.length > 0 && <span className="ml-2 text-slate-400 dark:text-slate-500">({logs.length} entries)</span>}

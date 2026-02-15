@@ -265,7 +265,7 @@ const ArchivesView: React.FC<ArchivesViewProps> = ({ archives, archivesRepoId, r
       {/* HEADER */}
       <div className="flex justify-between items-center">
         <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Archives</h1>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><HardDrive className="w-6 h-6 text-blue-400" />Archives</h1>
             <p
                 className={`text-sm mt-1 ${
                     canShowArchives

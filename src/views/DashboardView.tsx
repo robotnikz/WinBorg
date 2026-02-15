@@ -24,7 +24,8 @@ import {
   Database,
   Terminal,
   Clock,
-  LayoutGrid
+  LayoutGrid,
+  LayoutDashboard
 } from 'lucide-react';
 import Button from '../components/Button';
 import SystemStatusModal from '../components/SystemStatusModal';
@@ -212,7 +213,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         {/* UNIFIED HEADER */}
         <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Dashboard</h1>
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><LayoutDashboard className="w-6 h-6 text-blue-400" />Dashboard</h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{getGreeting()}. Here is your backup overview.</p>
             </div>
             
