@@ -436,6 +436,8 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
                 ? state.filesystem.selectDirectoryPaths
                 : ['C:\\Temp'],
             };
+          case 'get-preferred-wsl-distro':
+            return state.system.distro || 'Ubuntu';
           case 'get-downloads-path':
             // borgService.getDownloadsPath() expects a string.
             return 'C:\\Users\\mock\\Downloads';

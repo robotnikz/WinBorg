@@ -18,12 +18,46 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
         } catch(e) { return iso; }
     };
 
+    // Group logs by date for better scannability
+    const getDateLabel = (iso: string): string => {
+        try {
+            const date = new Date(iso);
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const logDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const diffDays = Math.round((today.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            return date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        } catch {
+            return 'Unknown';
+        }
+    };
+
+    // Build grouped structure
+    const groupedLogs: { label: string; items: ActivityLogEntry[] }[] = [];
+    let currentLabel = '';
+    for (const log of logs) {
+        const label = getDateLabel(log.time);
+        if (label !== currentLabel) {
+            currentLabel = label;
+            groupedLogs.push({ label, items: [log] });
+        } else {
+            groupedLogs[groupedLogs.length - 1].items.push(log);
+        }
+    }
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto pb-12">
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Activity Log</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">History of operations and background tasks</p>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><Activity className="w-6 h-6 text-blue-400" />Activity Log</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                        History of operations and background tasks
+                        {logs.length > 0 && <span className="ml-2 text-slate-400 dark:text-slate-500">({logs.length} entries)</span>}
+                    </p>
                 </div>
                 {logs.length > 0 && (
                     <Button variant="secondary" size="sm" onClick={onClearLogs} className="dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600">
@@ -34,14 +68,20 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
-                <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                    {logs.length === 0 ? (
-                        <div className="p-12 text-center text-slate-400 dark:text-slate-500">
-                            <Activity className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                            <p>No activity recorded yet.</p>
-                        </div>
-                    ) : (
-                        logs.map((log) => (
+                {logs.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 dark:text-slate-500">
+                        <Activity className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                        <p>No activity recorded yet.</p>
+                    </div>
+                ) : (
+                    groupedLogs.map((group) => (
+                        <div key={group.label}>
+                            {/* Date Group Header */}
+                            <div className="sticky top-0 z-10 px-6 py-2 bg-gray-50 dark:bg-slate-900/80 backdrop-blur-sm border-b border-gray-100 dark:border-slate-700">
+                                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{group.label}</span>
+                            </div>
+                            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                                {group.items.map((log) => (
                             <div key={log.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors flex gap-4 items-start group">
                                 <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${
                                     log.status === 'success' ? 'bg-green-500 shadow-green-500/50' : 
@@ -69,9 +109,11 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
                                     )}
                                 </div>
                             </div>
-                        ))
-                    )}
-                </div>
+                        ))}
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

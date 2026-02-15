@@ -8,7 +8,7 @@ import DeleteRepoModal from '../components/DeleteRepoModal';
 import CreateBackupModal from '../components/CreateBackupModal';
 import JobsModal from '../components/JobsModal';
 import Button from '../components/Button';
-import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck, Copy } from 'lucide-react';
+import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck, Copy, Server } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
 
@@ -462,7 +462,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
         setIsModalOpen(false);
 
     } else {
-        const newId = Math.random().toString(36).substr(2, 9);
+        const newId = crypto.randomUUID();
         
         if (repoForm.passphrase) {
             await borgService.savePassphrase(newId, repoForm.passphrase);
@@ -1119,7 +1119,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       {/* HEADER SECTION */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Repositories</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><Server className="w-6 h-6 text-blue-400" />Repositories</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Manage remote storage locations.</p>
         </div>
         

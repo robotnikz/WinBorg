@@ -10,7 +10,7 @@ interface ToastEventDetail {
 
 export const toast = {
   show: (message: string, type: ToastType = 'info', duration = 4000) => {
-    const id = Math.random().toString(36).substr(2, 9);
+    const id = crypto.randomUUID();
     const event = new CustomEvent<ToastEventDetail>('show-toast', {
       detail: {
         id,

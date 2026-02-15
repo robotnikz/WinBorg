@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 import MountsView from './MountsView';
 
@@ -12,6 +12,10 @@ vi.mock('../components/Button', () => ({
 
 describe('MountsView', () => {
   const send = vi.fn();
+  const invoke = vi.fn().mockImplementation((channel: string) => {
+    if (channel === 'get-preferred-wsl-distro') return Promise.resolve('Ubuntu');
+    return Promise.resolve(null);
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -20,11 +24,12 @@ describe('MountsView', () => {
     (window as any).require = vi.fn(() => ({
       ipcRenderer: {
         send,
+        invoke,
       },
     }));
   });
 
-  it('converts WSL paths to \\wsl.localhost UNC when opening folder', () => {
+  it('converts WSL paths to \\wsl.localhost UNC when opening folder', async () => {
     render(
       <MountsView
         mounts={[
@@ -45,7 +50,9 @@ describe('MountsView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Open Folder/i }));
 
-    expect(send).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(send).toHaveBeenCalledTimes(1);
+    });
     expect(send).toHaveBeenCalledWith(
       'open-path',
       '\\\\wsl.localhost\\Ubuntu\\mnt\\wsl\\winborg\\a1'

@@ -323,7 +323,7 @@ const SettingsView: React.FC = () => {
           
           <div className="mb-6 flex justify-between items-center">
               <div>
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Settings</h1>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><Settings className="w-6 h-6 text-blue-400" />Settings</h1>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">Manage configuration and preferences</p>
               </div>
               

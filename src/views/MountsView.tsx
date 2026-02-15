@@ -96,7 +96,15 @@ const MountsView: React.FC<MountsViewProps> = ({
     let pathToSend = path;
     if (path.startsWith('/')) {
       const windowsStyle = path.replace(/\//g, '\\');
-      pathToSend = `\\\\wsl.localhost\\Ubuntu${windowsStyle}`;
+      // Determine the actual WSL distro name from the backend instead of hardcoding
+      ipcRenderer.invoke('get-preferred-wsl-distro').then((distro: string) => {
+        const distroName = distro || 'Ubuntu';
+        ipcRenderer.send('open-path', `\\\\wsl.localhost\\${distroName}${windowsStyle}`);
+      }).catch(() => {
+        // Fallback to Ubuntu if we can't determine the distro
+        ipcRenderer.send('open-path', `\\\\wsl.localhost\\Ubuntu${windowsStyle}`);
+      });
+      return;
     }
     ipcRenderer.send('open-path', pathToSend);
   };
@@ -108,7 +116,7 @@ const MountsView: React.FC<MountsViewProps> = ({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Active Mounts</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><HardDrive className="w-6 h-6 text-blue-400" />Active Mounts</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             Access your archives directly in {useWsl ? 'WSL / Windows' : 'File Explorer'}.
           </p>

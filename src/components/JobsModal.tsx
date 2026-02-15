@@ -161,7 +161,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
       const baseJob: BackupJob = editingJob
           ? editingJob
           : {
-              id: Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               repoId: repo.id,
               name: jobName,
               sourcePath: uniqueSourcePaths[0],
@@ -743,36 +743,40 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Daily</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-900 dark:text-white"
                                            value={keepDaily}
-                                           onChange={e => setKeepDaily(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepDaily(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                    <div>
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Weekly</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-900 dark:text-white"
                                            value={keepWeekly}
-                                           onChange={e => setKeepWeekly(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepWeekly(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                    <div>
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Monthly</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-900 dark:text-white"
                                            value={keepMonthly}
-                                           onChange={e => setKeepMonthly(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepMonthly(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                    <div>
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Yearly</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-900 dark:text-white"
                                            value={keepYearly}
-                                           onChange={e => setKeepYearly(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepYearly(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                </div>

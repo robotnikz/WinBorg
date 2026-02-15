@@ -81,7 +81,17 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
                         ref={copyButtonRef}
                         onClick={() => {
                             navigator.clipboard.writeText(command);
-                            alert("Command copied to clipboard!");
+                            // Use a brief visual feedback instead of blocking alert()
+                            const btn = copyButtonRef.current;
+                            if (btn) {
+                                const original = btn.title;
+                                btn.title = 'Copied!';
+                                btn.classList.add('text-green-400');
+                                setTimeout(() => {
+                                    btn.title = original;
+                                    btn.classList.remove('text-green-400');
+                                }, 2000);
+                            }
                         }}
                         className="absolute top-8 right-3 p-2 bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
                         title="Copy to clipboard"

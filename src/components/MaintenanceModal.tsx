@@ -194,27 +194,30 @@ const MaintenanceModal: React.FC<MaintenanceModalProps> = ({ repo, isOpen, onClo
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Daily</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                            value={keepDaily}
-                                           onChange={e => setKeepDaily(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepDaily(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                    <div>
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Weekly</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                            value={keepWeekly}
-                                           onChange={e => setKeepWeekly(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepWeekly(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                    <div>
                                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Keep Monthly</label>
                                        <input 
                                            type="number" 
+                                           min={0}
                                            className="w-full border border-gray-300 dark:border-slate-600 rounded p-2 text-sm bg-white dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                            value={keepMonthly}
-                                           onChange={e => setKeepMonthly(parseInt(e.target.value) || 0)}
+                                           onChange={e => setKeepMonthly(Math.max(0, parseInt(e.target.value) || 0))}
                                        />
                                    </div>
                                </div>

@@ -15,6 +15,8 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
   const bottomRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Store timestamps when each log entry is first seen
+  const logTimestampsRef = useRef<Map<number, string>>(new Map());
 
   useEffect(() => {
     if (bottomRef.current) {
@@ -74,12 +76,19 @@ const TerminalModal: React.FC<TerminalModalProps> = ({ isOpen, title, logs, onCl
 
         {/* Terminal Output */}
         <div className="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1" aria-live="polite">
-          {logs.map((log, index) => (
+          {logs.map((log, index) => {
+            // Cache timestamp on first render of each log entry
+            if (!logTimestampsRef.current.has(index)) {
+              logTimestampsRef.current.set(index, new Date().toLocaleTimeString());
+            }
+            const timestamp = logTimestampsRef.current.get(index)!;
+            return (
             <div key={index} className="text-gray-300 break-all border-l-2 border-transparent hover:border-gray-600 pl-2">
-              <span className="text-gray-500 select-none mr-2">[{new Date().toLocaleTimeString()}]</span>
+              <span className="text-gray-500 select-none mr-2">[{timestamp}]</span>
               {log}
             </div>
-          ))}
+            );
+          })}
           {isProcessing && (
              <div className="flex items-center gap-2 text-blue-400 mt-2 animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
