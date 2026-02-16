@@ -84,7 +84,7 @@
     "cross-env": "^10.1.0",
     "electron": "^40.2.1",
     "electron-builder": "^26.7.0",
-    "jsdom": "^27.4.0",
+    "jsdom": "^28.1.0",
     "lucide-react": "^0.563.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.4",
