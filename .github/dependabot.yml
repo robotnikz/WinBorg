@@ -3,21 +3,26 @@ updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+      day-of-month: "1"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 2
     groups:
-      react:
+      all-non-major:
+        update-types: ["minor", "patch"]
         patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react"
-          - "@types/react-dom"
-      vitest:
-        patterns:
-          - "vitest"
-          - "@vitest/*"
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+      day-of-month: "1"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns:
+          - "*"
