@@ -64,7 +64,7 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.7.3",
+    "electron-updater": "^6.8.3",
     "nodemailer": "^8.0.1"
   },
   "devDependencies": {
