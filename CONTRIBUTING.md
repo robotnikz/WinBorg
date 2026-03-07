@@ -58,6 +58,9 @@ npm run test:pr
 ```bash
 npm run test:e2e
 
+# Linux / headless Electron
+npm run test:e2e:xvfb
+
 # Fast subset used in PR gate
 npm run test:e2e:smoke
 
@@ -67,6 +70,8 @@ npm run test:e2e:full
 # Manual suite (may trigger admin prompts / app close)
 npm run test:e2e:manual
 ```
+
+On headless Linux, Electron needs a display server. CI uses `xvfb-run`, and local Linux runs should use the matching `test:e2e:xvfb*` scripts.
 
 ## Branching & PRs
 - Default branch: `main`

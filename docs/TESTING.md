@@ -53,6 +53,12 @@ npm run test:e2e
 # Fast smoke subset
 npm run test:e2e:smoke
 
+# Linux / headless Electron (requires xvfb-run)
+npm run test:e2e:xvfb
+
+# Linux / headless Electron smoke subset
+npm run test:e2e:xvfb:smoke
+
 # Full E2E suite
 npm run test:e2e:full
 
@@ -71,11 +77,37 @@ This runs `typecheck` + unit tests (coverage) + E2E smoke.
 CI note:
 - PRs run the smoke suite.
 - Nightly and `main` run the full suite.
+- Linux/Electron E2E in CI runs behind `xvfb-run` because Electron needs a display server even when the UI is not visibly rendered.
+
+### Linux note for Electron E2E
+
+If you run Electron Playwright tests on Linux without an active desktop session, Electron will usually fail very early with `Process failed to launch!`.
+
+That is the difference between a plain local shell and CI today:
+
+- your current shell has no X server and no `xvfb-run`
+- GitHub Actions provides a virtual display via `xvfb-run`
+
+Use the dedicated scripts when running locally on headless Linux:
+
+```bash
+npm run test:e2e:xvfb
+npm run test:e2e:xvfb:smoke
+npm run test:e2e:xvfb:full
+```
+
+If `xvfb-run` is missing, install Xvfb first, for example on Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y xvfb
+```
 
 ### Notes about E2E determinism
 
 - E2E tests run with `NODE_ENV=test` to enable isolated Electron `userData` per run.
 - IPC is mocked in E2E so CI does not require real WSL/SSH/Borg.
+- Recovery-drill coverage now includes deterministic Playwright UI flows in `e2e/recovery.spec.ts`.
 
 ### Notes about manual E2E
 

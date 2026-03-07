@@ -27,6 +27,22 @@ export interface ArchiveStats {
   deduplicatedSize: number;
 }
 
+export interface RecoveryDrillConfig {
+  enabled: boolean;
+  autoRunAfterBackup: boolean;
+  samplePaths: string[];
+}
+
+export interface RecoveryDrillState {
+  status: 'idle' | 'running' | 'success' | 'error';
+  lastRunAt: string;
+  lastArchiveName?: string;
+  lastDurationMs?: number;
+  lastVerifiedCount?: number;
+  lastRestorePath?: string;
+  lastError?: string;
+}
+
 
 export interface Repository {
   id: string;
@@ -67,6 +83,10 @@ export interface Repository {
   backupEstimatedDurationMs?: number; // Used for ETA/progress bar (heuristic)
   activeBackupCommandId?: string; // For cancelling a running backup
   activeBackupJobId?: string; // If the running backup was triggered by a job
+
+  // Recovery Drill Confidence
+  recoveryDrill?: RecoveryDrillConfig;
+  recoveryDrillState?: RecoveryDrillState;
 }
 
 export interface BackupJob {

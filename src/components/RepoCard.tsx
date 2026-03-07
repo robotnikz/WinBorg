@@ -3,6 +3,7 @@ import React from 'react';
 import { Repository, BackupJob } from '../types';
 import { Server, Shield, Clock, HardDrive, Trash2, Loader2, Edit2, ShieldCheck, Unlock, Lock, Wrench, Key, UploadCloud, Briefcase, CalendarClock } from 'lucide-react';
 import { getNextRunForRepo, formatDate } from '../utils/formatters';
+import { getRecoveryConfidence, getRecoveryConfidenceLabel } from '../utils/recovery';
 
 interface RepoCardProps {
   repo: Repository;
@@ -23,6 +24,9 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
   const nextRun = jobs ? getNextRunForRepo(jobs, repo.id) : null;
   const repoJobsCount = jobs ? jobs.filter((j) => j.repoId === repo.id).length : null;
   const hasNoJobs = repoJobsCount === 0;
+  const recoveryConfigured = !!repo.recoveryDrill?.enabled || !!repo.recoveryDrillState?.lastRunAt;
+  const recoveryConfidence = getRecoveryConfidence(repo);
+  const recoveryLabel = getRecoveryConfidenceLabel(repo);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200/75 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all duration-200 group relative overflow-hidden flex flex-col h-full">
@@ -136,6 +140,20 @@ const RepoCard: React.FC<RepoCardProps> = ({ repo, jobs, onMount, onConnect, onD
                 <CalendarClock className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">{nextRun}</span>
             </div>
+        )}
+        {recoveryConfigured && (
+          <div className={`col-span-2 flex items-center gap-2.5 text-xs font-medium ${
+            recoveryConfidence === 'healthy'
+              ? 'text-green-700 dark:text-green-400'
+              : recoveryConfidence === 'warning'
+              ? 'text-yellow-700 dark:text-yellow-400'
+              : recoveryConfidence === 'critical'
+              ? 'text-red-700 dark:text-red-400'
+              : 'text-slate-600 dark:text-slate-400'
+          }`} title={recoveryLabel}>
+            <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{recoveryLabel}</span>
+          </div>
         )}
       </div>
 
