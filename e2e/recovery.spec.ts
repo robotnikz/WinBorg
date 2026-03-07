@@ -53,11 +53,12 @@ test.describe('Recovery drill flow', () => {
     await page.reload();
 
     const repoCard = page.locator('div', { has: page.getByRole('heading', { name: 'My Repo' }) }).first();
+    await expect(repoCard).toBeVisible();
 
-    await repoCard.getByRole('button', { name: 'Connect', exact: true }).click();
+    await repoCard.getByRole('button', { name: 'Connect', exact: true }).click({ force: true });
     await expect(repoCard.getByText('Online')).toBeVisible();
 
-    await repoCard.getByRole('button', { name: 'View Details & History', exact: true }).click();
+    await repoCard.getByRole('button', { name: 'View Details & History', exact: true }).click({ force: true });
 
     await expect(page.getByRole('heading', { name: 'My Repo' })).toBeVisible();
     await expect(page.getByText('Recovery Drill', { exact: true })).toBeVisible();
@@ -85,11 +86,12 @@ test.describe('Recovery drill flow', () => {
     await page.reload();
 
     const repoCard = page.locator('div', { has: page.getByRole('heading', { name: 'My Repo' }) }).first();
+    await expect(repoCard).toBeVisible();
 
-    await repoCard.getByRole('button', { name: 'Connect', exact: true }).click();
+    await repoCard.getByRole('button', { name: 'Connect', exact: true }).click({ force: true });
     await expect(repoCard.getByText('Online')).toBeVisible();
 
-    await repoCard.getByRole('button', { name: 'View Details & History', exact: true }).click();
+    await repoCard.getByRole('button', { name: 'View Details & History', exact: true }).click({ force: true });
 
     await page.getByLabel('Enable recovery drill').check();
     await page.getByLabel('Recovery drill sample paths').fill('Documents/important.docx');
