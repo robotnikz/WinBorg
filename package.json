@@ -43,11 +43,16 @@
       "output": "dist-electron"
     },
     "files": [
-      "dist/**/*",
       "electron-main.js",
-      "main/**/*",
+      "main/*.js",
       "wsl-helper.js",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "app-dist",
+        "to": "app-dist"
+      }
     ],
     "win": {
       "icon": "public/icon.png",

@@ -566,8 +566,13 @@ function escapePythonSingleQuotedString(value) {
 }
 
 function getIconPath() {
-    const p = isDev ? path.join(__dirname, 'public/icon.png') : path.join(__dirname, 'dist/icon.png');
-    return fs.existsSync(p) ? p : null;
+    const candidates = isDev
+        ? [path.join(__dirname, 'public/icon.png')]
+        : app.isPackaged
+            ? [path.join(process.resourcesPath, 'app-dist', 'icon.png')]
+            : [path.join(__dirname, 'app-dist', 'icon.png'), path.join(__dirname, 'public/icon.png')];
+
+    return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
 function createWindow(shouldStartMinimized = false) {
@@ -595,7 +600,9 @@ function createWindow(shouldStartMinimized = false) {
         const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
         mainWindow.loadURL(devUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    const packagedRendererPath = path.join(process.resourcesPath, 'app-dist', 'index.html');
+    const localRendererPath = path.join(__dirname, 'app-dist', 'index.html');
+    mainWindow.loadFile(app.isPackaged ? packagedRendererPath : localRendererPath);
   }
 
   mainWindow.on('close', (event) => {
