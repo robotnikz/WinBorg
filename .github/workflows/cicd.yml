@@ -54,17 +54,17 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "script=test:e2e:smoke" >> "$GITHUB_OUTPUT"
+            echo "script=test:e2e:xvfb:smoke" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "script=test:e2e:full" >> "$GITHUB_OUTPUT"
+            echo "script=test:e2e:xvfb:full" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "script=test:e2e:full" >> "$GITHUB_OUTPUT"
+            echo "script=test:e2e:xvfb:full" >> "$GITHUB_OUTPUT"
           else
-            echo "script=test:e2e:smoke" >> "$GITHUB_OUTPUT"
+            echo "script=test:e2e:xvfb:smoke" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run E2E Tests (Headless)
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run ${{ steps.e2e.outputs.script }}
+        run: npm run ${{ steps.e2e.outputs.script }}
 
       - name: Upload Playwright Report (on failure)
         if: failure()

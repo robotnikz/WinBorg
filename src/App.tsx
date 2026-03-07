@@ -12,7 +12,7 @@ import RepoDetailsView from './views/RepoDetailsView';
 import TerminalModal from './components/TerminalModal';
 import FuseSetupModal from './components/FuseSetupModal';
 import CreateBackupModal from './components/CreateBackupModal';
-import { View, Repository, MountPoint, Archive, ActivityLogEntry, BackupJob, SshConnection } from './types';
+import { View, Repository, MountPoint, Archive, ActivityLogEntry, BackupJob, SshConnection, RecoveryDrillConfig } from './types';
 import { borgService } from './services/borgService';
 import { formatDate } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
@@ -23,6 +23,7 @@ import UpdateModal from './components/UpdateModal';
 import { getIpcRendererOrNull } from './services/electron';
 import RestoreView, { RestoreTab } from './views/RestoreView';
 import ConnectionsView from './views/ConnectionsView';
+import { normalizeRecoveryDrillConfig, normalizeRepositoryRecovery } from './utils/recovery';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
@@ -290,7 +291,7 @@ const App: React.FC = () => {
               }
 
               // Sanitize Repos (remove legacy plain text passwords if any existed)
-              const sanitizedRepos: Repository[] = (initialRepos || []).map((r: Repository) => ({
+              const sanitizedRepos: Repository[] = (initialRepos || []).map((r: Repository) => normalizeRepositoryRecovery({
                   ...r,
                   passphrase: undefined,
                   status: 'disconnected', 
@@ -479,6 +480,14 @@ const App: React.FC = () => {
   // --- MODAL STATES FOR DASHBOARD ACCESS ---
     const [backupModal, setBackupModal] = useState<{ repo: Repository; isOpen: boolean } | null>(null);
 
+      const sanitizeFileSegment = (value: string, fallback: string) => {
+          const clean = String(value || '')
+              .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+              .replace(/\s+/g, ' ')
+              .trim();
+          return clean || fallback;
+      };
+
   // Helper to add activity
   const addActivity = (title: string, detail: string, status: 'success' | 'warning' | 'error' | 'info', cmd?: string) => {
       const newLog: ActivityLogEntry = {
@@ -497,6 +506,116 @@ const App: React.FC = () => {
       if(!repo.url) return;
       const isLocked = await borgService.checkLockStatus(repo.url, { disableHostCheck: repo.trustHost });
       setRepos(prev => prev.map(r => r.id === repo.id ? { ...r, isLocked } : r));
+  };
+
+  const updateRecoveryDrillConfig = (repoId: string, config: RecoveryDrillConfig) => {
+      const normalizedConfig = normalizeRecoveryDrillConfig(config);
+      const repoName = reposRef.current.find(r => r.id === repoId)?.name || repoId;
+      setRepos(prev => prev.map(r => r.id === repoId ? normalizeRepositoryRecovery({
+          ...r,
+          recoveryDrill: normalizedConfig
+      }) : r));
+      addActivity('Recovery Drill Updated', `Updated recovery drill settings for ${repoName}`, 'info');
+      toast.success('Recovery drill settings saved.');
+  };
+
+  const runRecoveryDrill = async (repoId: string, preferredArchiveName?: string) => {
+      const repo = reposRef.current.find(r => r.id === repoId);
+      if (!repo) return false;
+
+      const drillConfig = normalizeRecoveryDrillConfig(repo.recoveryDrill);
+      if (!drillConfig.enabled || drillConfig.samplePaths.length === 0) {
+          const message = 'Configure at least one restore test path before running a recovery drill.';
+          setRepos(prev => prev.map(r => r.id === repoId ? normalizeRepositoryRecovery({
+              ...r,
+              recoveryDrillState: {
+                  ...r.recoveryDrillState,
+                  status: 'error',
+                  lastRunAt: new Date().toISOString(),
+                  lastError: message
+              }
+          }) : r));
+          addActivity('Recovery Drill Failed', `${repo.name}: ${message}`, 'error');
+          toast.error(message);
+          return false;
+      }
+
+      setRepos(prev => prev.map(r => r.id === repoId ? normalizeRepositoryRecovery({
+          ...r,
+          recoveryDrillState: {
+              ...r.recoveryDrillState,
+              status: 'running',
+              lastError: undefined
+          }
+      }) : r));
+
+      const overrides = { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath };
+      const startTime = Date.now();
+
+      try {
+          const archives = await borgService.listArchives(repo.url, overrides);
+          const sortedArchives = [...archives].sort((left, right) => new Date(right.time).getTime() - new Date(left.time).getTime());
+          const archive = preferredArchiveName
+              ? sortedArchives.find(entry => entry.name === preferredArchiveName) || null
+              : sortedArchives[0] || null;
+
+          if (!archive) {
+              throw new Error('No archives available for this repository.');
+          }
+
+          const downloadsPath = await borgService.getDownloadsPath();
+          const targetPath = `${downloadsPath}\\WinBorg Recovery Drills\\${sanitizeFileSegment(repo.name, 'repository')}\\${sanitizeFileSegment(archive.name, 'archive')}_${Date.now()}`;
+          const created = await borgService.createDirectory(targetPath);
+          if (!created) {
+              throw new Error('Could not create the recovery drill folder.');
+          }
+
+          const logs: string[] = [];
+          const success = await borgService.extractFiles(
+              repo.url,
+              archive.name,
+              drillConfig.samplePaths,
+              targetPath,
+              (chunk) => logs.push(chunk),
+              overrides,
+          );
+
+          const durationMs = Date.now() - startTime;
+          const lastLog = logs.map(line => line.trim()).filter(Boolean).slice(-1)[0];
+          if (!success) {
+              throw new Error(lastLog || 'Borg extract failed during the recovery drill.');
+          }
+
+          setRepos(prev => prev.map(r => r.id === repoId ? normalizeRepositoryRecovery({
+              ...r,
+              recoveryDrillState: {
+                  status: 'success',
+                  lastRunAt: new Date().toISOString(),
+                  lastArchiveName: archive.name,
+                  lastDurationMs: durationMs,
+                  lastVerifiedCount: drillConfig.samplePaths.length,
+                  lastRestorePath: targetPath,
+                  lastError: undefined
+              }
+          }) : r));
+          addActivity('Recovery Drill Passed', `${repo.name}: restored ${drillConfig.samplePaths.length} test path(s) from ${archive.name}`, 'success');
+          toast.success(`Recovery drill passed for ${repo.name}`);
+          return true;
+      } catch (error: any) {
+          const message = error?.message || 'Recovery drill failed.';
+          setRepos(prev => prev.map(r => r.id === repoId ? normalizeRepositoryRecovery({
+              ...r,
+              recoveryDrillState: {
+                  ...r.recoveryDrillState,
+                  status: 'error',
+                  lastRunAt: new Date().toISOString(),
+                  lastError: message
+              }
+          }) : r));
+          addActivity('Recovery Drill Failed', `${repo.name}: ${message}`, 'error');
+          toast.error(`Recovery drill failed for ${repo.name}`);
+          return false;
+      }
   };
 
   const reposRef = useRef<Repository[]>([]);
@@ -973,7 +1092,7 @@ const App: React.FC = () => {
   };
 
   const handleAddRepo = (repoData: any) => {
-    const newRepo: Repository = {
+        const newRepo: Repository = normalizeRepositoryRecovery({
        id: repoData.id || crypto.randomUUID(),
        name: repoData.name,
        url: repoData.url,
@@ -987,13 +1106,13 @@ const App: React.FC = () => {
        fileCount: 0,
        checkStatus: 'idle',
        lastCheckTime: 'Never'
-    };
+     });
     setRepos(prev => [...prev, newRepo]);
     handleConnect(newRepo);
   };
 
   const handleEditRepo = (id: string, repoData: any) => {
-     setRepos(prev => prev.map(r => r.id === id ? { ...r, ...repoData, status: 'disconnected' } : r));
+      setRepos(prev => prev.map(r => r.id === id ? normalizeRepositoryRecovery({ ...r, ...repoData, status: 'disconnected' }) : r));
   };
 
   const handleDeleteRepo = async (repoId: string) => {
@@ -1082,6 +1201,10 @@ const App: React.FC = () => {
               setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'success', lastRun: new Date().toISOString() } : j));
               if (repo.status === 'connected') handleConnect(repo); // Refresh archive list
               finishRepoBackup(repo, 'success', Date.now() - startTime);
+              const recoveryConfig = normalizeRecoveryDrillConfig(repo.recoveryDrill);
+              if (recoveryConfig.enabled && recoveryConfig.autoRunAfterBackup) {
+                  void runRecoveryDrill(repo.id, archiveName);
+              }
           } else {
               finishRepoBackup(repo, 'error', Date.now() - startTime);
               setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
@@ -1192,12 +1315,19 @@ const App: React.FC = () => {
                             preselectedRepoId={preselectedRepoId}
                         />
         );
-      case View.REPO_DETAILS:
-        return detailRepo ? (
-           <RepoDetailsView repo={detailRepo} onBack={() => setCurrentView(View.DASHBOARD)} /> 
+        case View.REPO_DETAILS: {
+          const activeDetailRepo = detailRepo ? (repos.find(r => r.id === detailRepo.id) || detailRepo) : null;
+          return activeDetailRepo ? (
+              <RepoDetailsView
+                 repo={activeDetailRepo}
+                 onBack={() => { setDetailRepo(null); setCurrentView(View.DASHBOARD); }}
+                 onSaveRecoveryDrill={updateRecoveryDrillConfig}
+                 onRunRecoveryDrill={runRecoveryDrill}
+              /> 
         ) : (
            <div className="flex h-full items-center justify-center">Select a repository</div>
         );
+        }
       case View.SETTINGS: return <SettingsView />;
       case View.ACTIVITY: return <ActivityView logs={activityLogs} onClearLogs={() => setActivityLogs([])} />;
       case View.DASHBOARD:
@@ -1274,6 +1404,10 @@ const App: React.FC = () => {
               onBackupFinished={(repo, result, durationMs) => {
                   finishRepoBackup(repo, result, durationMs);
                   if (result === 'success') handleConnect(repo);
+                  const recoveryConfig = normalizeRecoveryDrillConfig(repo.recoveryDrill);
+                  if (result === 'success' && recoveryConfig.enabled && recoveryConfig.autoRunAfterBackup) {
+                      void runRecoveryDrill(repo.id);
+                  }
                   setBackupModal(null);
               }}
               onBackupCancelled={(repo) => {

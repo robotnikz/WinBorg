@@ -62,4 +62,24 @@ describe('RepoCard', () => {
     expect(screen.queryByTitle('Create First Job')).not.toBeInTheDocument();
     expect(screen.queryByTitle('Create a One-off Snapshot now')).not.toBeInTheDocument();
   });
+
+  it('shows recovery confidence when a drill is configured', () => {
+    render(
+      <RepoCard
+        repo={{
+          ...baseRepo,
+          recoveryDrill: { enabled: true, autoRunAfterBackup: false, samplePaths: ['Documents/important.docx'] },
+          recoveryDrillState: {
+            status: 'success',
+            lastRunAt: new Date().toISOString(),
+            lastVerifiedCount: 1,
+            lastArchiveName: 'archive-1'
+          }
+        }}
+        jobs={[]}
+      />
+    );
+
+    expect(screen.getByText(/recovery verified/i)).toBeInTheDocument();
+  });
 });
