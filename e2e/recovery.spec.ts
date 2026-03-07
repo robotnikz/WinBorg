@@ -72,7 +72,7 @@ test.describe('Recovery drill flow', () => {
     await page.getByRole('button', { name: 'Run Recovery Drill', exact: true }).click();
 
     await expect(page.getByText('Recovery verified (2 paths)', { exact: true })).toBeVisible();
-    await expect(page.getByText('daily-2026-01-03', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Last archive:\s*daily-2026-01-03/i)).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open Last Drill Folder', exact: true })).toBeVisible();
   });
 
