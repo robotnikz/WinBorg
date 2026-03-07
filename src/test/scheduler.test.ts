@@ -6,6 +6,7 @@ const {
   getTimeString,
   getDayKey,
   getTriggerKey,
+  isWithinActiveScheduleWindow,
   shouldTriggerScheduledJob,
   tryStartJob,
   finishJob,
@@ -32,20 +33,53 @@ describe('main/scheduler', () => {
     expect(second.shouldTrigger).toBe(false);
   });
 
+  test('daily job catches up once after startup when the scheduled minute was missed', () => {
+    const job = {
+      id: 'j-catchup',
+      scheduleEnabled: true,
+      scheduleType: 'daily',
+      scheduleTime: '02:00',
+      lastRun: 'Never'
+    };
+    const now = new Date();
+    now.setHours(2, 5, 0, 0);
+
+    const res = shouldTriggerScheduledJob(job, now, null, { lastRunAt: job.lastRun, allowCatchUp: true });
+    expect(res.shouldTrigger).toBe(true);
+    expect(res.mode).toBe('catch-up');
+    expect(res.triggerKey).toBe(getTriggerKey(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 2, 0, 0, 0), 'daily'));
+  });
+
+  test('does not catch up a slot that already ran', () => {
+    const job = {
+      id: 'j-catchup-done',
+      scheduleEnabled: true,
+      scheduleType: 'daily',
+      scheduleTime: '02:00'
+    };
+    const now = new Date('2026-01-13T02:05:00');
+
+    const res = shouldTriggerScheduledJob(job, now, null, {
+      lastRunAt: '2026-01-13T02:03:00.000Z',
+      allowCatchUp: true
+    });
+    expect(res.shouldTrigger).toBe(false);
+  });
+
   test('hourly job triggers only at minute 00 and dedupes by triggerKey', () => {
     const job = { id: 'j2', scheduleEnabled: true, scheduleType: 'hourly' };
     const now = new Date();
     now.setMinutes(0, 0, 0);
 
-    const first = shouldTriggerScheduledJob(job, now, undefined);
+    const first = shouldTriggerScheduledJob(job, now, undefined, { allowCatchUp: false });
     expect(first.shouldTrigger).toBe(true);
 
-    const second = shouldTriggerScheduledJob(job, now, first.triggerKey);
+    const second = shouldTriggerScheduledJob(job, now, first.triggerKey, { allowCatchUp: false });
     expect(second.shouldTrigger).toBe(false);
 
     const notTopOfHour = new Date(now);
     notTopOfHour.setMinutes(1, 0, 0);
-    const third = shouldTriggerScheduledJob(job, notTopOfHour, null);
+    const third = shouldTriggerScheduledJob(job, notTopOfHour, null, { allowCatchUp: false });
     expect(third.shouldTrigger).toBe(false);
   });
 
@@ -73,6 +107,43 @@ describe('main/scheduler', () => {
 
     const res = shouldTriggerScheduledJob(job, now, null);
     expect(res.shouldTrigger).toBe(false);
-    expect(res.triggerKey).toBe(getTriggerKey(now, 'weekly'));
+    expect(res.triggerKey).toBe(null);
+  });
+
+  test('respects active schedule windows, including overnight windows', () => {
+    const midday = new Date('2026-01-13T12:30:00');
+    expect(isWithinActiveScheduleWindow(midday, {
+      scheduleEnabled: true,
+      scheduleStart: '08:00',
+      scheduleEnd: '18:00'
+    })).toBe(true);
+
+    expect(isWithinActiveScheduleWindow(midday, {
+      scheduleEnabled: true,
+      scheduleStart: '18:00',
+      scheduleEnd: '08:00'
+    })).toBe(false);
+
+    const lateNight = new Date('2026-01-13T23:30:00');
+    expect(isWithinActiveScheduleWindow(lateNight, {
+      scheduleEnabled: true,
+      scheduleStart: '22:00',
+      scheduleEnd: '06:00'
+    })).toBe(true);
+  });
+
+  test('does not trigger outside the active schedule window', () => {
+    const job = { id: 'j5', scheduleEnabled: true, scheduleType: 'hourly' };
+    const now = new Date('2026-01-13T12:00:00');
+
+    const res = shouldTriggerScheduledJob(job, now, null, {
+      scheduleWindow: {
+        scheduleEnabled: true,
+        scheduleStart: '13:00',
+        scheduleEnd: '18:00'
+      }
+    });
+
+    expect(res.shouldTrigger).toBe(false);
   });
 });
