@@ -29,7 +29,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    outDir: 'dist',
+    outDir: 'app-dist',
     emptyOutDir: true,
   },
   define: {

@@ -125,6 +125,7 @@ Thumbs.db
 
 # Electron Builder / Vite Build Artifacts
 dist/
+app-dist/
 dist-electron/
 release/
 build/
