@@ -11,7 +11,12 @@ const os = require('os');
 
 const { safeReadJsonWithBackupSync, atomicWriteFileSync } = require('./main/persistence');
 const { createProcessManager } = require('./main/processManager');
-const { shouldTriggerScheduledJob, tryStartJob, finishJob } = require('./main/scheduler');
+const {
+    shouldTriggerScheduledJob,
+    tryStartJob,
+    finishJob,
+    isWithinActiveScheduleWindow,
+} = require('./main/scheduler');
 const { createSystemHandlers } = require('./main/systemHandlers');
 const { resolveSshKeyInstallOptions } = require('./main/sshHelpers');
 const { createMountPreflight } = require('./main/mountPreflight');
@@ -86,6 +91,7 @@ let schedulerInterval = null;
 
 const lastSchedulerTriggerKeyByJob = new Map();
 const runningBackgroundJobIds = new Set();
+const activeScheduledJobCommands = new Map();
 
 const activeMounts = new Map();
 const expectedMountExitIds = new Set();
@@ -717,22 +723,66 @@ function updateTrayMenu() {
     tray.setContextMenu(contextMenu);
 }
 
-// ... [Scheduler logic remains same] ...
+function stopScheduledJobsOutsideWindow(now) {
+    const settings = dbCache.settings || {};
+    if (settings.scheduleEnabled !== true || settings.scheduleStrict !== true) return;
+    if (isWithinActiveScheduleWindow(now, settings)) return;
+
+    for (const [jobId, info] of activeScheduledJobCommands.entries()) {
+        const child = activeProcesses.get(info.commandId);
+        if (!child) {
+            activeScheduledJobCommands.delete(jobId);
+            continue;
+        }
+
+        console.log(`[Scheduler] Stopping job ${info.jobName} because active hours ended.`);
+        killChildProcess(child);
+        activeProcesses.delete(info.commandId);
+        activeScheduledJobCommands.delete(jobId);
+        updatePowerBlocker();
+
+        new Notification({
+            title: 'Backup Stopped',
+            body: `Job '${info.jobName}' stopped because active hours ended.`,
+            icon: getIconPath() || undefined
+        }).show();
+
+        safeSendToRenderer('activity-log', {
+            title: 'Scheduled Backup Stopped',
+            detail: `${info.jobName} was stopped because the active hours window ended.`,
+            status: 'warning'
+        });
+    }
+}
+
+function runSchedulerTick({ allowCatchUp = true } = {}) {
+    const now = new Date();
+    stopScheduledJobsOutsideWindow(now);
+
+    scheduledJobs.forEach(job => {
+        if (!job.scheduleEnabled) return;
+
+        const lastKey = lastSchedulerTriggerKeyByJob.get(job.id);
+        const decision = shouldTriggerScheduledJob(job, now, lastKey, {
+            allowCatchUp,
+            lastRunAt: job.lastRun,
+            scheduleWindow: dbCache.settings || {}
+        });
+
+        if (decision.shouldTrigger) {
+            lastSchedulerTriggerKeyByJob.set(job.id, decision.triggerKey);
+            executeBackgroundJob(job);
+        }
+    });
+}
+
 function startScheduler() {
     if (schedulerInterval) clearInterval(schedulerInterval);
+    runSchedulerTick({ allowCatchUp: true });
     schedulerInterval = setInterval(() => {
-        const now = new Date();
-        scheduledJobs.forEach(job => {
-            if (!job.scheduleEnabled) return;
-
-            const lastKey = lastSchedulerTriggerKeyByJob.get(job.id);
-            const decision = shouldTriggerScheduledJob(job, now, lastKey);
-            if (decision.shouldTrigger) {
-                lastSchedulerTriggerKeyByJob.set(job.id, decision.triggerKey);
-                executeBackgroundJob(job);
-            }
-        });
-    }, 60000); 
+        runSchedulerTick({ allowCatchUp: true });
+    }, 60000);
+    try { schedulerInterval.unref && schedulerInterval.unref(); } catch (e) {}
 }
 
 async function executeBackgroundJob(job) {
@@ -778,6 +828,11 @@ async function executeBackgroundJob(job) {
     // Provide a stable, renderer-visible id so scheduled jobs can be surfaced (ETA/status)
     // and cancelled through the existing borg-stop pathway.
     const commandId = `job-${job.id}-${Date.now()}`;
+    activeScheduledJobCommands.set(job.id, {
+        commandId,
+        jobName: job.name,
+        repoId: repo.id,
+    });
 
     new Notification({ 
         title: 'Backup Started', 
@@ -927,6 +982,7 @@ async function executeBackgroundJob(job) {
     }
 
     } finally {
+        activeScheduledJobCommands.delete(job.id);
         finishJob(job.id, runningBackgroundJobIds);
     }
 }
@@ -1151,6 +1207,9 @@ app.whenReady().then(() => {
     createWindow(shouldStartMinimized);
     createTray();
     startScheduler();
+    powerMonitor.on('resume', () => {
+        runSchedulerTick({ allowCatchUp: true });
+    });
     if (shouldStartMinimized) {
         new Notification({ 
             title: 'WinBorg Started', 

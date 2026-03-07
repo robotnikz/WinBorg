@@ -680,7 +680,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                    <div className="flex items-center justify-between">
                                        <div>
                                            <h4 className="text-sm font-bold text-blue-900 dark:text-blue-200">Enable Schedule</h4>
-                                           <p className="text-xs text-blue-800 dark:text-blue-300 mt-1">Run this job automatically when the app is open (or minimized).</p>
+                                           <p className="text-xs text-blue-800 dark:text-blue-300 mt-1">Run this job automatically while WinBorg is running, including tray and autostart mode.</p>
                                        </div>
                                        <input 
                                            type="checkbox" 

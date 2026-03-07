@@ -345,7 +345,7 @@ const SettingsView: React.FC = () => {
                                        {closeToTray ? <Monitor className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                                    </div>
                                    <div>
-                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="tray-toggle">Minimize to Tray</label>
+                                       <label className="block text-sm font-medium text-slate-900 dark:text-slate-100 cursor-pointer" htmlFor="tray-toggle">Close to Tray</label>
                                        <p className="text-xs text-slate-500 dark:text-slate-400">Keep application running in background when closed</p>
                                    </div>
                                </div>
