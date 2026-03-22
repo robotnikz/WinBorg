@@ -148,7 +148,7 @@ export const borgService = {
       return getIpc().invoke('ssh-install-borg', { target, password, port });
   },
 
-  testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string}> => {
+  testSshConnection: async (target: string, port?: string): Promise<{success: boolean, error?: string, restrictedShell?: boolean}> => {
             return getIpc().invoke('ssh-test-connection', { target, port });
   },
   checkBorgInstalledRemote: async (target: string, port?: string): Promise<{success: boolean, version?: string, path?: string, error?: string}> => {

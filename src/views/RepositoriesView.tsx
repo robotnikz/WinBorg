@@ -8,7 +8,7 @@ import DeleteRepoModal from '../components/DeleteRepoModal';
 import CreateBackupModal from '../components/CreateBackupModal';
 import JobsModal from '../components/JobsModal';
 import Button from '../components/Button';
-import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck, Copy, Server } from 'lucide-react';
+import { Plus, Search, X, Link, FolderPlus, Loader2, Terminal, Cloud, Check, AlertTriangle, XCircle, Eye, EyeOff, ShieldAlert, ShieldCheck, Copy, Server, Info } from 'lucide-react';
 import { borgService } from '../services/borgService';
 import { toast } from '../utils/eventBus';
 
@@ -360,6 +360,15 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
          }
          setTestLog(prev => prev + `✅ SSH Connection successful.\n`);
 
+         // If a restricted shell was detected (e.g. borgserver with forced borg-serve),
+         // skip the borg-check step since borg is already confirmed by the server.
+         if (sshRes.restrictedShell) {
+             setTestLog(prev => prev + `ℹ️ Restricted shell detected (forced borg serve). Skipping Borg check.\n`);
+             setTestLog(prev => prev + `ℹ️ Note: SSH keys must be deployed manually on this server (e.g. copy your public key into the borgserver sshkeys/clients/ volume).\n`);
+             setDetectedRemotePath('borg');
+             setRepoForm(prev => ({ ...prev, remoteBinaryPath: 'borg' }));
+             setTestLog(prev => prev + `✅ BorgBackup confirmed via server (forced borg serve).\n`);
+         } else {
          // Step 2: Borg Check
          setTestLog(prev => prev + `2. Checking for BorgBackup installation...\n`);
          const borgRes = await borgService.checkBorgInstalledRemote(target, port || undefined);
@@ -379,6 +388,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
          }
 
          setTestLog(prev => prev + `✅ BorgBackup found (Version: ${borgRes.version || 'unknown'}).\n`);
+         }
          setAddRepoStep('success');
          setTestResult('success');
          setIsTesting(false);
@@ -390,7 +400,7 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
       }
   };
   
-  const handleApplyTemplate = (provider: 'hetzner' | 'rsync' | 'nas' | 'borgbase' | 'linux') => {
+  const handleApplyTemplate = (provider: 'hetzner' | 'rsync' | 'nas' | 'borgbase' | 'borgserver' | 'linux') => {
       let serverUrl = '';
       let repoPath = '';
       let name = '';
@@ -422,6 +432,11 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
               name = 'Linux Server / VPS';
               serverUrl = 'ssh://user@your-server.com';
               repoPath = '/home/user/backups/repo1';
+              break;
+          case 'borgserver':
+              name = 'BorgServer (Docker)';
+              serverUrl = 'ssh://borg@your-server.com:2222';
+              repoPath = '/backup/your-keyfile-name';
               break;
       }
       
@@ -714,17 +729,17 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                {!editingRepoId && !repoForm.url && (
                    <div className="mb-2">
                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Quick Start Templates</label>
-                       <div className="grid grid-cols-3 gap-3">
-                           {['hetzner', 'borgbase', 'linux'].map((t) => (
+                       <div className="grid grid-cols-2 gap-3">
+                           {['hetzner', 'borgbase', 'borgserver', 'linux'].map((t) => (
                                 <button 
                                     key={t} 
                                     onClick={() => handleApplyTemplate(t as any)} 
                                     className="group flex flex-col items-center justify-center gap-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-xl hover:border-blue-400/50 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 hover:shadow-sm transition-all text-xs font-medium"
                                 >
                                     <div className="p-2 rounded-full bg-slate-50 dark:bg-slate-700/50 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                        {t === 'linux' ? <Terminal className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
+                                        {t === 'linux' ? <Terminal className="w-4 h-4" /> : t === 'borgserver' ? <Server className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
                                     </div>
-                                    <span className="text-slate-600 dark:text-slate-300 capitalize group-hover:text-blue-700 dark:group-hover:text-blue-300">{t === 'hetzner' ? 'Hetzner Box' : t}</span>
+                                    <span className="text-slate-600 dark:text-slate-300 capitalize group-hover:text-blue-700 dark:group-hover:text-blue-300">{t === 'hetzner' ? 'Hetzner Box' : t === 'borgserver' ? 'BorgServer' : t}</span>
                                 </button>
                            ))}
                        </div>
@@ -802,6 +817,12 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                     setRepoForm(prev => ({ ...prev, repoPath: val, url: updateUrlFromParts(prev.serverUrl, val) }));
                                 }}
                             />
+                            {!editingRepoId && repoForm.repoPath?.startsWith('/backup/') && testLog.includes('Restricted shell detected') && (
+                                <div className="mt-1.5 text-[10px] text-blue-600 dark:text-blue-400 leading-relaxed">
+                                    <Info className="w-3 h-3 inline mr-1" />
+                                    <span className="font-semibold">borgserver:</span> The path after <code className="bg-blue-50 dark:bg-blue-900/30 px-1 rounded">/backup/</code> must match the filename of your SSH key in the server's <code className="bg-blue-50 dark:bg-blue-900/30 px-1 rounded">sshkeys/clients/</code> directory.
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -854,9 +875,22 @@ const RepositoriesView: React.FC<RepositoriesViewProps> = ({
                                {isTesting ? 'Testing Connection...' : 'Test SSH & Remote Connection'}
                            </Button>
                            {testResult === 'success' && (
+                               <>
                                <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded text-xs flex items-center gap-2">
                                    <Check className="w-3 h-3" /> Connection successful
                                </div>
+                               {testLog.includes('Restricted shell detected') && (
+                                   <div className="mt-2 p-2.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300 rounded-lg text-xs leading-relaxed">
+                                       <div className="flex items-start gap-2">
+                                           <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                           <div>
+                                               <span className="font-bold">Restricted Shell (borgserver)</span>
+                                               <p className="mt-1 opacity-90">This server uses a forced <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">borg serve</code> command. SSH keys cannot be deployed via WinBorg — you must manually copy your public key into the server's <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded">sshkeys/clients/</code> directory and restart the borgserver container.</p>
+                                           </div>
+                                       </div>
+                                   </div>
+                               )}
+                               </>
                            )}
                            {testResult === 'error' && (
                                <div className={`mt-3 p-3 rounded-lg text-sm border animate-in slide-in-from-top-1 duration-200 ${addRepoStep === 'borg_fail' ? 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200' : 'bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-900/50 dark:text-red-200'}`}>
