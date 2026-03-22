@@ -2311,8 +2311,34 @@ ipcMain.handle('ssh-test-connection', async (event, { target, port }) => {
 
     console.log(`[SSH-Test] Spawning: wsl ${spawnArgs.join(' ')}`);
     
-    const res = await spawnCapture('wsl', spawnArgs, { timeoutMs: 20000 });
+    // Close stdin immediately so forced-command servers (e.g. borg serve) get
+    // EOF and exit promptly instead of hanging until our timeout fires.
+    const res = await spawnCapture('wsl', spawnArgs, { timeoutMs: 20000, stdin: '' });
     if (!res.error && res.code === 0) return { success: true };
+
+    // [Fallback: Forced-command / restricted shell detection (e.g. borgserver)]
+    // SSH exit code 255 = SSH transport failure. Any other code means SSH connected
+    // but the remote command was rejected/replaced by a forced command.
+    const combined = ((res.stdout || '') + '\n' + (res.stderr || '')).toLowerCase();
+    if (res.code !== null && res.code !== 255) {
+        // Non-255 exit = SSH connected & authenticated, remote command just failed.
+        // Check for borg markers in output OR accept any non-255 code from a
+        // non-standard port (common borgserver setup) as a restricted shell.
+        if (combined.includes('borg') || combined.includes('repository') || combined.includes('pty allocation request failed')) {
+            console.log('[SSH-Test] Detected forced borg serve (restricted shell). Connection OK.');
+            return { success: true, restrictedShell: true };
+        }
+    }
+
+    // If the connection timed out, check if we got any output indicating SSH
+    // itself connected but the forced command (borg serve) hung waiting for input.
+    if (res.timedOut && combined.length > 5) {
+        if (combined.includes('borg') || combined.includes('pty allocation')) {
+            console.log('[SSH-Test] Timeout with borg markers — restricted shell. Connection OK.');
+            return { success: true, restrictedShell: true };
+        }
+    }
+
     console.log('[SSH-Test] Failed:', (res.stdout || '').slice(0, 1000), (res.stderr || '').slice(0, 1000));
     return { success: false, error: res.timedOut ? 'Connection test timed out.' : 'Connection failed. Please ensure SSH Keys are deployed and host is reachable.' };
 });
@@ -2339,7 +2365,7 @@ ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
             ];
             
             console.log(`[SSH-Check-Borg] Try: ${remoteCmd}`);
-            spawnCapture('wsl', spawnArgs, { timeoutMs: 20000 }).then((res) => {
+            spawnCapture('wsl', spawnArgs, { timeoutMs: 20000, stdin: '' }).then((res) => {
                 const out = (res.stdout || '').trim();
                 const err = (res.stderr || '').trim();
                 const full = (out + '\n' + err).trim();
@@ -2357,9 +2383,11 @@ ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
             '/usr/local/bin/borg -V' // Local custom
         ];
 
+        const probeResults = [];
         for (const cmd of candidates) {
             const res = await runRemote(cmd);
             console.log(`[SSH-Check-Borg] Result for '${cmd}': Code=${res.code}`);
+            probeResults.push(res);
             
             if (res.code === 0 && (res.full.includes('borg') || res.full.match(/\d+\.\d+\.\d+/))) {
                 console.log(`[SSH-Check-Borg] SUCCESS with '${cmd}'`);
@@ -2376,6 +2404,29 @@ ipcMain.handle('ssh-check-borg', async (event, { target, port }) => {
         if (helpRes.full.includes('Available as server side backend') && helpRes.full.includes('borg')) {
              console.log(`[SSH-Check-Borg] SUCCESS via 'help' detection (Restricted Shell)`);
              return { success: true, path: 'borg', version: 'restricted-shell' };
+        }
+
+        // [Strategy: Borgserver / forced borg-serve detection]
+        // borgserver (Nold360/borgserver) uses SSH forced commands that always run
+        // 'borg serve --restrict-to-path ...'. Any command we send gets ignored and
+        // borg serve runs instead, producing borg protocol output or exiting silently.
+        // A non-255 exit code means SSH itself connected successfully.
+        // Re-use results from the direct probe above to avoid extra SSH round-trips.
+        for (const probeRes of probeResults) {
+            const lower = probeRes.full.toLowerCase();
+            // Check for borg markers or PTY rejection (restricted shell indicator)
+            if (probeRes.code !== 255 &&
+                (lower.includes('borg') || lower.includes('repository') || lower.includes('negotiate') || lower.includes('pty allocation'))) {
+                console.log(`[SSH-Check-Borg] SUCCESS via forced borg-serve detection (borgserver)`);
+                return { success: true, path: 'borg', version: 'forced-borg-serve' };
+            }
+        }
+        // Also detect if all probes connected (non-255) but produced no useful text —
+        // typical for borg serve exiting silently on immediate EOF.
+        const allConnected = probeResults.length > 0 && probeResults.every(r => r.code !== 255 && r.code !== 0);
+        if (allConnected) {
+            console.log(`[SSH-Check-Borg] All probes returned non-255/non-0 — likely forced command (borgserver). Accepting.`);
+            return { success: true, path: 'borg', version: 'forced-borg-serve' };
         }
 
         // [Strategy: Shell Script]

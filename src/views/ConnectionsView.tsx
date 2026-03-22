@@ -215,8 +215,12 @@ const ConnectionsView: React.FC<ConnectionsViewProps> = ({
     try {
       const { target, port } = parseTargetAndPort(conn.serverUrl);
       const res = await borgService.testSshConnection(target, port);
-      if (res.success) toast.success('SSH connection OK');
-      else toast.error(res.error || 'SSH connection failed');
+      if (res.success) {
+        toast.success('SSH connection OK');
+        if (res.restrictedShell) {
+          toast.info('Restricted shell detected (e.g. borgserver). SSH key must be deployed manually on the server — the Deploy Key button will not work for this connection.');
+        }
+      } else toast.error(res.error || 'SSH connection failed');
     } catch (e: any) {
       toast.error(e?.message || 'SSH connection failed');
     } finally {
