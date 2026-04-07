@@ -3,7 +3,7 @@ import path from 'path';
 import { addMockElectronInitScript } from './helpers/mockElectron';
 
 test.describe('@manual Onboarding Flow (admin actions)', () => {
-  let electronApp: ElectronApplication;
+  let electronApp: ElectronApplication | null;
   let firstWindow: Page;
 
   test.beforeEach(async () => {
