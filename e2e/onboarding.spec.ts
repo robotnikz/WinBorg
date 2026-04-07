@@ -1,10 +1,10 @@
-import { test, expect, _electron as electron } from '@playwright/test';
+import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import path from 'path';
 import { addMockElectronInitScript } from './helpers/mockElectron';
 
 test.describe('@smoke Onboarding Flow', () => {
-  let electronApp;
-  let firstWindow;
+  let electronApp: ElectronApplication | null;
+  let firstWindow: Page;
 
   test.beforeEach(async () => {
     // Launch app

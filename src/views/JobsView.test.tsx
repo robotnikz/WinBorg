@@ -33,7 +33,7 @@ describe('JobsView', () => {
       encryption: 'none',
       status: 'connected',
       checkStatus: 'idle',
-      lastBackup: null,
+      lastBackup: '',
       size: '0 B',
       fileCount: 0,
     };
@@ -62,7 +62,7 @@ describe('JobsView', () => {
       encryption: 'none',
       status: 'connected',
       checkStatus: 'idle',
-      lastBackup: null,
+      lastBackup: '',
       size: '0 B',
       fileCount: 0,
     };

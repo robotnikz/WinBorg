@@ -1,10 +1,10 @@
-import { test, expect, _electron as electron } from '@playwright/test';
+import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import path from 'path';
 import { addMockElectronInitScript } from './helpers/mockElectron';
 
 test.describe('@manual Onboarding Flow (admin actions)', () => {
-  let electronApp;
-  let firstWindow;
+  let electronApp: ElectronApplication | null;
+  let firstWindow: Page;
 
   test.beforeEach(async () => {
     electronApp = await electron.launch({
@@ -43,7 +43,7 @@ test.describe('@manual Onboarding Flow (admin actions)', () => {
       return;
     }
 
-    const appClosed = electronApp
+    const appClosed = electronApp!
       .waitForEvent('close', { timeout: 15000 })
       .then(() => 'closed' as const)
       .catch(() => null);

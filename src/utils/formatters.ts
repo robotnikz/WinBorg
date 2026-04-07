@@ -87,15 +87,16 @@ export const getNextRunForRepo = (jobs: BackupJob[], repoId: string): string | n
 
     if (!soonest) return null;
 
+    const next: Date = soonest;
     // Formatting
-    const dayDiff = soonest.getDate() - now.getDate();
-    const timeStr = soonest.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dayDiff = next.getDate() - now.getDate();
+    const timeStr = next.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    if (soonest.toDateString() === now.toDateString()) {
+    if (next.toDateString() === now.toDateString()) {
         return `Today ${timeStr}`;
     } else if (dayDiff === 1 || (dayDiff === -30)) { // Simple check for tomorrow (ignoring exact month wrap edge cases for UI simplicity)
         return `Tomorrow ${timeStr}`;
     } else {
-        return `${soonest.toLocaleDateString()} ${timeStr}`;
+        return `${next.toLocaleDateString()} ${timeStr}`;
     }
 };

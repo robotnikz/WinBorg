@@ -299,7 +299,7 @@ export const borgService = {
           // If remotePath is customized, we should try to use that binary instead of 'borg'
           const customBinary = overrides?.remotePath && overrides.remotePath !== 'borg' ? overrides.remotePath : 'borg';
           const sshArgs = [
-               '-p', parsed.port,
+               '-p', parsed.port || '22',
                ...(overrides?.disableHostCheck ? ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'] : []),
                '-o', 'BatchMode=yes',
                userHost,
@@ -566,6 +566,7 @@ export const borgService = {
     if (!success) return [];
     try {
         const json = extractJson(listOutput);
+        if (!json) return [];
         const data = JSON.parse(json);
         return (data.archives || []).map((a: any) => ({
              id: a.id || a.name,

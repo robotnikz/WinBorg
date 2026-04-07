@@ -442,9 +442,9 @@ const App: React.FC = () => {
 
           const handleActivityLog = (_: any, log: ActivityLogEntry) => {
               const newLog: ActivityLogEntry = {
+                  ...log,
                   id: crypto.randomUUID(),
-                  time: new Date().toISOString(),
-                  ...log
+                  time: log.time || new Date().toISOString()
               };
               setActivityLogs(prev => [newLog, ...prev].slice(0, 100));
               if(log.status === 'success') toast.success(log.title);
@@ -544,7 +544,8 @@ const App: React.FC = () => {
           ...r,
           recoveryDrillState: {
               ...r.recoveryDrillState,
-              status: 'running',
+              status: 'running' as const,
+              lastRunAt: r.recoveryDrillState?.lastRunAt ?? 'Never',
               lastError: undefined
           }
       }) : r));
