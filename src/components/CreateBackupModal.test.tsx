@@ -25,7 +25,7 @@ const mockRepo: Repository = {
     name: 'Test Repo',
     url: 'ssh://test',
     status: 'connected',
-    lastBackup: null,
+    lastBackup: '',
     encryption: 'repokey',
     size: '0 B',
     fileCount: 0

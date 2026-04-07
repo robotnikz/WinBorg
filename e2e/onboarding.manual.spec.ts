@@ -43,7 +43,7 @@ test.describe('@manual Onboarding Flow (admin actions)', () => {
       return;
     }
 
-    const appClosed = electronApp
+    const appClosed = electronApp!
       .waitForEvent('close', { timeout: 15000 })
       .then(() => 'closed' as const)
       .catch(() => null);

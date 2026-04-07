@@ -163,7 +163,7 @@ describe('DashboardView', () => {
     expect(mockIpcRenderer.on).toHaveBeenCalledWith('terminal-log', expect.any(Function));
     
     // Simulate event
-    const callback = mockIpcRenderer.on.mock.calls.find(call => call[0] === 'terminal-log')[1];
+    const callback = mockIpcRenderer.on.mock.calls.find((call: any[]) => call[0] === 'terminal-log')![1];
     
     act(() => {
       callback({}, { text: 'A /home/user/newfile.txt' });

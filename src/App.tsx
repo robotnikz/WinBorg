@@ -442,8 +442,8 @@ const App: React.FC = () => {
 
           const handleActivityLog = (_: any, log: ActivityLogEntry) => {
               const newLog: ActivityLogEntry = {
-                  id: crypto.randomUUID(),
                   ...log,
+                  id: crypto.randomUUID(),
                   time: log.time || new Date().toISOString()
               };
               setActivityLogs(prev => [newLog, ...prev].slice(0, 100));
