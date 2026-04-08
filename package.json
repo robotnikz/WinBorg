@@ -73,7 +73,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.3",
-    "nodemailer": "^8.0.4"
+    "nodemailer": "^8.0.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
