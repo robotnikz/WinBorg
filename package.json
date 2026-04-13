@@ -100,7 +100,7 @@
     "typescript": "^6.0.2",
     "vite": "^7.3.2",
     "vitest": "^4.0.17",
-    "wait-on": "^9.0.4"
+    "wait-on": "^9.0.5"
   },
   "overrides": {
     "undici": "6.24.0",
