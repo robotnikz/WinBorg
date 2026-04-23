@@ -26,8 +26,19 @@ function resolveSshKeyInstallOptions(target, port) {
     };
 }
 
+/**
+ * Normalize an SSH key string for writing to disk:
+ * - Convert Windows (CRLF) and old-Mac (CR) line endings to Unix (LF)
+ * - Ensure the content ends with exactly one newline (required by OpenSSH / libcrypto)
+ */
+function normalizeSshKey(key) {
+    const s = String(key).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return s.endsWith('\n') ? s : s + '\n';
+}
+
 module.exports = {
     isHetznerStorageBoxTarget,
     extractRemoteUser,
     resolveSshKeyInstallOptions,
+    normalizeSshKey,
 };

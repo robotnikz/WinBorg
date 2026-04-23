@@ -18,7 +18,7 @@ const {
     isWithinActiveScheduleWindow,
 } = require('./main/scheduler');
 const { createSystemHandlers } = require('./main/systemHandlers');
-const { resolveSshKeyInstallOptions } = require('./main/sshHelpers');
+const { resolveSshKeyInstallOptions, normalizeSshKey } = require('./main/sshHelpers');
 const { createMountPreflight } = require('./main/mountPreflight');
 
 // --- TEST MODE: isolate userData so repeated E2E launches don't fight the single-instance lock.
@@ -1818,11 +1818,11 @@ ipcMain.handle('ssh-key-manage', async (event, { action, type, privateKey, publi
             await runWsl('mkdir -p ~/.ssh && chmod 700 ~/.ssh');
 
             // Write private key with restrictive perms (umask 077)
-            await wslWriteFile(wslBaseArgs, keyFile, priv.replace(/\r\n/g, '\n'));
+            await wslWriteFile(wslBaseArgs, keyFile, normalizeSshKey(priv));
 
             if (pub.trim()) {
                 // Public key is not sensitive, but we still keep perms reasonably strict.
-                await wslWriteFile(wslBaseArgs, keyFilePub, pub.replace(/\r\n/g, '\n'), { restrictPerms: false });
+                await wslWriteFile(wslBaseArgs, keyFilePub, normalizeSshKey(pub), { restrictPerms: false });
             } else {
                 // Derive public key from private key.
                 const res = await runWsl(`ssh-keygen -y -f ${keyFile} > ${keyFilePub}`);
