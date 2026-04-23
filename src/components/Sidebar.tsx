@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { HardDrive, Server, Settings, LayoutDashboard, Activity, Github, Code2, ArrowUpCircle, Briefcase, Link2 } from 'lucide-react';
+import { HardDrive, Server, Settings, LayoutDashboard, Activity, GitBranch, Code2, ArrowUpCircle, Briefcase, Link2 } from 'lucide-react';
 import { View } from '../types';
 import { getShellOrNull } from '../services/electron';
 import AppLogo from './AppLogo';
@@ -139,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, updateAvai
                     <div className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{devProfile.name}</div>
                     <div className="flex items-center justify-between mt-1">
                          <div className="flex items-center gap-1.5">
-                            <Github className="w-3 h-3 text-slate-400" />
+                            <GitBranch className="w-3 h-3 text-slate-400" />
                             <span className="text-[10px] text-slate-400 group-hover:text-blue-500 transition-colors">Source</span>
                          </div>
                          <div className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-[10px] font-bold text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-1">
