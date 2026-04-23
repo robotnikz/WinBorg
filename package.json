@@ -32,8 +32,7 @@
     "pretest:e2e": "npm run build",
     "pretest:e2e:smoke": "npm run build",
     "pretest:e2e:manual": "npm run build",
-    "pretest:e2e:full": "npm run build"
-    ,
+    "pretest:e2e:full": "npm run build",
     "screenshots": "cross-env NODE_ENV=test NODE_OPTIONS=--disable-warning=DEP0190 playwright test --grep @screenshots"
   },
   "build": {
@@ -85,8 +84,8 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/testing-library__jest-dom": "^6.0.0",
-    "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-istanbul": "^4.1.4",
+  "@vitejs/plugin-react": "^6.0.1",
+  "@vitest/coverage-istanbul": "^4.1.4",
     "@vitest/coverage-v8": "^4.1.2",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
@@ -97,8 +96,8 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "semantic-release": "^25.0.3",
-    "typescript": "^6.0.3",
-    "vite": "^7.3.2",
+  "typescript": "^6.0.3",
+  "vite": "^8.0.9",
     "vitest": "^4.0.17",
     "wait-on": "^9.0.5"
   },
