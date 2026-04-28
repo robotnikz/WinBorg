@@ -1,4 +1,5 @@
 
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { formatBytes, formatDuration, parseSizeString, formatDate, getNextRunForRepo } from './formatters';
 import { BackupJob } from '../types';
 
@@ -19,10 +20,20 @@ const createMockJob = (overrides: Partial<BackupJob>): BackupJob => ({
     scheduleEnabled: false,
     scheduleType: 'manual',
     scheduleTime: '00:00',
+    scheduleWeekday: 1,
     ...overrides
 });
 
 describe('formatters', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-01-13T12:10:00'));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     describe('parseSizeString', () => {
         it('parses valid strings correctly', () => {
             expect(parseSizeString('100 B')).toBe(100);
@@ -99,16 +110,25 @@ describe('formatters', () => {
 
         it('calculates hourly schedule', () => {
              const jobs: BackupJob[] = [
-                createMockJob({ id: '1', repoId: repoId, scheduleEnabled: true, scheduleType: 'hourly' })
+                     createMockJob({ id: '1', repoId: repoId, scheduleEnabled: true, scheduleType: 'hourly', scheduleTime: '00:45' })
+             ];
+             const result = getNextRunForRepo(jobs, repoId);
+             expect(result).not.toBeNull();
+                 expect(result).toContain('12:45');
+        });
+
+        it('calculates daily schedule', () => {
+            const jobs: BackupJob[] = [
+                createMockJob({ id: '1', repoId: repoId, scheduleEnabled: true, scheduleType: 'daily', scheduleTime: '12:00' })
              ];
              const result = getNextRunForRepo(jobs, repoId);
              expect(result).not.toBeNull();
              expect(typeof result).toBe('string');
         });
 
-        it('calculates daily schedule', () => {
+        it('calculates weekly schedule', () => {
             const jobs: BackupJob[] = [
-                createMockJob({ id: '1', repoId: repoId, scheduleEnabled: true, scheduleType: 'daily', scheduleTime: '12:00' })
+                createMockJob({ id: '1', repoId: repoId, scheduleEnabled: true, scheduleType: 'weekly', scheduleTime: '12:00', scheduleWeekday: 2 })
              ];
              const result = getNextRunForRepo(jobs, repoId);
              expect(result).not.toBeNull();

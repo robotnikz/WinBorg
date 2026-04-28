@@ -66,21 +66,79 @@ describe('main/scheduler', () => {
     expect(res.shouldTrigger).toBe(false);
   });
 
-  test('hourly job triggers only at minute 00 and dedupes by triggerKey', () => {
-    const job = { id: 'j2', scheduleEnabled: true, scheduleType: 'hourly' };
-    const now = new Date();
-    now.setMinutes(0, 0, 0);
+  test('hourly job triggers only at the configured minute and dedupes by triggerKey', () => {
+    const job = { id: 'j2', scheduleEnabled: true, scheduleType: 'hourly', scheduleTime: '14:15' };
+    const now = new Date('2026-01-13T12:15:00');
 
     const first = shouldTriggerScheduledJob(job, now, undefined, { allowCatchUp: false });
     expect(first.shouldTrigger).toBe(true);
+    expect(first.triggerKey).toBe(getTriggerKey(now, 'hourly'));
 
     const second = shouldTriggerScheduledJob(job, now, first.triggerKey, { allowCatchUp: false });
     expect(second.shouldTrigger).toBe(false);
 
     const notTopOfHour = new Date(now);
-    notTopOfHour.setMinutes(1, 0, 0);
+    notTopOfHour.setMinutes(16, 0, 0);
     const third = shouldTriggerScheduledJob(job, notTopOfHour, null, { allowCatchUp: false });
     expect(third.shouldTrigger).toBe(false);
+  });
+
+  test('hourly job catches up once for the configured minute after startup', () => {
+    const job = {
+      id: 'j2-catchup',
+      scheduleEnabled: true,
+      scheduleType: 'hourly',
+      scheduleTime: '09:20',
+      lastRun: 'Never'
+    };
+    const now = new Date('2026-01-13T11:25:00');
+
+    const res = shouldTriggerScheduledJob(job, now, null, {
+      lastRunAt: job.lastRun,
+      allowCatchUp: true
+    });
+
+    expect(res.shouldTrigger).toBe(true);
+    expect(res.mode).toBe('catch-up');
+    expect(res.triggerKey).toBe(getTriggerKey(new Date('2026-01-13T11:20:00'), 'hourly'));
+  });
+
+  test('weekly job triggers on the configured weekday and time and dedupes by triggerKey', () => {
+    const now = new Date('2026-01-12T09:15:00');
+    const job = {
+      id: 'j-weekly',
+      scheduleEnabled: true,
+      scheduleType: 'weekly',
+      scheduleTime: '09:15',
+      scheduleWeekday: now.getDay()
+    };
+
+    const first = shouldTriggerScheduledJob(job, now, null, { allowCatchUp: false });
+    expect(first.shouldTrigger).toBe(true);
+    expect(first.triggerKey).toBe(getTriggerKey(now, 'weekly'));
+
+    const second = shouldTriggerScheduledJob(job, now, first.triggerKey, { allowCatchUp: false });
+    expect(second.shouldTrigger).toBe(false);
+  });
+
+  test('weekly job catches up once after startup when the scheduled minute was missed', () => {
+    const now = new Date('2026-01-12T09:20:00');
+    const job = {
+      id: 'j-weekly-catchup',
+      scheduleEnabled: true,
+      scheduleType: 'weekly',
+      scheduleTime: '09:15',
+      scheduleWeekday: now.getDay(),
+      lastRun: 'Never'
+    };
+
+    const res = shouldTriggerScheduledJob(job, now, null, {
+      lastRunAt: job.lastRun,
+      allowCatchUp: true
+    });
+    expect(res.shouldTrigger).toBe(true);
+    expect(res.mode).toBe('catch-up');
+    expect(res.triggerKey).toBe(getTriggerKey(new Date('2026-01-12T09:15:00'), 'weekly'));
   });
 
   test('tryStartJob prevents parallel runs and finishJob releases', () => {
@@ -100,8 +158,23 @@ describe('main/scheduler', () => {
     expect(shouldTriggerScheduledJob(disabled, now, null).shouldTrigger).toBe(false);
   });
 
+  test('does not trigger jobs managed by Windows Task Scheduler', () => {
+    const now = new Date('2026-01-13T12:15:00');
+    const job = {
+      id: 'j-windows-task',
+      scheduleEnabled: true,
+      scheduleBackend: 'windows-task-scheduler',
+      scheduleType: 'daily',
+      scheduleTime: '12:15'
+    };
+
+    const res = shouldTriggerScheduledJob(job, now, null);
+    expect(res.shouldTrigger).toBe(false);
+    expect(res.triggerKey).toBe(null);
+  });
+
   test('does not trigger for unknown scheduleType', () => {
-    const job = { id: 'j4', scheduleEnabled: true, scheduleType: 'weekly', scheduleTime: '12:34' };
+    const job = { id: 'j4', scheduleEnabled: true, scheduleType: 'monthly', scheduleTime: '12:34' };
     const now = new Date();
     now.setHours(12, 34, 0, 0);
 
