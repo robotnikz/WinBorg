@@ -1,6 +1,20 @@
 
 import { BackupJob } from '../types';
 
+const resolveScheduleWeekday = (job: BackupJob, fallbackDate: Date): number => {
+    if (Number.isInteger(job.scheduleWeekday) && job.scheduleWeekday! >= 0 && job.scheduleWeekday! <= 6) {
+        return job.scheduleWeekday!;
+    }
+
+    return fallbackDate.getDay();
+};
+
+const resolveScheduleTime = (job: BackupJob, fallback = '00:00'): string => {
+    return typeof job.scheduleTime === 'string' && /^\d{2}:\d{2}$/.test(job.scheduleTime)
+        ? job.scheduleTime
+        : fallback;
+};
+
 export const parseSizeString = (sizeStr: string): number => {
   if (!sizeStr || sizeStr === 'Unknown') return 0;
   const units = {
@@ -68,13 +82,27 @@ export const getNextRunForRepo = (jobs: BackupJob[], repoId: string): string | n
         let nextDate = new Date();
         
         if (job.scheduleType === 'hourly') {
-            // Next top of the hour
-            nextDate.setHours(now.getHours() + 1, 0, 0, 0);
+            const [, m] = resolveScheduleTime(job).split(':').map(Number);
+            nextDate.setSeconds(0, 0);
+            nextDate.setMinutes(m, 0, 0);
+            if (nextDate <= now) {
+                nextDate.setHours(nextDate.getHours() + 1);
+            }
         } else if (job.scheduleType === 'daily' && job.scheduleTime) {
-            const [h, m] = job.scheduleTime.split(':').map(Number);
+            const [h, m] = resolveScheduleTime(job, '14:00').split(':').map(Number);
             nextDate.setHours(h, m, 0, 0);
             if (nextDate <= now) {
                 nextDate.setDate(now.getDate() + 1); // Tomorrow
+            }
+        } else if (job.scheduleType === 'weekly' && job.scheduleTime) {
+            const [h, m] = resolveScheduleTime(job, '14:00').split(':').map(Number);
+            const weekday = resolveScheduleWeekday(job, now);
+            const daysUntilNextRun = (weekday - now.getDay() + 7) % 7;
+
+            nextDate.setHours(h, m, 0, 0);
+            nextDate.setDate(now.getDate() + daysUntilNextRun);
+            if (nextDate <= now) {
+                nextDate.setDate(nextDate.getDate() + 7);
             }
         } else {
             return;

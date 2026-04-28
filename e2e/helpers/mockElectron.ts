@@ -320,6 +320,23 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
             // ensure defaults for repos when saved
             if (Array.isArray(state.db.repos)) state.db.repos = state.db.repos.map(ensureRepoDefaults);
             return { ok: true };
+          case 'sync-job-schedules':
+            return { success: true };
+          case 'get-job-schedule-statuses': {
+            const jobs = Array.isArray(payload?.jobs) ? payload.jobs : [];
+            const statuses = Object.fromEntries(
+              jobs.map((job: any) => [
+                job.id,
+                {
+                  success: true,
+                  exists: !!job.scheduleEnabled,
+                  taskName: `WinBorg-${job.name || 'Job'}-${job.id}`,
+                  backend: job.scheduleBackend || 'winborg',
+                },
+              ])
+            );
+            return { success: true, statuses };
+          }
 
           case 'system-check-wsl':
             return {

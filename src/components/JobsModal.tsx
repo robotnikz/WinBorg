@@ -6,17 +6,41 @@ import { Folder, Play, Trash2, X, Plus, Clock, Briefcase, Loader2, Settings, Cal
 import { borgService } from '../services/borgService';
 import { useModalFocusTrap } from '../utils/useModalFocus';
 
+type JobMutationHandler = (job: BackupJob) => Promise<boolean | void> | boolean | void;
+type JobDeleteHandler = (jobId: string) => Promise<boolean | void> | boolean | void;
+
 interface JobsModalProps {
   repo: Repository;
   jobs: BackupJob[];
   isOpen: boolean;
     openTo?: 'list' | 'create';
   onClose: () => void;
-  onAddJob: (job: BackupJob) => void;
-    onUpdateJob: (job: BackupJob) => void;
-  onDeleteJob: (jobId: string) => void;
+    onAddJob: JobMutationHandler;
+        onUpdateJob: JobMutationHandler;
+    onDeleteJob: JobDeleteHandler;
   onRunJob: (jobId: string) => void;
 }
+
+const weekdayOptions = [
+    { value: 0, label: 'Sunday' },
+    { value: 1, label: 'Monday' },
+    { value: 2, label: 'Tuesday' },
+    { value: 3, label: 'Wednesday' },
+    { value: 4, label: 'Thursday' },
+    { value: 5, label: 'Friday' },
+    { value: 6, label: 'Saturday' },
+];
+
+const getDefaultScheduleWeekday = () => new Date().getDay();
+const getDefaultScheduleBackend = (): BackupJob['scheduleBackend'] => 'winborg';
+
+type JobScheduleStatus = {
+    success: boolean;
+    exists?: boolean;
+    unsupported?: boolean;
+    taskName?: string;
+    error?: string;
+};
 
 const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'list', onClose, onAddJob, onUpdateJob, onDeleteJob, onRunJob }) => {
         const titleId = useId();
@@ -25,6 +49,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
   const [activeTab, setActiveTab] = useState<'general' | 'schedule' | 'retention'>('general');
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [editingJob, setEditingJob] = useState<BackupJob | null>(null);
+    const [jobScheduleStatuses, setJobScheduleStatuses] = useState<Record<string, JobScheduleStatus>>({});
 
     const closeButtonRef = useRef<HTMLButtonElement>(null);
         const dialogRef = useRef<HTMLDivElement>(null);
@@ -120,8 +145,10 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
 
   // Schedule State
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
-  const [scheduleType, setScheduleType] = useState<'daily' | 'hourly' | 'manual'>('daily');
+    const [scheduleType, setScheduleType] = useState<BackupJob['scheduleType']>('daily');
   const [scheduleTime, setScheduleTime] = useState('14:00');
+    const [scheduleWeekday, setScheduleWeekday] = useState(getDefaultScheduleWeekday);
+        const [scheduleBackend, setScheduleBackend] = useState<BackupJob['scheduleBackend']>(getDefaultScheduleBackend);
 
     useModalFocusTrap(isOpen, dialogRef, { initialFocusRef: closeButtonRef });
 
@@ -145,9 +172,33 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [isOpen, onClose]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const windowsSchedulerJobs = jobs.filter((job) => job.repoId === repo.id && job.scheduleBackend === 'windows-task-scheduler');
+        if (windowsSchedulerJobs.length === 0) {
+            setJobScheduleStatuses({});
+            return;
+        }
+
+        let cancelled = false;
+
+        borgService.getJobScheduleStatuses(windowsSchedulerJobs).then((result) => {
+            if (cancelled) return;
+            setJobScheduleStatuses(result?.statuses || {});
+        }).catch(() => {
+            if (cancelled) return;
+            setJobScheduleStatuses({});
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, jobs, repo.id]);
+
     if (!isOpen) return null;
 
-    const handleCreate = () => {
+        const handleCreate = async () => {
       if (!jobName || sourcePaths.length === 0 || !archivePrefix) return;
 
       const excludePatterns = excludePatternsText
@@ -177,7 +228,9 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
               keepYearly,
               scheduleEnabled,
               scheduleType,
-              scheduleTime
+              scheduleTime,
+              scheduleWeekday,
+              scheduleBackend
           };
 
       const updatedJob: BackupJob = {
@@ -197,14 +250,17 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
           keepYearly,
           scheduleEnabled,
           scheduleType,
-          scheduleTime
+          scheduleTime,
+          scheduleWeekday,
+          scheduleBackend
       };
 
-      if (editingJob) {
-          onUpdateJob(updatedJob);
-      } else {
-          onAddJob(updatedJob);
-      }
+      const result = editingJob
+          ? await Promise.resolve(onUpdateJob(updatedJob))
+          : await Promise.resolve(onAddJob(updatedJob));
+
+      if (result === false) return;
+
       resetForm();
       setView('list');
   };
@@ -227,6 +283,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
       setScheduleEnabled(false);
       setScheduleType('daily');
       setScheduleTime('14:00');
+      setScheduleWeekday(getDefaultScheduleWeekday());
+      setScheduleBackend(getDefaultScheduleBackend());
       setActiveTab('general');
   };
 
@@ -251,8 +309,15 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
       setKeepMonthly(job.keepMonthly ?? 6);
       setKeepYearly(job.keepYearly ?? 1);
       setScheduleEnabled(!!job.scheduleEnabled);
-      setScheduleType(job.scheduleType || 'daily');
+      setScheduleType(job.scheduleType && job.scheduleType !== 'manual' ? job.scheduleType : 'daily');
       setScheduleTime(job.scheduleTime || '14:00');
+      setScheduleWeekday(Number.isInteger(job.scheduleWeekday) ? job.scheduleWeekday as number : getDefaultScheduleWeekday());
+      setScheduleBackend(job.scheduleBackend || getDefaultScheduleBackend());
+  };
+
+  const handleDelete = async (jobId: string) => {
+      const result = await Promise.resolve(onDeleteJob(jobId));
+      if (result === false) return;
   };
 
   const handleSelectFolder = async () => {
@@ -300,6 +365,48 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
   };
 
   const repoJobs = jobs.filter(j => j.repoId === repo.id);
+
+  const getSchedulerBadge = (job: BackupJob) => {
+      if (job.scheduleBackend === 'windows-task-scheduler') {
+          const status = jobScheduleStatuses[job.id];
+          if (!job.scheduleEnabled) {
+              return {
+                  className: 'text-[10px] text-slate-600 bg-slate-50 dark:bg-slate-900/30 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700',
+                  text: 'Windows Task Inactive',
+              };
+          }
+
+          if (status?.unsupported) {
+              return {
+                  className: 'text-[10px] text-slate-600 bg-slate-50 dark:bg-slate-900/30 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700',
+                  text: 'Windows Task Unavailable Here',
+              };
+          }
+
+          if (status?.exists === false) {
+              return {
+                  className: 'text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800/50',
+                  text: 'Windows Task Missing',
+              };
+          }
+
+          return {
+              className: 'text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/50',
+              text: 'Windows Task Present',
+          };
+      }
+
+      if (job.scheduleEnabled) {
+          return {
+              className: 'text-[10px] text-blue-700 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800/50',
+              text: 'WinBorg Scheduler',
+          };
+      }
+
+      return null;
+  };
+
+  const currentEditingScheduleStatus = editingJob ? jobScheduleStatuses[editingJob.id] : null;
 
   return (
         <div
@@ -350,7 +457,10 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                        </div>
                    ) : (
                        <div className="space-y-3">
-                           {repoJobs.map(job => (
+                           {repoJobs.map(job => {
+                               const schedulerBadge = getSchedulerBadge(job);
+
+                               return (
                                <div key={job.id} className="bg-white dark:bg-slate-700/30 border border-gray-200 dark:border-slate-700 rounded-lg p-4 flex items-center justify-between group hover:border-purple-200 dark:hover:border-purple-800 transition-colors shadow-sm">
                                    <div className="min-w-0 flex-1 mr-4">
                                        <div className="flex items-center gap-2 mb-1">
@@ -362,6 +472,9 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                            )}
                                            {job.pruneEnabled && (
                                                <span className="text-[10px] text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded border border-orange-100 dark:border-orange-800/50">Auto-Prune</span>
+                                           )}
+                                           {schedulerBadge && (
+                                               <span className={schedulerBadge.className}>{schedulerBadge.text}</span>
                                            )}
                                            {!!job.excludePatterns?.length && (
                                                <span className="text-[10px] text-slate-600 bg-slate-50 dark:bg-slate-900/30 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
@@ -405,6 +518,16 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                                            <Clock className="w-3 h-3" /> Last run: {job.lastRun === 'Never' ? 'Never' : new Date(job.lastRun).toLocaleString()}
                                        </div>
+                                       {job.scheduleBackend === 'windows-task-scheduler' && job.scheduleTaskLastSyncedAt && (
+                                           <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                                               <Calendar className="w-3 h-3" /> Task synced: {new Date(job.scheduleTaskLastSyncedAt).toLocaleString()}
+                                           </div>
+                                       )}
+                                       {job.scheduleBackend === 'windows-task-scheduler' && jobScheduleStatuses[job.id]?.error && (
+                                           <div className="text-xs text-amber-700 dark:text-amber-300">
+                                               Windows Task status could not be queried.
+                                           </div>
+                                       )}
                                    </div>
                                    <div className="flex items-center gap-2">
                                        <button 
@@ -426,7 +549,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                            <Pencil className="w-4 h-4" />
                                        </button>
                                        <button 
-                                            onClick={() => onDeleteJob(job.id)}
+                                            onClick={() => handleDelete(job.id)}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                             title="Delete Job"
                                             aria-label="Delete Job"
@@ -435,7 +558,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                        </button>
                                    </div>
                                </div>
-                           ))}
+                               );
+                           })}
                            
                            <div className="pt-4">
                                <Button variant="secondary" onClick={() => setView('create')} className="w-full border-dashed dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600">
@@ -685,6 +809,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                        <input 
                                            type="checkbox" 
                                            className="w-5 h-5 text-blue-600 rounded"
+                                           aria-label="Enable Schedule"
                                            checked={scheduleEnabled}
                                            onChange={(e) => setScheduleEnabled(e.target.checked)}
                                        />
@@ -692,27 +817,92 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                </div>
 
                                <div className={scheduleEnabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}>
+                                   <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/30 p-3">
+                                       <label className="flex items-start gap-3 cursor-pointer">
+                                           <input
+                                               type="checkbox"
+                                               className="mt-1 h-4 w-4 rounded text-blue-600"
+                                               aria-label="Use Windows Task Scheduler"
+                                               checked={scheduleBackend === 'windows-task-scheduler'}
+                                               onChange={(e) => setScheduleBackend(e.target.checked ? 'windows-task-scheduler' : 'winborg')}
+                                           />
+                                           <div>
+                                               <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Use Windows Task Scheduler</div>
+                                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                   Checked: WinBorg creates and maintains a Windows scheduled task for this job. Unchecked: the built-in WinBorg scheduler runs it while the app is active.
+                                               </p>
+                                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                   Turning the schedule off or deleting the job removes the external Windows task automatically.
+                                               </p>
+                                           </div>
+                                       </label>
+                                   </div>
+                                   {editingJob && scheduleBackend === 'windows-task-scheduler' && (
+                                       <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-3 text-xs text-slate-600 dark:text-slate-300">
+                                           <div className="font-semibold text-slate-700 dark:text-slate-200">Current Windows Task Status</div>
+                                           <div className="mt-1">
+                                               {currentEditingScheduleStatus?.error
+                                                   ? 'Windows Task status could not be queried right now.'
+                                                   : currentEditingScheduleStatus?.unsupported
+                                                   ? 'Windows Task Scheduler status cannot be queried in this environment.'
+                                                   : currentEditingScheduleStatus?.exists === false
+                                                   ? 'Task is currently missing in Windows Task Scheduler.'
+                                                   : 'Task is currently present in Windows Task Scheduler.'}
+                                           </div>
+                                           {currentEditingScheduleStatus?.taskName && (
+                                               <div className="mt-1">Task name: {currentEditingScheduleStatus.taskName}</div>
+                                           )}
+                                           {editingJob.scheduleTaskLastSyncedAt && (
+                                               <div className="mt-1">Last synchronized: {new Date(editingJob.scheduleTaskLastSyncedAt).toLocaleString()}</div>
+                                           )}
+                                       </div>
+                                   )}
                                    <div className="grid grid-cols-2 gap-4">
                                        <div>
                                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Frequency</label>
                                            <select
                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white"
+                                               aria-label="Frequency"
                                                value={scheduleType}
-                                               onChange={(e) => setScheduleType(e.target.value as any)}
+                                               onChange={(e) => setScheduleType(e.target.value as BackupJob['scheduleType'])}
                                            >
                                                <option value="daily">Daily</option>
                                                <option value="hourly">Hourly</option>
+                                               <option value="weekly">Weekly</option>
                                            </select>
                                        </div>
-                                       {scheduleType === 'daily' && (
+                                       {scheduleType === 'weekly' && (
                                            <div>
-                                               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Time</label>
+                                               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Day</label>
+                                               <select
+                                                   className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white"
+                                                   aria-label="Day"
+                                                   value={scheduleWeekday}
+                                                   onChange={(e) => setScheduleWeekday(Number(e.target.value))}
+                                               >
+                                                   {weekdayOptions.map((option) => (
+                                                       <option key={option.value} value={option.value}>{option.label}</option>
+                                                   ))}
+                                               </select>
+                                           </div>
+                                       )}
+                                       {(scheduleType === 'daily' || scheduleType === 'weekly' || scheduleType === 'hourly') && (
+                                           <div>
+                                               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
+                                                   {scheduleType === 'hourly' ? 'Minute' : 'Time'}
+                                               </label>
                                                <input 
                                                    type="time" 
                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white"
+                                                   aria-label={scheduleType === 'hourly' ? 'Minute' : 'Time'}
                                                    value={scheduleTime}
                                                    onChange={(e) => setScheduleTime(e.target.value)}
                                                />
+                                               {scheduleType === 'hourly' && (
+                                                   <p className="text-[10px] text-slate-400 mt-1">
+                                                       Runs once per hour at the selected minute. Example: 14:30 runs at :30 every hour.
+                                                   </p>
+                                               )}
                                            </div>
                                        )}
                                    </div>

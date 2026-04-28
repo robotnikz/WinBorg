@@ -94,6 +94,27 @@ describe('borgService', () => {
              expect(result).toBe(true);
              expect(mockInvoke).toHaveBeenCalledWith('has-secret', { repoId: 'repo1' });
         });
+
+        it('syncJobSchedules calls ipcRenderer.invoke with previous and next jobs', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            const previousJobs = [{ id: 'job-1', scheduleEnabled: false }];
+            const nextJobs = [{ id: 'job-1', scheduleEnabled: true, scheduleBackend: 'windows-task-scheduler' }];
+
+            const result = await borgService.syncJobSchedules(previousJobs as any, nextJobs as any);
+
+            expect(mockInvoke).toHaveBeenCalledWith('sync-job-schedules', { previousJobs, nextJobs });
+            expect(result).toEqual({ success: true });
+        });
+
+        it('getJobScheduleStatuses calls ipcRenderer.invoke with jobs', async () => {
+            mockInvoke.mockResolvedValue({ success: true, statuses: { 'job-1': { success: true, exists: true } } });
+            const jobs = [{ id: 'job-1', scheduleEnabled: true, scheduleBackend: 'windows-task-scheduler' }];
+
+            const result = await borgService.getJobScheduleStatuses(jobs as any);
+
+            expect(mockInvoke).toHaveBeenCalledWith('get-job-schedule-statuses', { jobs });
+            expect(result).toEqual({ success: true, statuses: { 'job-1': { success: true, exists: true } } });
+        });
     });
 
     describe('runCommand', () => {

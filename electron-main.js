@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+const { getScheduledJobIdFromArgv } = require('./main/launchArgs');
 const { safeReadJsonWithBackupSync, atomicWriteFileSync } = require('./main/persistence');
 const { createProcessManager } = require('./main/processManager');
 const {
@@ -17,6 +18,7 @@ const {
     finishJob,
     isWithinActiveScheduleWindow,
 } = require('./main/scheduler');
+const { createWindowsTaskScheduler } = require('./main/windowsTaskScheduler');
 const { createSystemHandlers } = require('./main/systemHandlers');
 const { resolveSshKeyInstallOptions, normalizeSshKey } = require('./main/sshHelpers');
 const { createMountPreflight } = require('./main/mountPreflight');
@@ -50,6 +52,14 @@ if (!isTestMode) {
         // This is the first instance.
         // Set up a listener for any subsequent attempts to launch a second instance.
         app.on('second-instance', (event, commandLine, workingDirectory) => {
+            const scheduledJobId = getScheduledJobIdFromArgv(commandLine);
+            if (scheduledJobId) {
+                executeScheduledJobById(scheduledJobId).catch((error) => {
+                    console.error('[Scheduler] Failed to execute scheduled job from second instance', error);
+                });
+                return;
+            }
+
             // Someone tried to run a second instance. We should focus our window.
             if (mainWindow) {
                 if (mainWindow.isMinimized()) mainWindow.restore();
@@ -159,6 +169,11 @@ const {
     spawnCapture,
 } = processManager;
 
+const windowsTaskScheduler = createWindowsTaskScheduler({
+    spawnCapture,
+    logger: console,
+});
+
 // --- PERSISTENCE PATHS ---
 const userDataPath = app.getPath('userData');
 const secretsPath = path.join(userDataPath, 'secrets.json');
@@ -198,6 +213,23 @@ function safeSendToRenderer(channel, payload) {
     } catch (e) {
         // Best-effort only
     }
+}
+
+function getTaskSchedulerLaunchContext() {
+    const exePath = app.getPath('exe');
+    const candidateAppPath = (typeof app.getAppPath === 'function') ? app.getAppPath() : null;
+    const appPathArg = !app.isPackaged && candidateAppPath && fs.existsSync(candidateAppPath)
+        ? candidateAppPath
+        : null;
+
+    return {
+        executablePath: exePath,
+        appPathArg,
+    };
+}
+
+async function syncWindowsTaskSchedulerJobs(previousJobs = [], nextJobs = []) {
+    return windowsTaskScheduler.syncJobs(previousJobs, nextJobs, getTaskSchedulerLaunchContext());
 }
 
 async function wslWriteFile(wslBaseArgs, filePath, content, { timeoutMs = 30000, restrictPerms = true } = {}) {
@@ -795,10 +827,12 @@ function startScheduler() {
 async function executeBackgroundJob(job) {
     if (!tryStartJob(job.id, runningBackgroundJobIds)) {
         console.log(`[Scheduler] Job already running, skipping: ${job.name}`);
-        return;
+        return { success: false, skipped: true, reason: 'already-running' };
     }
 
     console.log(`[Scheduler] Triggering Job: ${job.name}`);
+
+    let overallSuccess = false;
 
     try {
 
@@ -814,7 +848,7 @@ async function executeBackgroundJob(job) {
                 body: `Job '${job.name}' put on hold (On Battery).`,
                 silent: true 
             }).show();
-            return;
+            return { success: false, skipped: true, reason: 'battery' };
         }
     }
 
@@ -823,13 +857,13 @@ async function executeBackgroundJob(job) {
         if (!net.online) {
              console.log(`[Scheduler] Skipped job ${job.name} because device is offline.`);
              // Silent skip, no notification needed for offline usually
-             return;
+             return { success: false, skipped: true, reason: 'offline' };
         }
     }
 
     const repo = availableRepos.find(r => r.id === job.repoId);
     if (!repo) {
-        return;
+        return { success: false, error: 'repo-not-found' };
     }
 
     // Provide a stable, renderer-visible id so scheduled jobs can be surfaced (ETA/status)
@@ -870,7 +904,7 @@ async function executeBackgroundJob(job) {
             icon: getIconPath() || undefined
         }).show();
         safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: false });
-        return;
+        return { success: false, error: 'no-source-paths' };
     }
 
     const sourcePathsForCreate = useWsl
@@ -976,6 +1010,7 @@ async function executeBackgroundJob(job) {
         }).show();
         dispatchNotifications(job.name, true, `Archive created: ${archiveName}${pruneSummary}\n\n${getLastLines(createResult.output, 10)}`);
         safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: true });
+        overallSuccess = true;
         
     } else {
         new Notification({ 
@@ -988,10 +1023,24 @@ async function executeBackgroundJob(job) {
         safeSendToRenderer('job-complete', { jobId: job.id, repoId: repo.id, commandId, success: false });
     }
 
+    return { success: overallSuccess };
+
     } finally {
         activeScheduledJobCommands.delete(job.id);
         finishJob(job.id, runningBackgroundJobIds);
     }
+}
+
+async function executeScheduledJobById(jobId) {
+    if (!jobId) return { success: false, error: 'missing-job-id' };
+
+    const job = scheduledJobs.find((candidate) => candidate && candidate.id === jobId);
+    if (!job) {
+        console.warn(`[Scheduler] Scheduled task requested unknown job: ${jobId}`);
+        return { success: false, error: 'job-not-found' };
+    }
+
+    return executeBackgroundJob(job);
 }
 
 function getLastLines(text, count) {
@@ -1210,10 +1259,26 @@ app.whenReady().then(() => {
         });
     });
 
+    const scheduledJobId = getScheduledJobIdFromArgv(process.argv);
     const shouldStartMinimized = process.argv.includes('--hidden');
+
+    if (scheduledJobId) {
+        executeScheduledJobById(scheduledJobId)
+            .catch((error) => {
+                console.error('[Scheduler] Scheduled task launch failed', error);
+            })
+            .finally(() => {
+                cleanupAndQuit();
+            });
+        return;
+    }
+
     createWindow(shouldStartMinimized);
     createTray();
     startScheduler();
+    syncWindowsTaskSchedulerJobs([], scheduledJobs).catch((error) => {
+        console.warn('[TaskScheduler] Startup reconciliation failed', error);
+    });
     powerMonitor.on('resume', () => {
         runSchedulerTick({ allowCatchUp: true });
     });
@@ -1369,6 +1434,8 @@ ipcMain.handle('import-app-data', async (event, { includeSecrets } = { includeSe
         scheduleStrict: false
     };
 
+    const previousJobs = Array.isArray(dbCache.jobs) ? dbCache.jobs : [];
+
     dbCache = normalizeDbCache({
         ...dbCache,
         ...importedDb,
@@ -1387,6 +1454,11 @@ ipcMain.handle('import-app-data', async (event, { includeSecrets } = { includeSe
     persistDb();
     persistNotifications();
     if (includeSecrets && importedSecrets) persistSecrets();
+
+    const taskSyncResult = await syncWindowsTaskSchedulerJobs(previousJobs, dbCache.jobs || []);
+    if (!taskSyncResult.success) {
+        console.warn('[TaskScheduler] Import sync failed:', taskSyncResult.error);
+    }
 
     syncRuntimeStateFromDb();
 
@@ -1420,6 +1492,14 @@ ipcMain.on('sync-scheduler-data', (event, { jobs, repos }) => {
     dbCache.repos = repos;
     persistDb();
     updateTrayMenu();
+});
+
+ipcMain.handle('sync-job-schedules', async (event, { previousJobs, nextJobs }) => {
+    return await syncWindowsTaskSchedulerJobs(previousJobs, nextJobs);
+});
+
+ipcMain.handle('get-job-schedule-statuses', async (event, { jobs }) => {
+    return await windowsTaskScheduler.getJobStatuses(jobs);
 });
 
 // --- IPC HANDLERS ---

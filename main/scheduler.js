@@ -24,6 +24,12 @@ function parseTimeToMinutes(value) {
     return (hours * 60) + minutes;
 }
 
+function parseWeekday(value) {
+    if (!Number.isInteger(value)) return null;
+    if (value < 0 || value > 6) return null;
+    return value;
+}
+
 function isWithinActiveScheduleWindow(now, settings) {
     if (!settings || settings.scheduleEnabled !== true) return true;
 
@@ -53,8 +59,35 @@ function getScheduledSlotTime(job, now) {
     }
 
     if (job.scheduleType === 'hourly') {
+        const scheduleMinutes = parseTimeToMinutes(job.scheduleTime || '00:00');
+        if (scheduleMinutes === null) return null;
+
         const slot = new Date(now);
-        slot.setMinutes(0, 0, 0);
+        slot.setMinutes(scheduleMinutes % 60, 0, 0);
+
+        if (slot <= now) {
+            return slot;
+        }
+
+        slot.setHours(slot.getHours() - 1);
+        return slot;
+    }
+
+    if (job.scheduleType === 'weekly') {
+        const scheduleMinutes = parseTimeToMinutes(job.scheduleTime);
+        const scheduleWeekday = parseWeekday(job.scheduleWeekday);
+        if (scheduleMinutes === null || scheduleWeekday === null) return null;
+
+        const slot = new Date(now);
+        const daysSinceScheduledWeekday = (now.getDay() - scheduleWeekday + 7) % 7;
+        slot.setDate(slot.getDate() - daysSinceScheduledWeekday);
+        slot.setHours(Math.floor(scheduleMinutes / 60), scheduleMinutes % 60, 0, 0);
+
+        if (slot <= now) {
+            return slot;
+        }
+
+        slot.setDate(slot.getDate() - 7);
         return slot;
     }
 
@@ -69,6 +102,9 @@ function parseLastRunAt(lastRunAt) {
 
 function shouldTriggerScheduledJob(job, now, lastKey, options = {}) {
     if (!job || !job.scheduleEnabled) return { shouldTrigger: false, triggerKey: null };
+    if (job.scheduleBackend === 'windows-task-scheduler') {
+        return { shouldTrigger: false, triggerKey: null };
+    }
     if (!isWithinActiveScheduleWindow(now, options.scheduleWindow)) {
         return { shouldTrigger: false, triggerKey: null };
     }

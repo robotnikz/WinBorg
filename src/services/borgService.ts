@@ -3,7 +3,7 @@
 // This service communicates with the Electron Main process
 
 import { formatBytes, formatDuration } from '../utils/formatters';
-import { ArchiveStats } from '../types';
+import { ArchiveStats, BackupJob } from '../types';
 import { getIpcRendererOrNull, type IpcRendererLike } from './electron';
 
 const fallbackIpcRenderer: IpcRendererLike = {
@@ -166,6 +166,14 @@ export const borgService = {
   hasPassphrase: async (repoId: string): Promise<boolean> => {
       const res = await getIpc().invoke('has-secret', { repoId });
       return res.hasSecret;
+  },
+
+  syncJobSchedules: async (previousJobs: BackupJob[], nextJobs: BackupJob[]): Promise<{ success: boolean; error?: string; details?: any[] }> => {
+      return await getIpc().invoke('sync-job-schedules', { previousJobs, nextJobs });
+  },
+
+  getJobScheduleStatuses: async (jobs: BackupJob[]): Promise<{ success: boolean; statuses?: Record<string, any>; error?: string }> => {
+      return await getIpc().invoke('get-job-schedule-statuses', { jobs });
   },
 
   // --- COMMANDS ---

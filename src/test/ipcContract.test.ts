@@ -58,6 +58,8 @@ describe('IPC contract (renderer <-> main)', () => {
     'get-app-version',
     'get-db',
     'save-db',
+    'sync-job-schedules',
+    'get-job-schedule-statuses',
     'export-app-data',
     'import-app-data',
 
@@ -103,6 +105,8 @@ describe('IPC contract (renderer <-> main)', () => {
       'save-secret',
       'delete-secret',
       'has-secret',
+      'sync-job-schedules',
+      'get-job-schedule-statuses',
     ];
 
     for (const channel of rendererChannels) {

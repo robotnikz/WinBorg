@@ -114,8 +114,11 @@ export interface BackupJob {
 
     // Schedule (Metadata for future background service)
     scheduleEnabled: boolean;
-    scheduleType: 'daily' | 'hourly' | 'manual';
+    scheduleType: 'daily' | 'hourly' | 'weekly' | 'manual';
     scheduleTime: string; // "14:00"
+    scheduleWeekday?: number; // 0 = Sunday, 6 = Saturday
+    scheduleBackend?: 'winborg' | 'windows-task-scheduler';
+    scheduleTaskLastSyncedAt?: string;
 }
 
 export interface Archive {

@@ -624,6 +624,38 @@ const App: React.FC = () => {
       reposRef.current = repos;
   }, [repos]);
 
+  const jobsRef = useRef<BackupJob[]>([]);
+  useEffect(() => {
+      jobsRef.current = jobs;
+  }, [jobs]);
+
+  const syncJobSchedules = async (previousJobs: BackupJob[], nextJobs: BackupJob[]) => {
+      const result = await borgService.syncJobSchedules(previousJobs, nextJobs);
+      if (!result?.success) {
+          toast.error(result?.error || 'Failed to update scheduled task configuration.');
+          return { ok: false, jobs: previousJobs };
+      }
+
+      const syncedAt = new Date().toISOString();
+      const normalizedJobs = nextJobs.map((job) => {
+          if (job.scheduleBackend === 'windows-task-scheduler') {
+              return {
+                  ...job,
+                  scheduleTaskLastSyncedAt: syncedAt,
+              };
+          }
+
+          if (job.scheduleTaskLastSyncedAt !== undefined) {
+              const { scheduleTaskLastSyncedAt, ...rest } = job;
+              return rest;
+          }
+
+          return job;
+      });
+
+      return { ok: true, jobs: normalizedJobs };
+  };
+
   // Mount Listener
   useEffect(() => {
     try {
@@ -1118,6 +1150,11 @@ const App: React.FC = () => {
 
   const handleDeleteRepo = async (repoId: string) => {
       if (window.confirm("Remove this repository?")) {
+          const previousJobs = jobsRef.current;
+          const nextJobs = previousJobs.filter(j => j.repoId !== repoId);
+          const syncResult = await syncJobSchedules(previousJobs, nextJobs);
+          if (!syncResult.ok) return;
+
           // Clean up secret
           await borgService.deletePassphrase(repoId);
           setRepos(prev => prev.filter(r => r.id !== repoId));
@@ -1127,19 +1164,37 @@ const App: React.FC = () => {
       }
   };
 
-  const handleAddJob = (job: BackupJob) => {
-      setJobs(prev => [...prev, job]);
+  const handleAddJob = async (job: BackupJob) => {
+      const previousJobs = jobsRef.current;
+      const nextJobs = [...previousJobs, job];
+      const syncResult = await syncJobSchedules(previousJobs, nextJobs);
+      if (!syncResult.ok) return false;
+
+      setJobs(syncResult.jobs);
       toast.success("Backup Job created.");
+      return true;
   };
 
-  const handleUpdateJob = (job: BackupJob) => {
-      setJobs(prev => prev.map(j => j.id === job.id ? job : j));
+  const handleUpdateJob = async (job: BackupJob) => {
+      const previousJobs = jobsRef.current;
+      const nextJobs = previousJobs.map(j => j.id === job.id ? job : j);
+      const syncResult = await syncJobSchedules(previousJobs, nextJobs);
+      if (!syncResult.ok) return false;
+
+      setJobs(syncResult.jobs);
       toast.success("Backup Job updated.");
+      return true;
   };
 
-  const handleDeleteJob = (jobId: string) => {
-      setJobs(prev => prev.filter(j => j.id !== jobId));
+  const handleDeleteJob = async (jobId: string) => {
+      const previousJobs = jobsRef.current;
+      const nextJobs = previousJobs.filter(j => j.id !== jobId);
+      const syncResult = await syncJobSchedules(previousJobs, nextJobs);
+      if (!syncResult.ok) return false;
+
+      setJobs(syncResult.jobs);
       toast.info("Backup Job deleted.");
+      return true;
   };
 
   const handleRunJob = async (jobId: string) => {
