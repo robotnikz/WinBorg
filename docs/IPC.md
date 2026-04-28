@@ -32,6 +32,8 @@ The following list is derived from `electron-main.js` IPC registrations.
 
 - `get-db` (invoke → DB snapshot)
 - `save-db` (invoke, payload: partial DB)
+- `sync-job-schedules` (invoke, payload: `{ previousJobs, nextJobs }`)
+- `get-job-schedule-statuses` (invoke, payload: `{ jobs }`)
 - `export-app-data` (invoke, payload: `{ includeSecrets?: boolean }`)
 - `import-app-data` (invoke, payload: `{ includeSecrets?: boolean }`)
 

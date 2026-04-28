@@ -134,6 +134,44 @@ describe('IPC payload shapes (renderer <-> main)', () => {
     ).toBe(true);
   });
 
+  it('sync-job-schedules handler destructures previousJobs/nextJobs and borgService passes matching payload keys', () => {
+    const mainText = fs.readFileSync(electronMainPath, 'utf8');
+    const rendererText = fs.readFileSync(borgServicePath, 'utf8');
+
+    expect(
+      /ipcMain\.handle\(\s*['"]sync-job-schedules['"]\s*,\s*async\s*\(\s*event\s*,\s*\{[^}]*\bpreviousJobs\b[^}]*\bnextJobs\b[^}]*\}\s*\)\s*=>/m.test(
+        mainText
+      ),
+      'Expected sync-job-schedules handler to destructure previousJobs/nextJobs'
+    ).toBe(true);
+
+    expect(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]sync-job-schedules['"]\s*,\s*\{[\s\S]*?\bpreviousJobs\b[\s\S]*?\bnextJobs\b[\s\S]*?\}\s*\)/m.test(
+        rendererText
+      ),
+      'Expected borgService.syncJobSchedules to invoke sync-job-schedules with previousJobs/nextJobs'
+    ).toBe(true);
+  });
+
+  it('get-job-schedule-statuses handler destructures jobs and borgService passes matching payload key', () => {
+    const mainText = fs.readFileSync(electronMainPath, 'utf8');
+    const rendererText = fs.readFileSync(borgServicePath, 'utf8');
+
+    expect(
+      /ipcMain\.handle\(\s*['"]get-job-schedule-statuses['"]\s*,\s*async\s*\(\s*event\s*,\s*\{[^}]*\bjobs\b[^}]*\}\s*\)\s*=>/m.test(
+        mainText
+      ),
+      'Expected get-job-schedule-statuses handler to destructure jobs'
+    ).toBe(true);
+
+    expect(
+      /(?:ipcRenderer|getIpc\(\))\.invoke\(\s*['"]get-job-schedule-statuses['"]\s*,\s*\{[\s\S]*?\bjobs\b[\s\S]*?\}\s*\)/m.test(
+        rendererText
+      ),
+      'Expected borgService.getJobScheduleStatuses to invoke get-job-schedule-statuses with jobs'
+    ).toBe(true);
+  });
+
   it('SSH handlers destructure expected keys and borgService passes matching payload keys', () => {
     const mainText = fs.readFileSync(electronMainPath, 'utf8');
     const rendererText = fs.readFileSync(borgServicePath, 'utf8');

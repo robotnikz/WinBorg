@@ -74,7 +74,7 @@ test.describe('Jobs flow', () => {
     // Enable schedule.
     await page.getByRole('button', { name: 'Schedule', exact: true }).click();
     await expect(page.getByText('Enable Schedule')).toBeVisible();
-    await page.locator('div', { has: page.getByText('Enable Schedule') }).locator('input[type="checkbox"]').check();
+    await page.getByRole('checkbox', { name: 'Enable Schedule' }).check();
 
     // Save job.
     await page.getByRole('button', { name: 'Save Job' }).click();

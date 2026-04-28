@@ -11,6 +11,8 @@ describe('E2E mock IPC contract', () => {
     // smoke flows rely on these being mockable
     'get-db',
     'save-db',
+    'sync-job-schedules',
+    'get-job-schedule-statuses',
     'system-check-wsl',
     'system-check-borg',
     'ssh-test-connection',
