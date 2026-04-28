@@ -9,6 +9,7 @@ const {
   createWindowsTaskScheduler,
   getScheduleBackend,
   getTaskNameForJob,
+  quoteWindowsCommandArg,
   shouldTrackWindowsTask,
   shouldUseWindowsTaskScheduler,
 } = require('../../main/windowsTaskScheduler');
@@ -34,6 +35,12 @@ describe('main/windowsTaskScheduler', () => {
 
     expect(buildQueryTaskArgs(job)).toEqual(['/Query', '/TN', getTaskNameForJob(job)]);
     expect(shouldTrackWindowsTask(job)).toBe(true);
+  });
+
+  test('quotes Windows command arguments with backslashes and quotes safely', () => {
+    const quoted = quoteWindowsCommandArg('C:\\Program Files\\WinBorg\\"quoted"\\');
+
+    expect(quoted).toBe('"C:\\Program Files\\WinBorg\\\\\\"quoted\\"\\\\"');
   });
 
   test('builds a daily scheduled task command', () => {

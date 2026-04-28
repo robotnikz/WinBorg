@@ -45,7 +45,12 @@ function getTaskNameForJob(job) {
 }
 
 function quoteWindowsCommandArg(value) {
-    return `"${String(value ?? '').replace(/"/g, '\\"')}"`;
+    const rawValue = String(value ?? '');
+    const escapedValue = rawValue
+        .replace(/(\\*)"/g, '$1$1\\"')
+        .replace(/(\\+)$/g, '$1$1');
+
+    return `"${escapedValue}"`;
 }
 
 function buildTaskRunCommand(launchContext, jobId) {
@@ -308,6 +313,7 @@ module.exports = {
     buildCreateTaskArgs,
     buildDeleteTaskArgs,
     buildQueryTaskArgs,
+    quoteWindowsCommandArg,
     createWindowsTaskScheduler,
     shouldTrackWindowsTask,
 };
