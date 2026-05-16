@@ -73,6 +73,21 @@ describe('main/windowsTaskScheduler', () => {
     expect(args).toEqual(expect.arrayContaining(['/SC', 'HOURLY', '/MO', '1', '/ST', '00:15']));
   });
 
+  test('builds an every-4-hours scheduled task with the correct /MO modifier', () => {
+    const job = {
+      id: 'job-4h',
+      name: '4-Hour Backup',
+      scheduleEnabled: true,
+      scheduleBackend: WINDOWS_TASK_SCHEDULER_BACKEND,
+      scheduleType: 'hourly',
+      scheduleTime: '00:30',
+      scheduleHourInterval: 4,
+    };
+
+    const args = buildCreateTaskArgs(job, launchContext);
+    expect(args).toEqual(expect.arrayContaining(['/SC', 'HOURLY', '/MO', '4', '/ST', '00:30']));
+  });
+
   test('builds a weekly scheduled task with the configured weekday', () => {
     const job = {
       id: 'job-3',
