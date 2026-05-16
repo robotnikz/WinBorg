@@ -103,6 +103,75 @@ describe('main/scheduler', () => {
     expect(res.triggerKey).toBe(getTriggerKey(new Date('2026-01-13T11:20:00'), 'hourly'));
   });
 
+  test('every-4-hours job triggers at correct interval slots anchored to midnight', () => {
+    const job = {
+      id: 'j-4h',
+      scheduleEnabled: true,
+      scheduleType: 'hourly',
+      scheduleHourInterval: 4,
+      scheduleTime: '00:00',
+    };
+
+    // At exactly 08:00 → slot 08:00 should trigger
+    const atSlot = new Date('2026-01-13T08:00:00');
+    const first = shouldTriggerScheduledJob(job, atSlot, null, { allowCatchUp: false });
+    expect(first.shouldTrigger).toBe(true);
+    expect(first.triggerKey).toBe(getTriggerKey(atSlot, 'hourly'));
+
+    // At 09:30 → slot is still 08:00, already triggered, should not re-trigger
+    const between = new Date('2026-01-13T09:30:00');
+    const second = shouldTriggerScheduledJob(job, between, first.triggerKey, { allowCatchUp: false });
+    expect(second.shouldTrigger).toBe(false);
+
+    // At 12:00 → new slot, should trigger again
+    const nextSlot = new Date('2026-01-13T12:00:00');
+    const third = shouldTriggerScheduledJob(job, nextSlot, first.triggerKey, { allowCatchUp: false });
+    expect(third.shouldTrigger).toBe(true);
+    expect(third.triggerKey).toBe(getTriggerKey(nextSlot, 'hourly'));
+  });
+
+  test('every-4-hours job with minute offset triggers at correct slot time', () => {
+    const job = {
+      id: 'j-4h-offset',
+      scheduleEnabled: true,
+      scheduleType: 'hourly',
+      scheduleHourInterval: 4,
+      scheduleTime: '00:15', // run at :15 within each slot
+    };
+
+    // At 08:15 → slot 08:15 should trigger
+    const atSlot = new Date('2026-01-13T08:15:00');
+    const res = shouldTriggerScheduledJob(job, atSlot, null, { allowCatchUp: false });
+    expect(res.shouldTrigger).toBe(true);
+
+    // At 08:10 → slot is 04:15, not yet at 08:15
+    const before = new Date('2026-01-13T08:10:00');
+    const res2 = shouldTriggerScheduledJob(job, before, null, { allowCatchUp: false });
+    expect(res2.shouldTrigger).toBe(false);
+  });
+
+  test('every-4-hours job catches up when startup missed a slot', () => {
+    const job = {
+      id: 'j-4h-catchup',
+      scheduleEnabled: true,
+      scheduleType: 'hourly',
+      scheduleHourInterval: 4,
+      scheduleTime: '00:00',
+      lastRun: 'Never',
+    };
+
+    // App started at 09:05, slot 08:00 was missed
+    const now = new Date('2026-01-13T09:05:00');
+    const res = shouldTriggerScheduledJob(job, now, null, {
+      lastRunAt: job.lastRun,
+      allowCatchUp: true,
+    });
+
+    expect(res.shouldTrigger).toBe(true);
+    expect(res.mode).toBe('catch-up');
+    expect(res.triggerKey).toBe(getTriggerKey(new Date('2026-01-13T08:00:00'), 'hourly'));
+  });
+
   test('weekly job triggers on the configured weekday and time and dedupes by triggerKey', () => {
     const now = new Date('2026-01-12T09:15:00');
     const job = {

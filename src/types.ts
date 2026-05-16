@@ -116,6 +116,7 @@ export interface BackupJob {
     scheduleEnabled: boolean;
     scheduleType: 'daily' | 'hourly' | 'weekly' | 'manual';
     scheduleTime: string; // "14:00"
+    scheduleHourInterval?: number; // for hourly: run every N hours (1, 2, 3, 4, 6, 8, 12)
     scheduleWeekday?: number; // 0 = Sunday, 6 = Saturday
     scheduleBackend?: 'winborg' | 'windows-task-scheduler';
     scheduleTaskLastSyncedAt?: string;

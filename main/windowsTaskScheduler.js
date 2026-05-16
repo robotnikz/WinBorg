@@ -74,7 +74,10 @@ function buildTaskScheduleArgs(job) {
 
     if (scheduleType === 'hourly') {
         const [, minute] = normalizeScheduleTime(job.scheduleTime, '00:00').split(':');
-        return ['/SC', 'HOURLY', '/MO', '1', '/ST', `00:${minute}`];
+        const interval = (Number.isInteger(job && job.scheduleHourInterval) && job.scheduleHourInterval > 1)
+            ? job.scheduleHourInterval
+            : 1;
+        return ['/SC', 'HOURLY', '/MO', String(interval), '/ST', `00:${minute}`];
     }
 
     if (scheduleType === 'weekly') {

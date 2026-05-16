@@ -83,10 +83,14 @@ export const getNextRunForRepo = (jobs: BackupJob[], repoId: string): string | n
         
         if (job.scheduleType === 'hourly') {
             const [, m] = resolveScheduleTime(job).split(':').map(Number);
-            nextDate.setSeconds(0, 0);
-            nextDate.setMinutes(m, 0, 0);
+            const interval = (Number.isInteger(job.scheduleHourInterval) && job.scheduleHourInterval! > 1)
+                ? job.scheduleHourInterval!
+                : 1;
+            const currentHour = now.getHours();
+            const slotHour = Math.floor(currentHour / interval) * interval;
+            nextDate.setHours(slotHour, m, 0, 0);
             if (nextDate <= now) {
-                nextDate.setHours(nextDate.getHours() + 1);
+                nextDate.setHours(slotHour + interval, m, 0, 0);
             }
         } else if (job.scheduleType === 'daily' && job.scheduleTime) {
             const [h, m] = resolveScheduleTime(job, '14:00').split(':').map(Number);
