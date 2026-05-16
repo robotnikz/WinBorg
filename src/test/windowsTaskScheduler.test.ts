@@ -6,6 +6,7 @@ const {
   WINDOWS_TASK_SCHEDULER_BACKEND,
   buildQueryTaskArgs,
   buildCreateTaskArgs,
+  buildPatchStartWhenAvailableArgs,
   createWindowsTaskScheduler,
   getScheduleBackend,
   getTaskNameForJob,
@@ -202,5 +203,62 @@ describe('main/windowsTaskScheduler', () => {
     expect(result.success).toBe(true);
     expect(result.statuses['job-6']).toEqual(expect.objectContaining({ success: true, exists: true }));
     expect(result.statuses['job-7']).toEqual(expect.objectContaining({ success: true, exists: false }));
+  });
+
+  test('buildPatchStartWhenAvailableArgs builds a PowerShell command to set StartWhenAvailable', () => {
+    const args = buildPatchStartWhenAvailableArgs('WinBorg-My-Backup-abc123');
+    expect(args).toEqual(['-NonInteractive', '-NoProfile', '-Command', expect.stringContaining('StartWhenAvailable = $true')]);
+    expect(args[3]).toContain('WinBorg-My-Backup-abc123');
+    expect(args[3]).toContain('Set-ScheduledTask');
+  });
+
+  test('upsertJob calls PowerShell to set StartWhenAvailable when scheduleRunIfMissed is true', async () => {
+    const spawnCapture = vi.fn().mockResolvedValue({ code: 0, stdout: 'ok', stderr: '', error: null });
+    const scheduler = createWindowsTaskScheduler({
+      spawnCapture,
+      platform: 'win32',
+      logger: { warn: vi.fn() },
+    });
+
+    const job = {
+      id: 'job-runmissed',
+      name: 'Catchup Backup',
+      scheduleEnabled: true,
+      scheduleBackend: WINDOWS_TASK_SCHEDULER_BACKEND,
+      scheduleType: 'daily',
+      scheduleTime: '03:00',
+      scheduleRunIfMissed: true,
+    };
+
+    const result = await scheduler.upsertJob(job, launchContext);
+
+    expect(result.success).toBe(true);
+    expect(spawnCapture).toHaveBeenCalledTimes(2);
+    expect(spawnCapture).toHaveBeenNthCalledWith(1, 'schtasks.exe', expect.arrayContaining(['/Create']), expect.any(Object));
+    expect(spawnCapture).toHaveBeenNthCalledWith(2, 'powershell.exe', expect.arrayContaining(['-Command', expect.stringContaining('StartWhenAvailable')]), expect.any(Object));
+  });
+
+  test('upsertJob does not call PowerShell when scheduleRunIfMissed is false', async () => {
+    const spawnCapture = vi.fn().mockResolvedValue({ code: 0, stdout: 'ok', stderr: '', error: null });
+    const scheduler = createWindowsTaskScheduler({
+      spawnCapture,
+      platform: 'win32',
+      logger: { warn: vi.fn() },
+    });
+
+    const job = {
+      id: 'job-no-runmissed',
+      name: 'Normal Backup',
+      scheduleEnabled: true,
+      scheduleBackend: WINDOWS_TASK_SCHEDULER_BACKEND,
+      scheduleType: 'daily',
+      scheduleTime: '03:00',
+      scheduleRunIfMissed: false,
+    };
+
+    await scheduler.upsertJob(job, launchContext);
+
+    expect(spawnCapture).toHaveBeenCalledTimes(1);
+    expect(spawnCapture).toHaveBeenCalledWith('schtasks.exe', expect.any(Array), expect.any(Object));
   });
 });

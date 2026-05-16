@@ -106,6 +106,12 @@ function buildCreateTaskArgs(job, launchContext) {
     ];
 }
 
+function buildPatchStartWhenAvailableArgs(taskName) {
+    const escaped = taskName.replace(/'/g, "''");
+    const command = `$task = Get-ScheduledTask -TaskName '${escaped}'; $task.Settings.StartWhenAvailable = $true; $task | Set-ScheduledTask`;
+    return ['-NonInteractive', '-NoProfile', '-Command', command];
+}
+
 function buildDeleteTaskArgs(job) {
     return ['/Delete', '/TN', getTaskNameForJob(job), '/F'];
 }
@@ -150,6 +156,14 @@ function createWindowsTaskScheduler({ spawnCapture, platform = process.platform,
                     error: getTaskSchedulerError(result, `Failed to create scheduled task for ${job.name}.`),
                     taskName: getTaskNameForJob(job),
                 };
+            }
+
+            if (job.scheduleRunIfMissed === true) {
+                const taskName = getTaskNameForJob(job);
+                const patchResult = await spawnCapture('powershell.exe', buildPatchStartWhenAvailableArgs(taskName), { timeoutMs: 30000 });
+                if (patchResult.error || patchResult.code !== 0) {
+                    logger.warn && logger.warn('[TaskScheduler] Failed to set StartWhenAvailable', patchResult);
+                }
             }
 
             return { success: true, taskName: getTaskNameForJob(job) };
@@ -316,6 +330,7 @@ module.exports = {
     buildCreateTaskArgs,
     buildDeleteTaskArgs,
     buildQueryTaskArgs,
+    buildPatchStartWhenAvailableArgs,
     quoteWindowsCommandArg,
     createWindowsTaskScheduler,
     shouldTrackWindowsTask,
