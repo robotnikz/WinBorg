@@ -147,6 +147,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
     const [scheduleType, setScheduleType] = useState<BackupJob['scheduleType']>('daily');
   const [scheduleTime, setScheduleTime] = useState('14:00');
+  const [scheduleHourInterval, setScheduleHourInterval] = useState(1);
     const [scheduleWeekday, setScheduleWeekday] = useState(getDefaultScheduleWeekday);
         const [scheduleBackend, setScheduleBackend] = useState<BackupJob['scheduleBackend']>(getDefaultScheduleBackend);
 
@@ -229,6 +230,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
               scheduleEnabled,
               scheduleType,
               scheduleTime,
+              scheduleHourInterval: scheduleType === 'hourly' ? scheduleHourInterval : undefined,
               scheduleWeekday,
               scheduleBackend
           };
@@ -251,6 +253,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
           scheduleEnabled,
           scheduleType,
           scheduleTime,
+          scheduleHourInterval: scheduleType === 'hourly' ? scheduleHourInterval : undefined,
           scheduleWeekday,
           scheduleBackend
       };
@@ -311,6 +314,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
       setScheduleEnabled(!!job.scheduleEnabled);
       setScheduleType(job.scheduleType && job.scheduleType !== 'manual' ? job.scheduleType : 'daily');
       setScheduleTime(job.scheduleTime || '14:00');
+      setScheduleHourInterval(Number.isInteger(job.scheduleHourInterval) && job.scheduleHourInterval! > 1 ? job.scheduleHourInterval! : 1);
       setScheduleWeekday(Number.isInteger(job.scheduleWeekday) ? job.scheduleWeekday as number : getDefaultScheduleWeekday());
       setScheduleBackend(job.scheduleBackend || getDefaultScheduleBackend());
   };
@@ -871,6 +875,25 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                                <option value="weekly">Weekly</option>
                                            </select>
                                        </div>
+                                       {scheduleType === 'hourly' && (
+                                           <div>
+                                               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Every</label>
+                                               <select
+                                                   className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white"
+                                                   aria-label="Hour interval"
+                                                   value={scheduleHourInterval}
+                                                   onChange={(e) => setScheduleHourInterval(Number(e.target.value))}
+                                               >
+                                                   <option value={1}>1 hour</option>
+                                                   <option value={2}>2 hours</option>
+                                                   <option value={3}>3 hours</option>
+                                                   <option value={4}>4 hours</option>
+                                                   <option value={6}>6 hours</option>
+                                                   <option value={8}>8 hours</option>
+                                                   <option value={12}>12 hours</option>
+                                               </select>
+                                           </div>
+                                       )}
                                        {scheduleType === 'weekly' && (
                                            <div>
                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Day</label>
@@ -891,8 +914,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
                                                    {scheduleType === 'hourly' ? 'Minute' : 'Time'}
                                                </label>
-                                               <input 
-                                                   type="time" 
+                                               <input
+                                                   type="time"
                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white"
                                                    aria-label={scheduleType === 'hourly' ? 'Minute' : 'Time'}
                                                    value={scheduleTime}
@@ -900,7 +923,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                                />
                                                {scheduleType === 'hourly' && (
                                                    <p className="text-[10px] text-slate-400 mt-1">
-                                                       Runs once per hour at the selected minute. Example: 14:30 runs at :30 every hour.
+                                                       Runs every {scheduleHourInterval === 1 ? 'hour' : `${scheduleHourInterval} hours`} at the selected minute. Slots are anchored to midnight.
                                                    </p>
                                                )}
                                            </div>

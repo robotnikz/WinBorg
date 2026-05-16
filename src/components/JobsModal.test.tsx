@@ -92,7 +92,7 @@ describe('JobsModal', () => {
 
     fireEvent.change(screen.getByLabelText('Frequency'), { target: { value: 'hourly' } });
     expect(screen.getByLabelText('Minute')).toBeInTheDocument();
-    expect(screen.getByText(/Runs once per hour at the selected minute/i)).toBeInTheDocument();
+    expect(screen.getByText(/Runs every hour at the selected minute/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Frequency'), { target: { value: 'weekly' } });
     expect(screen.getByLabelText('Day')).toBeInTheDocument();

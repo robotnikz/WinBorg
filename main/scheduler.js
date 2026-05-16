@@ -62,14 +62,20 @@ function getScheduledSlotTime(job, now) {
         const scheduleMinutes = parseTimeToMinutes(job.scheduleTime || '00:00');
         if (scheduleMinutes === null) return null;
 
+        const minute = scheduleMinutes % 60;
+        const interval = (Number.isInteger(job.scheduleHourInterval) && job.scheduleHourInterval > 1)
+            ? job.scheduleHourInterval
+            : 1;
+
         const slot = new Date(now);
-        slot.setMinutes(scheduleMinutes % 60, 0, 0);
+        const slotHour = Math.floor(now.getHours() / interval) * interval;
+        slot.setHours(slotHour, minute, 0, 0);
 
         if (slot <= now) {
             return slot;
         }
 
-        slot.setHours(slot.getHours() - 1);
+        slot.setHours(slotHour - interval, minute, 0, 0);
         return slot;
     }
 
