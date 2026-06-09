@@ -37,6 +37,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentLog, setCurrentLog] = useState('');
+  const [currentFile, setCurrentFile] = useState('');
     const [activeCommandId, setActiveCommandId] = useState<string | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
 
@@ -60,6 +61,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
           setIsProcessing(false);
           setIsCancelling(false);
           setCurrentLog('');
+          setCurrentFile('');
           setActiveCommandId(null);
           cancelledRef.current = false;
       }
@@ -101,9 +103,10 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
 
       setIsProcessing(true);
       setCurrentLog('Initializing backup process...');
+      setCurrentFile('');
       setActiveCommandId(commandId);
       onBackupStarted?.(activeRepo, commandId);
-      
+
       const logs: string[] = [];
       const logCollector = (l: string) => {
           logs.push(l);
@@ -121,7 +124,15 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
               archiveName,
               [sourcePath],
               logCollector,
-              { repoId: activeRepo.id, disableHostCheck: activeRepo.trustHost, remotePath: activeRepo.remotePath, commandId },
+              {
+                  repoId: activeRepo.id,
+                  disableHostCheck: activeRepo.trustHost,
+                  remotePath: activeRepo.remotePath,
+                  commandId,
+                  onProgress: ({ path }) => {
+                      if (isMountedRef.current) setCurrentFile(path);
+                  },
+              },
               ...(excludePatterns.length ? [{ excludePatterns }] : [])
           );
 
@@ -147,6 +158,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
           if (isMountedRef.current) {
               setIsProcessing(false);
               setIsCancelling(false);
+              setCurrentFile('');
               setActiveCommandId(null);
           }
       }
@@ -305,6 +317,12 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
                        <div className="font-mono text-xs text-slate-400 truncate flex items-center gap-2">
                            <Terminal className="w-3 h-3" /> {currentLog}
                        </div>
+                       {currentFile && (
+                           <div className="font-mono text-xs text-slate-500 truncate flex items-center gap-1 mt-1 pl-0.5" title={currentFile}>
+                               <span className="text-slate-600 shrink-0">→</span>
+                               <span className="truncate">{currentFile}</span>
+                           </div>
+                       )}
                    </div>
                )}
 

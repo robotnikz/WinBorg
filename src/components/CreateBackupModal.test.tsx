@@ -176,6 +176,30 @@ describe('CreateBackupModal', () => {
         });
     });
 
+    it('displays current file path when onProgress is called during backup', async () => {
+        vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
+
+        vi.mocked(borgService.createArchive).mockImplementation(
+            async (_url, _archive, _paths, _onLog, overrides) => {
+                overrides?.onProgress?.({ path: '/home/user/documents/report.pdf', nfiles: 7 });
+                return true;
+            }
+        );
+
+        render(<CreateBackupModal {...defaultProps} />);
+
+        const folderBtn = screen.getByRole('button', { name: /browse/i });
+        fireEvent.click(folderBtn);
+        await waitFor(() => screen.getByDisplayValue('C:\\Source'));
+
+        const startBtn = screen.getByRole('button', { name: /start backup/i });
+        fireEvent.click(startBtn);
+
+        await waitFor(() => {
+            expect(borgService.createArchive).toHaveBeenCalled();
+        });
+    });
+
     it('allows cancelling while a backup is running', async () => {
         vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
 

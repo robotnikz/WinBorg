@@ -247,6 +247,61 @@ describe('borgService', () => {
             expect(params.envVars.MY_VAR).toBe('123');
             expect(params.envVars.WSLENV).toBeUndefined();
         });
+
+        it('calls onProgress when borg-archive-progress event fires for the matching commandId', async () => {
+            const listeners: Record<string, any> = {};
+            mockOn.mockImplementation((channel: string, fn: any) => {
+                listeners[channel] = fn;
+            });
+
+            mockInvoke.mockImplementation(async (_channel: string, { commandId }: any) => {
+                // Simulate a borg-archive-progress event mid-command
+                if (listeners['borg-archive-progress']) {
+                    listeners['borg-archive-progress']({}, {
+                        id: commandId,
+                        path: '/home/user/documents/file.txt',
+                        nfiles: 42,
+                    });
+                }
+                return { success: true };
+            });
+
+            const onProgress = vi.fn();
+            await borgService.runCommand(['create'], vi.fn(), { commandId: 'progress-test', onProgress });
+
+            expect(onProgress).toHaveBeenCalledWith({ path: '/home/user/documents/file.txt', nfiles: 42 });
+            expect(mockRemoveListener).toHaveBeenCalledWith('borg-archive-progress', expect.any(Function));
+        });
+
+        it('ignores borg-archive-progress events for a different commandId', async () => {
+            const listeners: Record<string, any> = {};
+            mockOn.mockImplementation((channel: string, fn: any) => {
+                listeners[channel] = fn;
+            });
+
+            mockInvoke.mockImplementation(async (_channel: string, _params: any) => {
+                if (listeners['borg-archive-progress']) {
+                    // Fire event with a DIFFERENT id
+                    listeners['borg-archive-progress']({}, {
+                        id: 'other-command',
+                        path: '/some/other/path',
+                        nfiles: 1,
+                    });
+                }
+                return { success: true };
+            });
+
+            const onProgress = vi.fn();
+            await borgService.runCommand(['create'], vi.fn(), { commandId: 'my-command', onProgress });
+
+            expect(onProgress).not.toHaveBeenCalled();
+        });
+
+        it('always removes borg-archive-progress listener on completion even without onProgress', async () => {
+            mockInvoke.mockResolvedValue({ success: true });
+            await borgService.runCommand(['list'], vi.fn());
+            expect(mockRemoveListener).toHaveBeenCalledWith('borg-archive-progress', expect.any(Function));
+        });
     });
 
     describe('createArchive', () => {

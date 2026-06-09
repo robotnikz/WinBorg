@@ -1659,10 +1659,10 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
             }
             if (useWsl) {
                 bin = 'wsl';
-                
+
                 const linuxCmd = forceBinary || (executablePath === 'borg' ? '/usr/bin/borg' : executablePath) || '/usr/bin/borg';
                 let execArgs = [];
-                
+
                 // Target specific distro if we found one (Ubuntu/Debian) to avoid running in Docker/Default
                 if (detectedDistro) {
                     execArgs.push('-d', detectedDistro);
@@ -1674,6 +1674,34 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
             }
             console.log(`[Spawn] ${bin} ${finalArgs.join(' ')} (ID: ${commandId})`);
             const child = spawn(bin, finalArgs, { env: spawnEnv, cwd: cwd || undefined });
+
+            // Buffer for incomplete stderr lines. Borg --progress uses \r-terminated lines;
+            // we split on both \r and \n so each frame is processed independently.
+            let stderrBuf = '';
+            // Matches a borg create --progress line: SIZE O SIZE SIZE NFILES TYPE PATH
+            // e.g. "  1.20 kB O   1.20 kB   1.20 kB      1 A /home/user/file.txt"
+            const BORG_PROGRESS_RE = /^[\s]*[\d.,]+\s+[A-Za-z]+\s+O\s+[\d.,]+\s+[A-Za-z]+\s+[\d.,]+\s+[A-Za-z]+\s+(\d+)\s+([A-Z?-])\s+(.+)$/;
+
+            const handleStderr = (data) => {
+                const text = data.toString();
+                safeSendToRenderer('terminal-log', { id: commandId, text });
+
+                stderrBuf += text;
+                const segs = stderrBuf.split(/[\r\n]/);
+                stderrBuf = segs.pop() ?? '';
+                for (const seg of segs) {
+                    const m = seg.match(BORG_PROGRESS_RE);
+                    // path '-' means borg has no current file (initialising); skip it
+                    if (m && m[3] && m[3].trim() !== '-') {
+                        safeSendToRenderer('borg-archive-progress', {
+                            id: commandId,
+                            path: m[3].trim(),
+                            nfiles: parseInt(m[1], 10),
+                        });
+                    }
+                }
+            };
+
             registerManagedChild({
                 map: activeProcesses,
                 id: commandId,
@@ -1682,7 +1710,7 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
                 // Stability-first: do not enforce a default timeout here to avoid breaking long backups.
                 // Renderer may implement its own deadline logic and call borg-stop.
                 onStdout: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
-                onStderr: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
+                onStderr: handleStderr,
                 onExit: (code) => resolve({ success: code === 0 }),
                 onError: (err) => {
                     safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
