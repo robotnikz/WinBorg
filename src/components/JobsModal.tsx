@@ -148,6 +148,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
     const [scheduleType, setScheduleType] = useState<BackupJob['scheduleType']>('daily');
   const [scheduleTime, setScheduleTime] = useState('14:00');
   const [scheduleHourInterval, setScheduleHourInterval] = useState(1);
+  const [scheduleRunIfMissed, setScheduleRunIfMissed] = useState(false);
     const [scheduleWeekday, setScheduleWeekday] = useState(getDefaultScheduleWeekday);
         const [scheduleBackend, setScheduleBackend] = useState<BackupJob['scheduleBackend']>(getDefaultScheduleBackend);
 
@@ -232,7 +233,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
               scheduleTime,
               scheduleHourInterval: scheduleType === 'hourly' ? scheduleHourInterval : undefined,
               scheduleWeekday,
-              scheduleBackend
+              scheduleBackend,
+              scheduleRunIfMissed: scheduleBackend === 'windows-task-scheduler' ? scheduleRunIfMissed : undefined,
           };
 
       const updatedJob: BackupJob = {
@@ -255,7 +257,8 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
           scheduleTime,
           scheduleHourInterval: scheduleType === 'hourly' ? scheduleHourInterval : undefined,
           scheduleWeekday,
-          scheduleBackend
+          scheduleBackend,
+          scheduleRunIfMissed: scheduleBackend === 'windows-task-scheduler' ? scheduleRunIfMissed : undefined,
       };
 
       const result = editingJob
@@ -315,6 +318,7 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
       setScheduleType(job.scheduleType && job.scheduleType !== 'manual' ? job.scheduleType : 'daily');
       setScheduleTime(job.scheduleTime || '14:00');
       setScheduleHourInterval(Number.isInteger(job.scheduleHourInterval) && job.scheduleHourInterval! > 1 ? job.scheduleHourInterval! : 1);
+      setScheduleRunIfMissed(job.scheduleRunIfMissed === true);
       setScheduleWeekday(Number.isInteger(job.scheduleWeekday) ? job.scheduleWeekday as number : getDefaultScheduleWeekday());
       setScheduleBackend(job.scheduleBackend || getDefaultScheduleBackend());
   };
@@ -841,6 +845,25 @@ const JobsModal: React.FC<JobsModalProps> = ({ repo, jobs, isOpen, openTo = 'lis
                                            </div>
                                        </label>
                                    </div>
+                                   {scheduleBackend === 'windows-task-scheduler' && (
+                                       <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/30 p-3">
+                                           <label className="flex items-start gap-3 cursor-pointer">
+                                               <input
+                                                   type="checkbox"
+                                                   className="mt-1 h-4 w-4 rounded text-blue-600"
+                                                   aria-label="Run task as soon as possible if a scheduled start is missed"
+                                                   checked={scheduleRunIfMissed}
+                                                   onChange={(e) => setScheduleRunIfMissed(e.target.checked)}
+                                               />
+                                               <div>
+                                                   <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Run as soon as possible if start is missed</div>
+                                                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                       If the PC was off during a scheduled backup, Windows will run it immediately once the PC is back on.
+                                                   </p>
+                                               </div>
+                                           </label>
+                                       </div>
+                                   )}
                                    {editingJob && scheduleBackend === 'windows-task-scheduler' && (
                                        <div className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 p-3 text-xs text-slate-600 dark:text-slate-300">
                                            <div className="font-semibold text-slate-700 dark:text-slate-200">Current Windows Task Status</div>
