@@ -183,9 +183,9 @@ export const borgService = {
    * Pass repoId in overrides to inject the secure password from backend
    */
   runCommand: async (
-    args: string[], 
+    args: string[],
     onLog: (text: string) => void,
-    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string }
+    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string, onProgress?: (info: { path: string; nfiles: number }) => void }
   ): Promise<boolean> => {
     const commandId = overrides?.commandId || crypto.randomUUID();
     const config = getBorgConfig();
@@ -250,12 +250,18 @@ export const borgService = {
       onLog(msg.text);
     };
 
+    const progressListener = (_: any, msg: { id: string; path: string; nfiles: number }) => {
+      if (msg.id !== commandId) return;
+      overrides?.onProgress?.({ path: msg.path, nfiles: msg.nfiles });
+    };
+
     getIpc().on('terminal-log', logListener);
+    getIpc().on('borg-archive-progress', progressListener);
 
     try {
-            const result = await getIpc().invoke('borg-spawn', { 
-          args: finalArgs, 
-          commandId, 
+            const result = await getIpc().invoke('borg-spawn', {
+          args: finalArgs,
+          commandId,
           useWsl: config.useWsl,
           executablePath: config.path,
           envVars: finalEnv,
@@ -277,6 +283,7 @@ export const borgService = {
                     }
             }
             getIpc().removeListener('terminal-log', logListener);
+            getIpc().removeListener('borg-archive-progress', progressListener);
     }
   },
 
@@ -811,11 +818,11 @@ export const borgService = {
   },
 
   createArchive: async (
-      repoUrl: string, 
-      archiveName: string, 
-      sourcePaths: string[], 
+      repoUrl: string,
+      archiveName: string,
+      sourcePaths: string[],
       onLog: (text: string) => void,
-      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string, commandId?: string },
+      overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string, commandId?: string, onProgress?: (info: { path: string; nfiles: number }) => void },
       options?: { excludePatterns?: string[] }
   ): Promise<boolean> => {
       const config = getBorgConfig();
