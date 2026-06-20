@@ -1226,7 +1226,7 @@ const App: React.FC = () => {
           : [job.sourcePath];
 
       try {
-          const success = await borgService.createArchive(
+          const { success, warning } = await borgService.createArchive(
               repo.url,
               archiveName,
               effectiveSourcePaths,
@@ -1236,9 +1236,16 @@ const App: React.FC = () => {
           );
 
           if (success) {
-              addActivity('Backup Job Success', `Created archive: ${archiveName}`, 'success');
-              toast.success(`Job '${job.name}' finished successfully!`);
-              
+              // A borg warning (exit 1) still produces a valid archive — record it as a
+              // successful run but surface the warning so it isn't silently treated as clean.
+              if (warning) {
+                  addActivity('Backup Job Warning', `Archive created with warnings: ${archiveName}`, 'warning');
+                  toast.warning(`Job '${job.name}' finished with warnings. Check activity log.`);
+              } else {
+                  addActivity('Backup Job Success', `Created archive: ${archiveName}`, 'success');
+                  toast.success(`Job '${job.name}' finished successfully!`);
+              }
+
               if (job.pruneEnabled) {
                   addActivity('Auto Prune Started', `Pruning repo for job ${job.name}...`, 'info');
                   const pruneSuccess = await borgService.prune(

@@ -1720,11 +1720,13 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
                 // on exit 1 meaning "no lock", which must not be read as success.
                 onExit: (code) => {
                     const isBorg = !forceBinary || forceBinary === 'borg';
-                    resolve({ success: code === 0 || (isBorg && code === 1) });
+                    // Expose the raw exit code so callers can distinguish a clean success
+                    // (0) from a warning (1) — see borgService.runCommand's onResult.
+                    resolve({ success: code === 0 || (isBorg && code === 1), code });
                 },
                 onError: (err) => {
                     safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
-                    resolve({ success: false, error: err.message });
+                    resolve({ success: false, error: err.message, code: null });
                 }
             });
         });

@@ -1,5 +1,5 @@
 
-type ToastType = 'success' | 'error' | 'info' | 'loading';
+type ToastType = 'success' | 'error' | 'warning' | 'info' | 'loading';
 
 interface ToastEventDetail {
   id: string;
@@ -27,6 +27,7 @@ export const toast = {
   },
   success: (msg: string) => toast.show(msg, 'success'),
   error: (msg: string) => toast.show(msg, 'error', 6000),
+  warning: (msg: string) => toast.show(msg, 'warning', 6000),
   info: (msg: string) => toast.show(msg, 'info'),
   loading: (msg: string) => toast.show(msg, 'loading', 0) // 0 = persistent
 };
