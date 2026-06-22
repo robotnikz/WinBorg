@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Repository, ArchiveStats, RecoveryDrillConfig } from '../types';
+import { Repository, ArchiveStats, RecoveryDrillConfig, Archive } from '../types';
 import { borgService } from '../services/borgService';
 import StorageChart from '../components/StorageChart';
 import ActivityHeatmap from '../components/ActivityHeatmap';
-import { ArrowLeft, HardDrive, ShieldCheck, Clock, RefreshCw, Loader2, Database, Calendar, Save, Play, FolderOpen, AlertTriangle, CheckCircle } from 'lucide-react';
+import ArchiveBrowserModal from '../components/ArchiveBrowserModal';
+import { ArrowLeft, HardDrive, ShieldCheck, Clock, RefreshCw, Loader2, Database, Calendar, Save, Play, FolderOpen, AlertTriangle, CheckCircle, FolderSearch } from 'lucide-react';
 import Button from '../components/Button';
 import { getRecoveryConfidence, getRecoveryConfidenceLabel, normalizeRecoveryDrillConfig } from '../utils/recovery';
 
@@ -21,7 +22,10 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
    const [autoRunAfterBackup, setAutoRunAfterBackup] = useState(false);
    const [samplePathsText, setSamplePathsText] = useState('');
    const [recoverySaved, setRecoverySaved] = useState(false);
-  
+   const [pickerArchive, setPickerArchive] = useState<Archive | null>(null);
+   const [pickerLoading, setPickerLoading] = useState(false);
+   const [pickerError, setPickerError] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,8 +111,51 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
       setTimeout(() => setRecoverySaved(false), 2000);
    };
 
+   // Open the Archive Browser as a picker so users select the exact, guaranteed-valid
+   // archive-relative paths instead of typing Windows paths (e.g. "D:\...") by hand.
+   const handleChooseFromArchive = async () => {
+      setPickerError(null);
+      setPickerLoading(true);
+      try {
+         const archives = await borgService.listArchives(repo.url, { repoId: repo.id, disableHostCheck: repo.trustHost });
+         if (!archives || archives.length === 0) {
+            setPickerError('No archives yet — run a backup first, then pick test paths from it.');
+            return;
+         }
+         const latest = [...archives].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0];
+         setPickerArchive({ id: latest.id, name: latest.name, time: latest.time, size: '', duration: '' });
+      } catch (e) {
+         setPickerError('Could not load archives for this repository. Make sure it is reachable.');
+      } finally {
+         setPickerLoading(false);
+      }
+   };
+
+   const handlePickedPaths = (paths: string[]) => {
+      const existing = samplePathsText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const merged = Array.from(new Set([...existing, ...paths]));
+      setSamplePathsText(merged.join('\n'));
+   };
+
+   // A line that still looks like a local Windows path will never match inside the
+   // archive (Borg stores paths relative to the archive root). Warn instead of guessing.
+   const hasWindowsStylePath = samplePathsText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .some(line => line.length > 0 && (line.includes('\\') || /^[A-Za-z]:/.test(line)));
+
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden animate-in fade-in duration-300">
+       {pickerArchive && (
+          <ArchiveBrowserModal
+             archive={pickerArchive}
+             repo={repo}
+             isOpen={!!pickerArchive}
+             onClose={() => setPickerArchive(null)}
+             onLog={() => {}}
+             onUsePaths={handlePickedPaths}
+          />
+       )}
        {/* Header */}
        <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-white/10 shrink-0">
           <div className="flex items-center gap-4">
@@ -208,7 +255,22 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
                      className="w-full min-h-[110px] px-3 py-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-white font-mono"
                      placeholder={["Documents/important.docx", "Photos/family.jpg"].join('\n')}
                   />
-                  <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-1">One repository-relative path per line. Keep the list small so the drill stays fast and repeatable.</p>
+                  <div className="flex items-center gap-2 mt-2">
+                     <Button onClick={handleChooseFromArchive} variant="secondary" size="sm" loading={pickerLoading} disabled={pickerLoading} title="Pick test paths from a real archive">
+                        <FolderSearch className="mr-2 h-4 w-4" />
+                        Choose from archive…
+                     </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-1">One repository-relative path per line, exactly as stored in the archive. Use <span className="font-medium">Choose from archive</span> to insert valid paths automatically, and keep the list small so the drill stays fast.</p>
+                  {pickerError && (
+                     <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{pickerError}</p>
+                  )}
+                  {hasWindowsStylePath && (
+                     <p className="text-[11px] text-yellow-600 dark:text-yellow-400 mt-1 flex items-start gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                        <span>A path looks like a local Windows path (e.g. <code>D:\…</code>). Borg stores paths relative to the archive root — use <span className="font-medium">Choose from archive</span> to get the correct path.</span>
+                     </p>
+                  )}
                </div>
 
                <div className="flex flex-wrap gap-2">

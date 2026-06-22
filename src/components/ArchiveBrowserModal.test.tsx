@@ -81,6 +81,47 @@ describe('ArchiveBrowserModal', () => {
         // Assuming current path is displayed
     });
 
+    it('acts as a path picker when onUsePaths is provided', async () => {
+        (borgService.listArchiveFiles as any).mockResolvedValue([
+            { path: 'mnt/d/Project/info.yaml', type: 'f', size: 100 }
+        ]);
+
+        const onUsePaths = vi.fn();
+        const onClose = vi.fn();
+        render(
+            <ArchiveBrowserModal
+                {...defaultProps}
+                onClose={onClose}
+                onExtractSuccess={undefined}
+                onUsePaths={onUsePaths}
+            />
+        );
+
+        await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+
+        // Picker mode swaps the extract actions for a single confirm button
+        expect(screen.queryByText(/Download Selection/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Restore To/i)).not.toBeInTheDocument();
+
+        // Confirm is disabled until something is selected
+        const useBtn = screen.getByRole('button', { name: /Use \d+ path/i });
+        expect(useBtn).toBeDisabled();
+
+        // Reveal the nested file via search (flat view) and select it
+        fireEvent.change(screen.getByLabelText(/search files/i), { target: { value: 'info.yaml' } });
+        await waitFor(() => screen.getByText('info.yaml'));
+        fireEvent.click(screen.getByText('info.yaml'));
+
+        const useBtnAfter = screen.getByRole('button', { name: /Use 1 path/i });
+        expect(useBtnAfter).not.toBeDisabled();
+        fireEvent.click(useBtnAfter);
+
+        expect(onUsePaths).toHaveBeenCalledWith(['mnt/d/Project/info.yaml']);
+        expect(onClose).toHaveBeenCalledTimes(1);
+        // Must never trigger an extraction in picker mode
+        expect(borgService.extractFiles).not.toHaveBeenCalled();
+    });
+
     it('extracts selected files', async () => {
         (borgService.listArchiveFiles as any).mockResolvedValue([
             { path: 'file.txt', type: 'f' }

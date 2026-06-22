@@ -22,6 +22,18 @@ vi.mock('../components/ActivityHeatmap', () => ({
   default: () => <div data-testid="activity-heatmap" />
 }));
 
+vi.mock('../components/ArchiveBrowserModal', () => ({
+  default: ({ isOpen, archive, onUsePaths }: any) =>
+    isOpen ? (
+      <div data-testid="archive-browser-modal">
+        <span>browsing {archive?.name}</span>
+        <button onClick={() => onUsePaths(['mnt/d/Project/info.yaml', 'Documents/alpha.txt'])}>
+          mock-use-paths
+        </button>
+      </div>
+    ) : null
+}));
+
 describe('RepoDetailsView', () => {
   const repo: any = {
     id: 'repo-1',
@@ -82,6 +94,53 @@ describe('RepoDetailsView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /run recovery drill/i }));
     expect(onRunRecoveryDrill).toHaveBeenCalledWith('repo-1');
+  });
+
+  it('picks paths from an archive and merges them without duplicates', async () => {
+    render(
+      <RepoDetailsView
+        repo={repo}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={vi.fn()}
+        onRunRecoveryDrill={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('activity-heatmap')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /choose from archive/i }));
+
+    // Latest archive is loaded and handed to the browser
+    await waitFor(() => expect(screen.getByTestId('archive-browser-modal')).toBeInTheDocument());
+    expect(listArchives).toHaveBeenCalled();
+    expect(screen.getByText(/browsing daily-2025-01-01/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('mock-use-paths'));
+
+    // Existing 'Documents/alpha.txt' is kept once; new archive path is appended
+    const textarea = screen.getByLabelText(/recovery drill sample paths/i) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Documents/alpha.txt\nmnt/d/Project/info.yaml');
+  });
+
+  it('warns when a Windows-style path is entered', async () => {
+    render(
+      <RepoDetailsView
+        repo={repo}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={vi.fn()}
+        onRunRecoveryDrill={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('activity-heatmap')).toBeInTheDocument());
+
+    expect(screen.queryByText(/looks like a local Windows path/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/recovery drill sample paths/i), {
+      target: { value: 'D:\\Project\\Name\\info.yaml' }
+    });
+
+    expect(screen.getByText(/looks like a local Windows path/i)).toBeInTheDocument();
   });
 
   it('opens the last recovery drill folder', async () => {
