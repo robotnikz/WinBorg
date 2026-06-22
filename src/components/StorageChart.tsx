@@ -46,23 +46,33 @@ const StorageChart: React.FC<StorageChartProps> = ({ data, height = 300 }) => {
     );
   }
 
-  const padding = 40;
+  // Horizontal padding is tiny because the Y-axis labels now live in a separate
+  // HTML gutter (see below). Vertical padding keeps headroom above the peak and a
+  // baseline below. The SVG is stretched (preserveAspectRatio="none"), so anything
+  // we render inside it gets distorted — that's why the labels are kept outside it.
+  const padX = 6;
+  const padY = 24;
   const chartWidth = 800; // Internal coordinate system width
   const chartHeight = height; // Use the prop directly for the SVG viewBox
-  const plotWidth = chartWidth - padding * 2;
-  const plotHeight = chartHeight - padding * 2;
+  const plotWidth = chartWidth - padX * 2;
+  const plotHeight = chartHeight - padY * 2;
+
+  const maxVal = processedData[0]?.max ?? 0;
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  // Vertical position (as a fraction of the container) of a given tick / grid line.
+  const topFraction = (t: number) => (chartHeight - padY - t * plotHeight) / chartHeight;
 
   const points = processedData.map(d => {
-    const px = padding + d.x * plotWidth;
-    const py = chartHeight - padding - (d.y * plotHeight);
+    const px = padX + d.x * plotWidth;
+    const py = chartHeight - padY - (d.y * plotHeight);
     return `${px},${py}`;
   }).join(' ');
 
   // Create area path (close the loop down to bottom)
-  const firstX = padding;
-  const lastX = padding + plotWidth;
-  const bottomY = chartHeight - padding;
-  
+  const firstX = padX;
+  const lastX = padX + plotWidth;
+  const bottomY = chartHeight - padY;
+
   const areaPath = `M ${points.split(' ')[0]} L ${points} L ${lastX},${bottomY} L ${firstX},${bottomY} Z`;
 
   return (
@@ -75,19 +85,29 @@ const StorageChart: React.FC<StorageChartProps> = ({ data, height = 300 }) => {
          </div>
       </div>
 
-      <div className="relative flex-1 min-h-0 w-full">
+      <div className="relative flex-1 min-h-0 w-full flex">
+        {/* Y-axis labels: rendered as HTML in a fixed-width gutter so they keep a
+            constant size and never get clipped by the stretched SVG. */}
+        <div className="relative w-14 shrink-0">
+          {ticks.map(t => (
+            <span
+              key={t}
+              className="absolute right-1.5 -translate-y-1/2 whitespace-nowrap text-[10px] tabular-nums text-gray-500"
+              style={{ top: `${topFraction(t) * 100}%` }}
+            >
+              {formatBytes(maxVal * t)}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative flex-1 min-h-0">
         {/* We use preserveAspectRatio="none" to allow stretching to container */}
         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
           {/* Grid Lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map(t => {
-            const y = chartHeight - padding - (t * plotHeight);
+          {ticks.map(t => {
+            const y = chartHeight - padY - (t * plotHeight);
             return (
-              <g key={t}>
-                <line x1={padding} y1={y} x2={chartWidth - padding} y2={y} stroke="#374151" strokeDasharray="4 4" />
-                <text x={padding - 10} y={y + 4} textAnchor="end" className="text-[10px] fill-gray-500">
-                  {formatBytes(processedData[0]?.max * t || 0)}
-                </text>
-              </g>
+              <line key={t} x1={0} y1={y} x2={chartWidth} y2={y} stroke="#374151" strokeDasharray="4 4" />
             );
           })}
 
@@ -99,8 +119,8 @@ const StorageChart: React.FC<StorageChartProps> = ({ data, height = 300 }) => {
 
           {/* Interactive Points */}
           {processedData.map((d, i) => {
-            const px = padding + d.x * plotWidth;
-            const py = chartHeight - padding - (d.y * plotHeight);
+            const px = padX + d.x * plotWidth;
+            const py = chartHeight - padY - (d.y * plotHeight);
             const isHovered = hoveredIndex === i;
             
             return (
@@ -138,6 +158,7 @@ const StorageChart: React.FC<StorageChartProps> = ({ data, height = 300 }) => {
             );
           })}
         </svg>
+        </div>
       </div>
     </div>
   );
