@@ -22,6 +22,18 @@ vi.mock('../components/ActivityHeatmap', () => ({
   default: () => <div data-testid="activity-heatmap" />
 }));
 
+vi.mock('../components/ArchiveBrowserModal', () => ({
+  default: ({ isOpen, archive, onUsePaths }: any) =>
+    isOpen ? (
+      <div data-testid="archive-browser-modal">
+        <span>browsing {archive?.name}</span>
+        <button onClick={() => onUsePaths(['mnt/d/Project/info.yaml', 'Documents/alpha.txt'])}>
+          mock-use-paths
+        </button>
+      </div>
+    ) : null
+}));
+
 describe('RepoDetailsView', () => {
   const repo: any = {
     id: 'repo-1',
@@ -58,7 +70,7 @@ describe('RepoDetailsView', () => {
     const onSaveRecoveryDrill = vi.fn();
     const onRunRecoveryDrill = vi.fn();
 
-    render(
+    const { rerender } = render(
       <RepoDetailsView
         repo={repo}
         onBack={vi.fn()}
@@ -72,6 +84,11 @@ describe('RepoDetailsView', () => {
     fireEvent.change(screen.getByLabelText(/recovery drill sample paths/i), {
       target: { value: 'Documents/alpha.txt\nPhotos/family.jpg' }
     });
+
+    // Unsaved edits must block running with stale config
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /run recovery drill/i })).toBeDisabled();
+
     fireEvent.click(screen.getByRole('button', { name: /save drill settings/i }));
 
     expect(onSaveRecoveryDrill).toHaveBeenCalledWith('repo-1', {
@@ -80,8 +97,80 @@ describe('RepoDetailsView', () => {
       samplePaths: ['Documents/alpha.txt', 'Photos/family.jpg']
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /run recovery drill/i }));
+    // Parent persists and passes the updated repo back -> form is now in sync
+    rerender(
+      <RepoDetailsView
+        repo={{ ...repo, recoveryDrill: { enabled: true, autoRunAfterBackup: true, samplePaths: ['Documents/alpha.txt', 'Photos/family.jpg'] } }}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={onSaveRecoveryDrill}
+        onRunRecoveryDrill={onRunRecoveryDrill}
+      />
+    );
+
+    expect(screen.queryByText(/unsaved changes/i)).not.toBeInTheDocument();
+    const runBtn = screen.getByRole('button', { name: /run recovery drill/i });
+    expect(runBtn).not.toBeDisabled();
+    fireEvent.click(runBtn);
     expect(onRunRecoveryDrill).toHaveBeenCalledWith('repo-1');
+  });
+
+  it('picks paths from an archive: merges, auto-enables and auto-saves so it is run-ready', async () => {
+    const onSaveRecoveryDrill = vi.fn();
+    // Drill starts disabled to prove picking makes it run-ready on its own
+    const disabledRepo = { ...repo, recoveryDrill: { enabled: false, autoRunAfterBackup: false, samplePaths: ['Documents/alpha.txt'] } };
+
+    render(
+      <RepoDetailsView
+        repo={disabledRepo}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={onSaveRecoveryDrill}
+        onRunRecoveryDrill={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('activity-heatmap')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /choose from archive/i }));
+
+    // Latest archive is loaded and handed to the browser
+    await waitFor(() => expect(screen.getByTestId('archive-browser-modal')).toBeInTheDocument());
+    expect(listArchives).toHaveBeenCalled();
+    expect(screen.getByText(/browsing daily-2025-01-01/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('mock-use-paths'));
+
+    // Existing 'Documents/alpha.txt' is kept once; new archive path is appended
+    const textarea = screen.getByLabelText(/recovery drill sample paths/i) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Documents/alpha.txt\nmnt/d/Project/info.yaml');
+
+    // Picking auto-enables the drill and saves immediately — no extra clicks needed
+    expect(screen.getByLabelText(/enable recovery drill/i)).toBeChecked();
+    expect(onSaveRecoveryDrill).toHaveBeenCalledWith('repo-1', {
+      enabled: true,
+      autoRunAfterBackup: false,
+      samplePaths: ['Documents/alpha.txt', 'mnt/d/Project/info.yaml']
+    });
+  });
+
+  it('warns when a Windows-style path is entered', async () => {
+    render(
+      <RepoDetailsView
+        repo={repo}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={vi.fn()}
+        onRunRecoveryDrill={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByTestId('activity-heatmap')).toBeInTheDocument());
+
+    expect(screen.queryByText(/looks like a local Windows path/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/recovery drill sample paths/i), {
+      target: { value: 'D:\\Project\\Name\\info.yaml' }
+    });
+
+    expect(screen.getByText(/looks like a local Windows path/i)).toBeInTheDocument();
   });
 
   it('opens the last recovery drill folder', async () => {

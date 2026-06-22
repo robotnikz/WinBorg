@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { Repository, Archive } from '../types';
 import Button from './Button';
 import { FileEntry, borgService } from '../services/borgService';
-import { X, Folder, File, Download, ChevronRight, ChevronDown, Loader2, ArrowLeft, Search, Home, FolderInput } from 'lucide-react';
+import { X, Folder, File, Download, ChevronRight, ChevronDown, Loader2, ArrowLeft, Search, Home, FolderInput, Check } from 'lucide-react';
 import { formatBytes } from '../utils/formatters';
 import { useModalFocusTrap } from '../utils/useModalFocus';
 
@@ -13,6 +13,10 @@ interface ArchiveBrowserModalProps {
   onClose: () => void;
   onLog: (title: string, logs: string[]) => void;
   onExtractSuccess?: (path: string) => void;
+  // When provided, the browser acts as a path picker instead of an extractor:
+  // the user selects entries and confirms, and the exact archive-relative paths
+  // are handed back via this callback (used by the Recovery Drill configuration).
+  onUsePaths?: (paths: string[]) => void;
 }
 
 // Simple Tree Node Structure
@@ -24,7 +28,8 @@ interface TreeNode {
     children?: { [key: string]: TreeNode };
 }
 
-const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive, isOpen, onClose, onLog, onExtractSuccess }) => {
+const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive, isOpen, onClose, onLog, onExtractSuccess, onUsePaths }) => {
+    const pickMode = typeof onUsePaths === 'function';
     const titleId = useId();
     const subtitleId = useId();
   const [loading, setLoading] = useState(true);
@@ -217,6 +222,12 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
       }
   };
 
+  const handleUsePaths = () => {
+      if (selectedPaths.length === 0) return;
+      onUsePaths?.(selectedPaths);
+      onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -245,7 +256,11 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                        Archive Browser
                        <span className="sr-only">: {archive.name}</span>
                    </h3>
-                   <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">{archive.name} • {fileList.length} items loaded</p>
+                   <p id={subtitleId} className="text-xs text-slate-500 dark:text-slate-400">
+                       {pickMode
+                           ? `Select files or folders to use as recovery drill test paths • ${archive.name}`
+                           : `${archive.name} • ${fileList.length} items loaded`}
+                   </p>
                </div>
                              <button
                                  onClick={onClose}
@@ -388,14 +403,23 @@ const ArchiveBrowserModal: React.FC<ArchiveBrowserModalProps> = ({ repo, archive
                </div>
                <div className="flex gap-3">
                    <Button variant="secondary" onClick={onClose} disabled={extracting}>Cancel</Button>
-                   <Button variant="secondary" onClick={handleRestoreTo} disabled={selectedPaths.length === 0 || extracting} title="Restore to a specific folder">
-                       <FolderInput className="w-4 h-4 mr-2" />
-                       Restore To...
-                   </Button>
-                   <Button onClick={handleDownload} disabled={selectedPaths.length === 0 || extracting} loading={extracting}>
-                       <Download className="w-4 h-4 mr-2" />
-                       Download Selection
-                   </Button>
+                   {pickMode ? (
+                       <Button onClick={handleUsePaths} disabled={selectedPaths.length === 0} title="Use the selected paths as recovery drill test paths">
+                           <Check className="w-4 h-4 mr-2" />
+                           Use {selectedPaths.length} path{selectedPaths.length === 1 ? '' : 's'}
+                       </Button>
+                   ) : (
+                       <>
+                           <Button variant="secondary" onClick={handleRestoreTo} disabled={selectedPaths.length === 0 || extracting} title="Restore to a specific folder">
+                               <FolderInput className="w-4 h-4 mr-2" />
+                               Restore To...
+                           </Button>
+                           <Button onClick={handleDownload} disabled={selectedPaths.length === 0 || extracting} loading={extracting}>
+                               <Download className="w-4 h-4 mr-2" />
+                               Download Selection
+                           </Button>
+                       </>
+                   )}
                </div>
            </div>
        </div>
