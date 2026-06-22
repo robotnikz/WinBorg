@@ -101,14 +101,21 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
    const recoveryLabel = getRecoveryConfidenceLabel(repo);
    const recoveryState = repo.recoveryDrillState;
 
-   const handleSaveRecovery = () => {
-      onSaveRecoveryDrill?.(repo.id, {
-         enabled: recoveryEnabled,
-         autoRunAfterBackup,
-         samplePaths: samplePathsText.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
-      });
+   const parsePaths = (text: string) =>
+      Array.from(new Set(text.split(/\r?\n/).map(line => line.trim()).filter(Boolean)));
+
+   const persistRecovery = (config: RecoveryDrillConfig) => {
+      onSaveRecoveryDrill?.(repo.id, config);
       setRecoverySaved(true);
       setTimeout(() => setRecoverySaved(false), 2000);
+   };
+
+   const handleSaveRecovery = () => {
+      persistRecovery({
+         enabled: recoveryEnabled,
+         autoRunAfterBackup,
+         samplePaths: parsePaths(samplePathsText)
+      });
    };
 
    // Open the Archive Browser as a picker so users select the exact, guaranteed-valid
@@ -131,18 +138,31 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
       }
    };
 
+   // Paths picked from a real archive are guaranteed valid. Make the drill ready to
+   // run in one step: merge them in, enable the drill, and save immediately — so there
+   // is no "I picked paths but forgot to save / enable" trap for the user.
    const handlePickedPaths = (paths: string[]) => {
-      const existing = samplePathsText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-      const merged = Array.from(new Set([...existing, ...paths]));
+      const merged = Array.from(new Set([...parsePaths(samplePathsText), ...paths]));
       setSamplePathsText(merged.join('\n'));
+      setRecoveryEnabled(true);
+      persistRecovery({ enabled: true, autoRunAfterBackup, samplePaths: merged });
    };
+
+   const currentPaths = parsePaths(samplePathsText);
 
    // A line that still looks like a local Windows path will never match inside the
    // archive (Borg stores paths relative to the archive root). Warn instead of guessing.
-   const hasWindowsStylePath = samplePathsText
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .some(line => line.length > 0 && (line.includes('\\') || /^[A-Za-z]:/.test(line)));
+   const hasWindowsStylePath = currentPaths.some(
+      line => line.includes('\\') || /^[A-Za-z]:/.test(line)
+   );
+
+   // The "Run" button uses the SAVED config (App reads persisted state), so running
+   // while the form has unsaved edits would silently use stale paths. Block that.
+   const savedConfig = normalizeRecoveryDrillConfig(repo.recoveryDrill);
+   const hasUnsavedChanges =
+      recoveryEnabled !== savedConfig.enabled ||
+      autoRunAfterBackup !== savedConfig.autoRunAfterBackup ||
+      currentPaths.join('\n') !== savedConfig.samplePaths.join('\n');
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden animate-in fade-in duration-300">
@@ -273,15 +293,24 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
                   )}
                </div>
 
-               <div className="flex flex-wrap gap-2">
-                  <Button onClick={handleSaveRecovery} variant="secondary" size="sm">
+               <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={handleSaveRecovery} variant="secondary" size="sm" disabled={!hasUnsavedChanges && !recoverySaved}>
                      {recoverySaved ? <CheckCircle className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
-                     {recoverySaved ? 'Saved' : 'Save Drill Settings'}
+                     {recoverySaved ? 'Saved' : hasUnsavedChanges ? 'Save Drill Settings' : 'Saved'}
                   </Button>
-                  <Button onClick={() => onRunRecoveryDrill?.(repo.id)} size="sm" disabled={!recoveryEnabled || samplePathsText.trim().length === 0} loading={recoveryState?.status === 'running'}>
+                  <Button
+                     onClick={() => onRunRecoveryDrill?.(repo.id)}
+                     size="sm"
+                     disabled={!recoveryEnabled || currentPaths.length === 0 || hasUnsavedChanges}
+                     loading={recoveryState?.status === 'running'}
+                     title={hasUnsavedChanges ? 'Save your changes before running the drill' : undefined}
+                  >
                      <Play className="mr-2 h-4 w-4" />
                      Run Recovery Drill
                   </Button>
+                  {hasUnsavedChanges && (
+                     <span className="text-[11px] text-yellow-600 dark:text-yellow-400">Unsaved changes — save before running.</span>
+                  )}
                   {recoveryState?.lastRestorePath && (
                      <Button variant="ghost" size="sm" onClick={() => borgService.openPath(recoveryState.lastRestorePath!)}>
                         <FolderOpen className="mr-2 h-4 w-4" />

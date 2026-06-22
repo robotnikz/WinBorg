@@ -70,7 +70,7 @@ describe('RepoDetailsView', () => {
     const onSaveRecoveryDrill = vi.fn();
     const onRunRecoveryDrill = vi.fn();
 
-    render(
+    const { rerender } = render(
       <RepoDetailsView
         repo={repo}
         onBack={vi.fn()}
@@ -84,6 +84,11 @@ describe('RepoDetailsView', () => {
     fireEvent.change(screen.getByLabelText(/recovery drill sample paths/i), {
       target: { value: 'Documents/alpha.txt\nPhotos/family.jpg' }
     });
+
+    // Unsaved edits must block running with stale config
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /run recovery drill/i })).toBeDisabled();
+
     fireEvent.click(screen.getByRole('button', { name: /save drill settings/i }));
 
     expect(onSaveRecoveryDrill).toHaveBeenCalledWith('repo-1', {
@@ -92,16 +97,33 @@ describe('RepoDetailsView', () => {
       samplePaths: ['Documents/alpha.txt', 'Photos/family.jpg']
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /run recovery drill/i }));
+    // Parent persists and passes the updated repo back -> form is now in sync
+    rerender(
+      <RepoDetailsView
+        repo={{ ...repo, recoveryDrill: { enabled: true, autoRunAfterBackup: true, samplePaths: ['Documents/alpha.txt', 'Photos/family.jpg'] } }}
+        onBack={vi.fn()}
+        onSaveRecoveryDrill={onSaveRecoveryDrill}
+        onRunRecoveryDrill={onRunRecoveryDrill}
+      />
+    );
+
+    expect(screen.queryByText(/unsaved changes/i)).not.toBeInTheDocument();
+    const runBtn = screen.getByRole('button', { name: /run recovery drill/i });
+    expect(runBtn).not.toBeDisabled();
+    fireEvent.click(runBtn);
     expect(onRunRecoveryDrill).toHaveBeenCalledWith('repo-1');
   });
 
-  it('picks paths from an archive and merges them without duplicates', async () => {
+  it('picks paths from an archive: merges, auto-enables and auto-saves so it is run-ready', async () => {
+    const onSaveRecoveryDrill = vi.fn();
+    // Drill starts disabled to prove picking makes it run-ready on its own
+    const disabledRepo = { ...repo, recoveryDrill: { enabled: false, autoRunAfterBackup: false, samplePaths: ['Documents/alpha.txt'] } };
+
     render(
       <RepoDetailsView
-        repo={repo}
+        repo={disabledRepo}
         onBack={vi.fn()}
-        onSaveRecoveryDrill={vi.fn()}
+        onSaveRecoveryDrill={onSaveRecoveryDrill}
         onRunRecoveryDrill={vi.fn()}
       />
     );
@@ -120,6 +142,14 @@ describe('RepoDetailsView', () => {
     // Existing 'Documents/alpha.txt' is kept once; new archive path is appended
     const textarea = screen.getByLabelText(/recovery drill sample paths/i) as HTMLTextAreaElement;
     expect(textarea.value).toBe('Documents/alpha.txt\nmnt/d/Project/info.yaml');
+
+    // Picking auto-enables the drill and saves immediately — no extra clicks needed
+    expect(screen.getByLabelText(/enable recovery drill/i)).toBeChecked();
+    expect(onSaveRecoveryDrill).toHaveBeenCalledWith('repo-1', {
+      enabled: true,
+      autoRunAfterBackup: false,
+      samplePaths: ['Documents/alpha.txt', 'mnt/d/Project/info.yaml']
+    });
   });
 
   it('warns when a Windows-style path is entered', async () => {
