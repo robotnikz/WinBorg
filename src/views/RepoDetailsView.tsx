@@ -165,7 +165,7 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
       currentPaths.join('\n') !== savedConfig.samplePaths.join('\n');
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-hidden animate-in fade-in duration-300">
+    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-1 animate-in fade-in duration-300">
        {pickerArchive && (
           <ArchiveBrowserModal
              archive={pickerArchive}
@@ -351,7 +351,7 @@ const RepoDetailsView: React.FC<RepoDetailsViewProps> = ({ repo, onBack, onSaveR
        </div>
 
        {/* Chart Section */}
-       <div className="flex-1 w-full min-h-0 flex flex-col">
+       <div className="flex-1 w-full min-h-[320px] flex flex-col">
           {loadingChart ? (
              <div className="h-full w-full flex flex-col items-center justify-center text-slate-500 dark:text-gray-500 gap-4">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
