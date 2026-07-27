@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, Info, X, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X, Loader2 } from 'lucide-react';
 
 interface Toast {
   id: string;
   message: string;
-  type: 'success' | 'error' | 'info' | 'loading';
+  type: 'success' | 'error' | 'warning' | 'info' | 'loading';
   duration?: number;
 }
 
@@ -49,16 +49,19 @@ export const ToastContainer: React.FC = () => {
           className={`pointer-events-auto min-w-[300px] max-w-md p-4 rounded-xl shadow-lg border backdrop-blur-md flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300 ${
             toast.type === 'success' ? 'bg-white/90 dark:bg-slate-800/90 border-green-500/30 text-slate-800 dark:text-slate-100 shadow-green-500/10' :
             toast.type === 'error' ? 'bg-white/90 dark:bg-slate-800/90 border-red-500/30 text-slate-800 dark:text-slate-100 shadow-red-500/10' :
+            toast.type === 'warning' ? 'bg-white/90 dark:bg-slate-800/90 border-amber-500/30 text-slate-800 dark:text-slate-100 shadow-amber-500/10' :
             'bg-white/90 dark:bg-slate-800/90 border-blue-500/30 text-slate-800 dark:text-slate-100 shadow-blue-500/10'
           }`}
         >
           <div className={`mt-0.5 ${
             toast.type === 'success' ? 'text-green-500' :
             toast.type === 'error' ? 'text-red-500' :
+            toast.type === 'warning' ? 'text-amber-500' :
             'text-blue-500'
           }`}>
             {toast.type === 'success' && <CheckCircle2 size={18} />}
             {toast.type === 'error' && <AlertCircle size={18} />}
+            {toast.type === 'warning' && <AlertTriangle size={18} />}
             {toast.type === 'info' && <Info size={18} />}
             {toast.type === 'loading' && <Loader2 size={18} className="animate-spin" />}
           </div>

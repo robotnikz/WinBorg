@@ -119,7 +119,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
               .map(p => p.trim())
               .filter(Boolean);
 
-          const success = await borgService.createArchive(
+          const { success, warning } = await borgService.createArchive(
               activeRepo.url,
               archiveName,
               [sourcePath],
@@ -140,7 +140,14 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
           if (cancelledRef.current) return;
 
           if (success) {
-              toast.success(`Backup '${archiveName}' created successfully!`);
+              // Borg exited with a warning (e.g. a file changed/vanished mid-backup):
+              // the archive was still created, so this is a success-with-caveat, not a failure.
+              if (warning) {
+                  toast.warning(`Backup '${archiveName}' completed with warnings. See logs for details.`);
+                  onLog(`Backup completed with warnings: ${archiveName}`, logs);
+              } else {
+                  toast.success(`Backup '${archiveName}' created successfully!`);
+              }
               onBackupFinished?.(activeRepo, 'success', Date.now() - startTime);
               onSuccess();
               onClose();

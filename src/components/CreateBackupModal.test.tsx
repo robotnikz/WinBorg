@@ -87,15 +87,15 @@ describe('CreateBackupModal', () => {
 
     it('calls createArchive with correct parameters on submit', async () => {
         vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
-        vi.mocked(borgService.createArchive).mockResolvedValue(true);
-        
+        vi.mocked(borgService.createArchive).mockResolvedValue({ success: true, warning: false });
+
         render(<CreateBackupModal {...defaultProps} />);
-        
+
         // Select folder
         const folderBtn = screen.getByRole('button', { name: /browse/i });
         fireEvent.click(folderBtn);
         await waitFor(() => screen.getByDisplayValue('C:\\Source'));
-        
+
         // Change name (targeting input by placeholder or value)
         // Code from turn 4: `const [archiveName, setArchiveName] = useState(...)`
         // It usually has a default value like `backup-YYYY-...`.
@@ -125,7 +125,7 @@ describe('CreateBackupModal', () => {
 
     it('handles backup failure', async () => {
         vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
-        vi.mocked(borgService.createArchive).mockResolvedValue(false); // Simulate fail
+        vi.mocked(borgService.createArchive).mockResolvedValue({ success: false, warning: false }); // Simulate fail
         
         render(<CreateBackupModal {...defaultProps} />);
         
@@ -147,7 +147,7 @@ describe('CreateBackupModal', () => {
 
     it('passes exclude patterns to createArchive when provided', async () => {
         vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
-        vi.mocked(borgService.createArchive).mockResolvedValue(true);
+        vi.mocked(borgService.createArchive).mockResolvedValue({ success: true, warning: false });
 
         render(<CreateBackupModal {...defaultProps} />);
 
@@ -182,7 +182,7 @@ describe('CreateBackupModal', () => {
         vi.mocked(borgService.createArchive).mockImplementation(
             async (_url, _archive, _paths, _onLog, overrides) => {
                 overrides?.onProgress?.({ path: '/home/user/documents/report.pdf', nfiles: 7 });
-                return true;
+                return { success: true, warning: false };
             }
         );
 
@@ -203,8 +203,8 @@ describe('CreateBackupModal', () => {
     it('allows cancelling while a backup is running', async () => {
         vi.mocked(borgService.selectDirectory).mockResolvedValue(['C:\\Source']);
 
-        let resolveCreate: (v: boolean) => void;
-        const createPromise = new Promise<boolean>((resolve) => {
+        let resolveCreate: (v: { success: boolean; warning: boolean }) => void;
+        const createPromise = new Promise<{ success: boolean; warning: boolean }>((resolve) => {
             resolveCreate = resolve;
         });
         vi.mocked(borgService.createArchive).mockReturnValue(createPromise as any);
@@ -234,7 +234,7 @@ describe('CreateBackupModal', () => {
 
         // Allow promise to resolve to avoid pending promise leakage
         await act(async () => {
-            resolveCreate!(false);
+            resolveCreate!({ success: false, warning: false });
         });
     });
 });

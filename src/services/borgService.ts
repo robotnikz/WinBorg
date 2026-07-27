@@ -185,7 +185,7 @@ export const borgService = {
   runCommand: async (
     args: string[],
     onLog: (text: string) => void,
-    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string, onProgress?: (info: { path: string; nfiles: number }) => void }
+    overrides?: { repoId?: string, disableHostCheck?: boolean, commandId?: string, forceBinary?: string, cwd?: string, env?: Record<string, string>, remotePath?: string, onProgress?: (info: { path: string; nfiles: number }) => void, onResult?: (result: { success: boolean; code: number | null; warning: boolean }) => void }
   ): Promise<boolean> => {
     const commandId = overrides?.commandId || crypto.randomUUID();
     const config = getBorgConfig();
@@ -269,7 +269,13 @@ export const borgService = {
           repoId: overrides?.repoId, // SECURE INJECTION TRIGGER
           cwd: overrides?.cwd
       });
-      return result.success;
+      // Surface the raw exit code so callers can tell a clean success (0) apart from a
+      // borg warning (1, archive still created). main treats exit 1 as success, so a
+      // truthy `success` with a non-zero code is a warning rather than a hard failure.
+      const code: number | null = typeof result?.code === 'number' ? result.code : null;
+      const success = !!result.success;
+      overrides?.onResult?.({ success, code, warning: success && code !== null && code !== 0 });
+      return success;
     } finally {
             // Fallback: if we showed a queue toast but never saw any further output,
             // ensure it gets dismissed when the command finishes.
@@ -824,7 +830,7 @@ export const borgService = {
       onLog: (text: string) => void,
       overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string, commandId?: string, onProgress?: (info: { path: string; nfiles: number }) => void },
       options?: { excludePatterns?: string[] }
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; warning: boolean }> => {
       const config = getBorgConfig();
       
       // Convert paths for WSL if needed
@@ -862,8 +868,15 @@ export const borgService = {
 
       // Create command: borg create --progress --stats REPO::ARCHIVE PATHS...
       const args = ['create', '--progress', '--stats', ...excludeArgs, `${repoUrl}::${archiveName}`, ...paths];
-      
-      return await borgService.runCommand(args, onLog, overrides);
+
+      // Capture whether borg exited with a warning (code 1) so the UI can report
+      // "completed with warnings" instead of a plain success.
+      let warning = false;
+      const success = await borgService.runCommand(args, onLog, {
+          ...overrides,
+          onResult: (r) => { warning = r.warning; },
+      });
+      return { success, warning };
   },
 
   notify: (title: string, body: string) => {

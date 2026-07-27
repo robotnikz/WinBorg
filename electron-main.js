@@ -1711,10 +1711,22 @@ ipcMain.handle('borg-spawn', async (event, { args, commandId, useWsl, executable
                 // Renderer may implement its own deadline logic and call borg-stop.
                 onStdout: (data) => safeSendToRenderer('terminal-log', { id: commandId, text: data.toString() }),
                 onStderr: handleStderr,
-                onExit: (code) => resolve({ success: code === 0 }),
+                // Borg exit codes: 0 = success, 1 = warning (e.g. a file vanished or
+                // changed while being read), >=2 = error. Treat a warning as success so a
+                // benign warning doesn't fail an otherwise-good backup, matching the
+                // scheduled-job path (runBorgInternal). This relaxation applies ONLY to real
+                // borg invocations: forced helper binaries (ssh/bash/mkdir) keep strict
+                // code===0 semantics — e.g. the SSH `test -e lock.roster` lock probe relies
+                // on exit 1 meaning "no lock", which must not be read as success.
+                onExit: (code) => {
+                    const isBorg = !forceBinary || forceBinary === 'borg';
+                    // Expose the raw exit code so callers can distinguish a clean success
+                    // (0) from a warning (1) — see borgService.runCommand's onResult.
+                    resolve({ success: code === 0 || (isBorg && code === 1), code });
+                },
                 onError: (err) => {
                     safeSendToRenderer('terminal-log', { id: commandId, text: `Error: ${err.message}` });
-                    resolve({ success: false, error: err.message });
+                    resolve({ success: false, error: err.message, code: null });
                 }
             });
         });

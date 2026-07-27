@@ -302,6 +302,25 @@ describe('borgService', () => {
             await borgService.runCommand(['list'], vi.fn());
             expect(mockRemoveListener).toHaveBeenCalledWith('borg-archive-progress', expect.any(Function));
         });
+
+        it('reports a warning to onResult when borg exits 1 (warning), still returning success', async () => {
+            mockInvoke.mockResolvedValue({ success: true, code: 1 });
+            const onResult = vi.fn();
+
+            const ok = await borgService.runCommand(['create', 'repo::a'], vi.fn(), { onResult });
+
+            expect(ok).toBe(true);
+            expect(onResult).toHaveBeenCalledWith({ success: true, code: 1, warning: true });
+        });
+
+        it('reports no warning to onResult on a clean exit (code 0)', async () => {
+            mockInvoke.mockResolvedValue({ success: true, code: 0 });
+            const onResult = vi.fn();
+
+            await borgService.runCommand(['create', 'repo::a'], vi.fn(), { onResult });
+
+            expect(onResult).toHaveBeenCalledWith({ success: true, code: 0, warning: false });
+        });
     });
 
     describe('createArchive', () => {
@@ -326,7 +345,7 @@ describe('borgService', () => {
             expect(spy).toHaveBeenCalledWith(
                 expect.arrayContaining(['create', '--progress', '--stats']),
                 onLog,
-                undefined
+                expect.objectContaining({ onResult: expect.any(Function) })
             );
 
             const calledArgs = spy.mock.calls[0][0];
@@ -355,6 +374,24 @@ describe('borgService', () => {
             const calledArgs = spy.mock.calls[0][0];
             expect(calledArgs).not.toContain('--exclude');
             spy.mockRestore();
+        });
+
+        it('surfaces a borg warning (exit 1) as success-with-warning', async () => {
+            mockInvoke.mockResolvedValue({ success: true, code: 1 });
+            const result = await borgService.createArchive('ssh://repo', 'arch-warn', ['C:\\Data'], vi.fn());
+            expect(result).toEqual({ success: true, warning: true });
+        });
+
+        it('reports a clean backup (exit 0) without a warning', async () => {
+            mockInvoke.mockResolvedValue({ success: true, code: 0 });
+            const result = await borgService.createArchive('ssh://repo', 'arch-ok', ['C:\\Data'], vi.fn());
+            expect(result).toEqual({ success: true, warning: false });
+        });
+
+        it('reports a failed backup (exit >=2) as failure with no warning', async () => {
+            mockInvoke.mockResolvedValue({ success: false, code: 2 });
+            const result = await borgService.createArchive('ssh://repo', 'arch-fail', ['C:\\Data'], vi.fn());
+            expect(result).toEqual({ success: false, warning: false });
         });
     });
 
