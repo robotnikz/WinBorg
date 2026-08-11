@@ -14,7 +14,7 @@ import FuseSetupModal from './components/FuseSetupModal';
 import CreateBackupModal from './components/CreateBackupModal';
 import { View, Repository, MountPoint, Archive, ActivityLogEntry, BackupJob, SshConnection, RecoveryDrillConfig } from './types';
 import { borgService } from './services/borgService';
-import { formatDate } from './utils/formatters';
+import { formatDate, truncateActivityOutput } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
 import { toast } from './utils/eventBus';
 import { Loader2 } from 'lucide-react';
@@ -1220,6 +1220,9 @@ const App: React.FC = () => {
 
       const logs: string[] = [];
       const logCollector = (l: string) => logs.push(l);
+      // Keep the borg output with the activity entry so it can be reviewed later,
+      // e.g. to find out what a run with warnings actually complained about.
+      const collectedOutput = () => truncateActivityOutput(logs.join(''));
 
       const effectiveSourcePaths = (job.sourcePaths && job.sourcePaths.length)
           ? job.sourcePaths
@@ -1239,10 +1242,10 @@ const App: React.FC = () => {
               // A borg warning (exit 1) still produces a valid archive — record it as a
               // successful run but surface the warning so it isn't silently treated as clean.
               if (warning) {
-                  addActivity('Backup Job Warning', `Archive created with warnings: ${archiveName}`, 'warning');
+                  addActivity('Backup Job Warning', `Archive created with warnings: ${archiveName}`, 'warning', collectedOutput());
                   toast.warning(`Job '${job.name}' finished with warnings. Check activity log.`);
               } else {
-                  addActivity('Backup Job Success', `Created archive: ${archiveName}`, 'success');
+                  addActivity('Backup Job Success', `Created archive: ${archiveName}`, 'success', collectedOutput());
                   toast.success(`Job '${job.name}' finished successfully!`);
               }
 
@@ -1257,7 +1260,7 @@ const App: React.FC = () => {
                   if (pruneSuccess) {
                       addActivity('Auto Prune Success', `Repository pruned according to retention policy.`, 'success');
                   } else {
-                      addActivity('Auto Prune Failed', `Pruning step failed. Check logs.`, 'warning');
+                      addActivity('Auto Prune Failed', `Pruning step failed. Check logs.`, 'warning', collectedOutput());
                   }
               }
 
@@ -1271,13 +1274,13 @@ const App: React.FC = () => {
           } else {
               finishRepoBackup(repo, 'error', Date.now() - startTime);
               setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
-              addActivity('Backup Job Failed', `Job: ${job.name} failed`, 'error');
+              addActivity('Backup Job Failed', `Job: ${job.name} failed`, 'error', collectedOutput());
               toast.error(`Job '${job.name}' failed. Check activity log.`);
           }
       } catch (e: any) {
           finishRepoBackup(repo, 'error', Date.now() - startTime);
           setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'error' } : j));
-          addActivity('Backup Job Error', e.message, 'error');
+          addActivity('Backup Job Error', e.message, 'error', collectedOutput());
           toast.error(`Job '${job.name}' error: ${e.message}`);
       }
   };
@@ -1461,7 +1464,12 @@ const App: React.FC = () => {
               repos={repos} 
               isOpen={backupModal.isOpen}
               onClose={() => setBackupModal(prev => prev ? { ...prev, isOpen: false } : prev)}
-              onLog={() => {}}
+              onLog={(title, logs, status) => addActivity(
+                  status === 'warning' ? 'Backup Finished With Warnings' : 'Backup Failed',
+                  title,
+                  status || 'error',
+                  truncateActivityOutput(logs.join(''))
+              )}
               onSuccess={() => { /* handled via onBackupFinished */ }}
               onBackupStarted={(repo, commandId) => startRepoBackup(repo, commandId)}
               onBackupFinished={(repo, result, durationMs) => {

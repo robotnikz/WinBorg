@@ -1,5 +1,5 @@
-import React from 'react';
-import { Activity, Clock, Terminal, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Activity, Check, ChevronRight, Clock, Copy, Terminal, Trash2 } from 'lucide-react';
 import { ActivityLogEntry } from '../types';
 import Button from '../components/Button';
 import { formatDate } from '../utils/formatters';
@@ -10,6 +10,36 @@ interface ActivityViewProps {
 }
 
 const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
+    // Output is opt-in per entry: backup runs can produce a lot of text, so we
+    // only render it once the user asks for it.
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+    const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => () => {
+        if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    }, []);
+
+    const toggleOutput = (id: string) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const copyOutput = async (log: ActivityLogEntry) => {
+        try {
+            await navigator.clipboard.writeText(log.cmd || '');
+            setCopiedId(log.id);
+            if (copyResetRef.current) clearTimeout(copyResetRef.current);
+            copyResetRef.current = setTimeout(() => setCopiedId(null), 2000);
+        } catch {
+            // ignore (clipboard may be unavailable in some contexts)
+        }
+    };
+
     // Helper to format "time ago" roughly or just use absolute date
     const formatTime = (iso: string) => {
         try {
@@ -82,7 +112,7 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
                             </div>
                             <div className="divide-y divide-gray-100 dark:divide-slate-700">
                                 {group.items.map((log) => (
-                            <div key={log.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors flex gap-4 items-start group">
+                            <div key={log.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors flex gap-4 items-start">
                                 <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${
                                     log.status === 'success' ? 'bg-green-500 shadow-green-500/50' : 
                                     log.status === 'warning' ? 'bg-yellow-500 shadow-yellow-500/50' : 
@@ -99,12 +129,41 @@ const ActivityView: React.FC<ActivityViewProps> = ({ logs, onClearLogs }) => {
                                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 truncate">{log.detail}</p>
                                     
                                     {log.cmd && (
-                                        <div className="mt-3 bg-slate-900 rounded p-2 hidden group-hover:block animate-in fade-in slide-in-from-top-1 duration-200 border border-slate-700">
-                                            <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 border-b border-slate-700 pb-1">
-                                                <Terminal className="w-3 h-3" />
-                                                <span>Command Executed</span>
-                                            </div>
-                                            <code className="text-xs font-mono text-green-400 break-all whitespace-pre-wrap">{log.cmd}</code>
+                                        <div className="mt-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleOutput(log.id)}
+                                                aria-expanded={expandedIds.has(log.id)}
+                                                aria-controls={`activity-output-${log.id}`}
+                                                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                                            >
+                                                <ChevronRight className={`w-3.5 h-3.5 transition-transform ${expandedIds.has(log.id) ? 'rotate-90' : ''}`} />
+                                                {expandedIds.has(log.id) ? 'Hide output' : 'Show output'}
+                                            </button>
+
+                                            {expandedIds.has(log.id) && (
+                                                <div
+                                                    id={`activity-output-${log.id}`}
+                                                    className="mt-2 bg-slate-900 rounded p-2 animate-in fade-in slide-in-from-top-1 duration-200 border border-slate-700"
+                                                >
+                                                    <div className="flex items-center justify-between gap-2 text-xs text-slate-400 mb-1 border-b border-slate-700 pb-1">
+                                                        <span className="flex items-center gap-2">
+                                                            <Terminal className="w-3 h-3" />
+                                                            Output
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyOutput(log)}
+                                                            aria-label="Copy output to clipboard"
+                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-slate-700 hover:text-slate-200 transition-colors"
+                                                        >
+                                                            {copiedId === log.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                            {copiedId === log.id ? 'Copied' : 'Copy'}
+                                                        </button>
+                                                    </div>
+                                                    <pre className="max-h-72 overflow-auto custom-scrollbar text-xs font-mono text-green-400 break-all whitespace-pre-wrap">{log.cmd}</pre>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

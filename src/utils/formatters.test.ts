@@ -1,6 +1,6 @@
 
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { formatBytes, formatDuration, parseSizeString, formatDate, getNextRunForRepo } from './formatters';
+import { formatBytes, formatDuration, parseSizeString, formatDate, getNextRunForRepo, truncateActivityOutput, MAX_ACTIVITY_OUTPUT_CHARS } from './formatters';
 import { BackupJob } from '../types';
 
 const createMockJob = (overrides: Partial<BackupJob>): BackupJob => ({
@@ -32,6 +32,25 @@ describe('formatters', () => {
 
     afterEach(() => {
         vi.useRealTimers();
+    });
+
+    describe('truncateActivityOutput', () => {
+        it('returns short output unchanged', () => {
+            expect(truncateActivityOutput('all good')).toBe('all good');
+        });
+
+        it('handles empty input', () => {
+            expect(truncateActivityOutput('')).toBe('');
+        });
+
+        it('keeps the tail and marks how much was dropped', () => {
+            const text = 'x'.repeat(MAX_ACTIVITY_OUTPUT_CHARS) + 'SUMMARY';
+            const result = truncateActivityOutput(text);
+
+            expect(result).toContain('SUMMARY');
+            expect(result).toContain('[... 7 earlier characters omitted ...]');
+            expect(result.length).toBeLessThan(text.length + 100);
+        });
     });
 
     describe('parseSizeString', () => {
