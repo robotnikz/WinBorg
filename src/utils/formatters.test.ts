@@ -43,6 +43,10 @@ describe('formatters', () => {
             expect(truncateActivityOutput('')).toBe('');
         });
 
+        it('turns carriage-return progress frames into separate lines', () => {
+            expect(truncateActivityOutput('frame one\rframe two\r\nframe three')).toBe('frame one\nframe two\nframe three');
+        });
+
         it('keeps the tail and marks how much was dropped', () => {
             const text = 'x'.repeat(MAX_ACTIVITY_OUTPUT_CHARS) + 'SUMMARY';
             const result = truncateActivityOutput(text);

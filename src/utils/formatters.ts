@@ -72,9 +72,12 @@ export const MAX_ACTIVITY_OUTPUT_CHARS = 10000;
 
 export const truncateActivityOutput = (text: string, maxChars = MAX_ACTIVITY_OUTPUT_CHARS): string => {
     if (!text) return '';
-    if (text.length <= maxChars) return text;
-    const dropped = text.length - maxChars;
-    return `[... ${dropped} earlier characters omitted ...]\n${text.slice(-maxChars)}`;
+    // borg --progress redraws its status with carriage returns. Those render
+    // unpredictably in a <pre>, so turn every frame into its own line.
+    const normalized = text.replace(/\r\n?/g, '\n');
+    if (normalized.length <= maxChars) return normalized;
+    const dropped = normalized.length - maxChars;
+    return `[... ${dropped} earlier characters omitted ...]\n${normalized.slice(-maxChars)}`;
 };
 
 export const formatDuration = (seconds: number): string => {

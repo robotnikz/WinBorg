@@ -1076,7 +1076,7 @@ const MAX_ACTIVITY_OUTPUT_CHARS = 10000;
 
 function truncateActivityOutput(text, maxChars = MAX_ACTIVITY_OUTPUT_CHARS) {
     if (!text) return '';
-    const str = String(text);
+    const str = String(text).replace(/\r\n?/g, '\n');
     if (str.length <= maxChars) return str;
     const dropped = str.length - maxChars;
     return `[... ${dropped} earlier characters omitted ...]\n${str.slice(-maxChars)}`;
