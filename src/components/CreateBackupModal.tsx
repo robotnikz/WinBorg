@@ -12,7 +12,7 @@ interface CreateBackupModalProps {
   repos?: Repository[]; // List of all available connected repos
   isOpen: boolean;
   onClose: () => void;
-  onLog: (title: string, logs: string[]) => void;
+  onLog: (title: string, logs: string[], status?: 'warning' | 'error') => void;
   onSuccess: () => void;
 
     // Optional lifecycle hooks so parent can show global running state/ETA
@@ -144,7 +144,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
               // the archive was still created, so this is a success-with-caveat, not a failure.
               if (warning) {
                   toast.warning(`Backup '${archiveName}' completed with warnings. See logs for details.`);
-                  onLog(`Backup completed with warnings: ${archiveName}`, logs);
+                  onLog(`Backup completed with warnings: ${archiveName}`, logs, 'warning');
               } else {
                   toast.success(`Backup '${archiveName}' created successfully!`);
               }
@@ -153,7 +153,7 @@ const CreateBackupModal: React.FC<CreateBackupModalProps> = ({ initialRepo, repo
               onClose();
           } else {
               toast.error("Backup failed. See logs for details.");
-              onLog(`Backup Failed: ${archiveName}`, logs);
+              onLog(`Backup Failed: ${archiveName}`, logs, 'error');
               onBackupFinished?.(activeRepo, 'error', Date.now() - startTime);
           }
       } catch (e: any) {

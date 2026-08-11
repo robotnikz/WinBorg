@@ -1069,6 +1069,19 @@ function extractBorgErrorSummary(output) {
     }
 }
 
+// Output attached to an activity entry is persisted in data.json, so cap it.
+// Keep the tail: that is where borg puts the summary and the last warnings.
+// Mirrors truncateActivityOutput() in src/utils/formatters.ts.
+const MAX_ACTIVITY_OUTPUT_CHARS = 10000;
+
+function truncateActivityOutput(text, maxChars = MAX_ACTIVITY_OUTPUT_CHARS) {
+    if (!text) return '';
+    const str = String(text).replace(/\r\n?/g, '\n');
+    if (str.length <= maxChars) return str;
+    const dropped = str.length - maxChars;
+    return `[... ${dropped} earlier characters omitted ...]\n${str.slice(-maxChars)}`;
+}
+
 function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, commandId } = {}) {
     const queueKey = inferBorgQueueKey(args, repoId) || (repo && repo.url) || 'global';
     return enqueueBorgByKey(queueKey, () => new Promise((resolve) => {
@@ -1131,10 +1144,12 @@ function runBorgInternal(args, { repo, repoId, useWsl, wslDistro, jobName, comma
             const success = code === 0 || isWarning;
             const summary = extractBorgErrorSummary(output);
             safeSendToRenderer('activity-log', {
-                title: success ? 'Scheduled Backup Success' : 'Scheduled Backup Failed',
+                title: success
+                    ? (isWarning ? 'Scheduled Backup Warning' : 'Scheduled Backup Success')
+                    : 'Scheduled Backup Failed',
                 detail: summary ? `${jobName} - Code ${code}: ${summary}` : `${jobName} - Code ${code}`,
                 status: success ? (isWarning ? 'warning' : 'success') : 'error',
-                cmd: output
+                cmd: truncateActivityOutput(output)
             });
             resolve({ success, output: output });
         });

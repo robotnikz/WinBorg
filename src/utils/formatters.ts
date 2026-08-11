@@ -64,6 +64,22 @@ export const formatDate = (isoString: string): string => {
     }
 };
 
+// Borg output is stored alongside activity log entries and therefore ends up in
+// data.json. Cap it so a chatty run (or one with thousands of warning lines)
+// can't bloat the database. The tail is kept because that is where borg puts
+// the summary and the last warnings.
+export const MAX_ACTIVITY_OUTPUT_CHARS = 10000;
+
+export const truncateActivityOutput = (text: string, maxChars = MAX_ACTIVITY_OUTPUT_CHARS): string => {
+    if (!text) return '';
+    // borg --progress redraws its status with carriage returns. Those render
+    // unpredictably in a <pre>, so turn every frame into its own line.
+    const normalized = text.replace(/\r\n?/g, '\n');
+    if (normalized.length <= maxChars) return normalized;
+    const dropped = normalized.length - maxChars;
+    return `[... ${dropped} earlier characters omitted ...]\n${normalized.slice(-maxChars)}`;
+};
+
 export const formatDuration = (seconds: number): string => {
     if (seconds < 60) return `${seconds.toFixed(1)}s`;
     const minutes = Math.floor(seconds / 60);
