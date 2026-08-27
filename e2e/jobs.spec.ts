@@ -147,4 +147,58 @@ test.describe('Jobs flow', () => {
     await expect(page.getByText(/failed\. Check activity log/i)).toBeVisible();
     await expect(page.getByText(/finished successfully/i)).toBeHidden();
   });
+
+  test('scheduled run reported by the main process refreshes the archive list @smoke', async () => {
+    await addMockElectronInitScript(page.context(), {
+      initialDb: {
+        ...baseDb,
+        jobs: [
+          {
+            id: 'job1',
+            repoId: 'repo1',
+            name: 'Docs',
+            sourcePath: 'C:\\Docs',
+            sourcePaths: ['C:\\Docs'],
+            archivePrefix: 'docs',
+            lastRun: 'Never',
+            status: 'idle',
+            compression: 'auto',
+            pruneEnabled: false,
+            keepDaily: 7,
+            keepWeekly: 4,
+            keepMonthly: 6,
+            keepYearly: 1,
+            scheduleEnabled: true,
+            scheduleType: 'daily',
+            scheduleTime: '10:00',
+          },
+        ],
+      },
+      system: baseSystem,
+    });
+    await page.reload();
+
+    await page.locator('nav').getByRole('button', { name: 'Repositories', exact: true }).click();
+
+    // Connect repo (populates archives via borg list --json).
+    await page.getByRole('button', { name: 'Connect', exact: true }).click();
+    await expect(page.getByText('Online')).toBeVisible();
+
+    await page.locator('nav').getByRole('button', { name: 'Restore', exact: true }).click();
+    await expect(page.getByText('daily-2026-01-03')).toBeVisible();
+    await expect(page.getByText('docs-2026-01-04')).toHaveCount(0);
+
+    // A scheduled run (internal scheduler or Task Scheduler handover) created a new archive and
+    // the main process reports the run as finished — the same IPC events electron-main.js sends.
+    await page.evaluate(() => {
+      const mock = (window as any).__winborgMock;
+      mock.addArchive('docs-2026-01-04');
+      mock.emit('job-started', { jobId: 'job1', repoId: 'repo1', commandId: 'job-job1-1' });
+      mock.emit('job-complete', { jobId: 'job1', repoId: 'repo1', commandId: 'job-job1-1', success: true });
+    });
+
+    // The new archive shows up without pressing "Refresh Archives List".
+    await expect(page.getByText('docs-2026-01-04')).toBeVisible();
+    await expect(page.getByText('daily-2026-01-03')).toBeVisible();
+  });
 });

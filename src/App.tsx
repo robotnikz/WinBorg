@@ -436,6 +436,9 @@ const App: React.FC = () => {
                       const startTime = repo.backupStartTime;
                       const durationMs = typeof startTime === 'number' ? Date.now() - startTime : undefined;
                       finishRepoBackup(repo, success ? 'success' : 'error', durationMs);
+                      // Same as the manual path in handleRunJob: the run produced a new archive,
+                      // so the archive list shown for this repo is stale until it's reloaded.
+                      if (success && repo.status === 'connected') handleConnectRef.current(repo);
                   }
               }
           };
@@ -916,6 +919,13 @@ const App: React.FC = () => {
         { repoId: repo.id, disableHostCheck: repo.trustHost, remotePath: repo.remotePath } // Secure Injection
     );
   };
+
+  // The background listener effect subscribes once and would otherwise keep calling the
+  // first render's handleConnect; route through a ref so it always reaches the current one.
+  const handleConnectRef = useRef(handleConnect);
+  useEffect(() => {
+      handleConnectRef.current = handleConnect;
+  });
 
   const handleRefreshArchives = () => {
       const activeRepo = repos.find(r => r.status === 'connected');

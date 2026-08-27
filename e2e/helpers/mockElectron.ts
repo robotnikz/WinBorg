@@ -196,6 +196,8 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
       updates: initOpts.updates,
       secrets: new Map<string, string>(),
       mounts: new Map<string, { mountId: string; localPath: string }>(),
+      // Archives added by a spec on top of the fixed ones; included in later `borg list --json` output.
+      extraArchives: [] as Array<{ id: string; name: string; time: string }>,
     };
 
     function emit(channel: string, ...args: any[]) {
@@ -213,6 +215,15 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
     function sendTerminalLog(id: string, text: string) {
       emit('terminal-log', { id, text });
     }
+
+    // Test-only control surface for specs: play the main process by pushing its events into the
+    // renderer (e.g. a scheduled run reporting back) and change what the mocked repo contains.
+    (window as any).__winborgMock = {
+      emit,
+      addArchive(name: string) {
+        state.extraArchives.push({ id: `extra-${state.extraArchives.length + 1}`, name, time: new Date().toISOString() });
+      },
+    };
 
     function ensureRepoDefaults(repo: any) {
       return {
@@ -519,6 +530,7 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
         { id: 'a1', name: 'daily-2026-01-01', time: new Date(now - 3 * 86400_000).toISOString() },
         { id: 'a2', name: 'daily-2026-01-02', time: new Date(now - 2 * 86400_000).toISOString() },
         { id: 'a3', name: 'daily-2026-01-03', time: new Date(now - 1 * 86400_000).toISOString() },
+        ...state.extraArchives,
       ];
       return JSON.stringify({ repository: { location: repoUrl }, archives });
     }
