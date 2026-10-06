@@ -217,4 +217,109 @@ describe('App mount flow (integration)', () => {
     });
 
   });
+
+  it('mounts all archives of a repository and lists the mount', async () => {
+    mockIpcRenderer.invoke.mockImplementation((channel: string) => {
+      if (channel === 'get-db') {
+        return Promise.resolve({
+          repos: [
+            {
+              id: 'r1',
+              name: 'Repo1',
+              url: 'ssh://user@host/./repo',
+              status: 'connected',
+              lastBackup: 'Never',
+              encryption: 'repokey',
+              size: 'Unknown',
+              fileCount: 0,
+            },
+          ],
+          jobs: [],
+          mounts: [],
+          archives: [],
+          archivesRepoId: null,
+          activityLogs: [],
+        });
+      }
+      if (channel === 'system-check-wsl') return Promise.resolve({ installed: true });
+      if (channel === 'system-check-borg') return Promise.resolve({ installed: true });
+      return Promise.resolve(null);
+    });
+
+    mockBorg.runCommand.mockImplementation(async (args: string[], onLog: (line: string) => void) => {
+      if (args[0] === 'list' && args.includes('--json')) {
+        onLog(JSON.stringify({
+          archives: [
+            { id: 'a1', name: 'arch 1', time: '2023-01-01T10:00:00' },
+            { id: 'a2', name: 'arch 2', time: '2023-01-02T10:00:00' },
+          ],
+        }));
+        return true;
+      }
+      if (args[0] === 'info' && args.includes('--json')) {
+        onLog(JSON.stringify({ repository: { stats: { unique_csize: 0, total_size: 0 } } }));
+        return true;
+      }
+      return true;
+    });
+
+    mockBorg.mount.mockResolvedValue({ success: true, mountId: 'm-all' });
+    mockBorg.checkLockStatus.mockResolvedValue(false);
+    mockBorg.getArchiveInfo.mockResolvedValue({ size: '1MB', duration: '1s' });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Checking system')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Repositories' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Connect first repo' })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect first repo' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('repo-status')).toHaveTextContent('connected');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Mounts' }));
+    await waitFor(() => expect(screen.getByText('Active Mounts')).toBeInTheDocument(), { timeout: 3000 });
+    fireEvent.click(screen.getByRole('button', { name: /New Mount/i }));
+
+    await waitFor(() => {
+      const selects = screen.getAllByRole('combobox');
+      expect(within(selects[1]).getByRole('option', { name: /All archives \(2\)/ })).toBeInTheDocument();
+    });
+
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'r1' } });
+    fireEvent.change(selects[1], { target: { value: '__winborg_all_archives__' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Mount All Archives' })).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Mount All Archives' }));
+
+    await waitFor(() => {
+      expect(mockBorg.mount).toHaveBeenCalledTimes(1);
+    }, { timeout: 3000 });
+
+    expect(mockBorg.mount).toHaveBeenCalledWith(
+      'ssh://user@host/./repo',
+      null,
+      '/mnt/wsl/winborg/all-archives-Repo1',
+      expect.any(Function),
+      expect.objectContaining({ repoId: 'r1' })
+    );
+    expect(mockIpcRenderer.send).toHaveBeenCalledWith('open-path', '/mnt/wsl/winborg/all-archives-Repo1');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'All archives' })).toBeInTheDocument();
+      expect(screen.getByText('/mnt/wsl/winborg/all-archives-Repo1')).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
 });

@@ -157,7 +157,7 @@ This means:
 - **Archive browser**: find files/folders in older snapshots
 - **Restore / extract**: selectively bring data back
 - **Diff viewer**: see what changed between two archives
-- **Mounts**: mount archives as a filesystem (FUSE inside WSL)
+- **Mounts**: mount a single archive, or all archives of a repository at once (one folder per archive), as a filesystem (FUSE inside WSL)
 
 ### Monitoring & UX
 - Native Windows notifications + Discord webhook + SMTP

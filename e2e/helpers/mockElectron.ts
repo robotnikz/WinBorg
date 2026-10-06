@@ -184,6 +184,8 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
     const listeners = new Map<string, Set<Function>>();
 
     (window as any).__winborgIpcSends = [];
+    // Payloads of every `borg-mount` invoke, so specs can assert the exact borg arguments.
+    (window as any).__winborgMountCalls = [];
 
     const state = {
       db: structuredClone(initOpts.initialDb),
@@ -442,6 +444,7 @@ export function addMockElectronInitScript(context: any, options: MockOptions = {
 
           // Mounting
           case 'borg-mount': {
+            (window as any).__winborgMountCalls.push(structuredClone(payload));
             if (state.mountBehavior?.mountSuccess === false) {
               return { success: false, error: state.mountBehavior?.mountError || 'Mount failed' };
             }

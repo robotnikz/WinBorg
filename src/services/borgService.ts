@@ -761,7 +761,12 @@ export const borgService = {
       return result.success;
   },
 
-  mount: async (repoUrl: string, archiveName: string, mountPoint: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
+  /**
+   * Mount one archive (`repo::archive`) or, when archiveName is null, the whole repository.
+   * A repository mount shows every archive as a folder; borg loads an archive when it is opened.
+   * The mount point must stay the last argument: the main process prepares it before mounting.
+   */
+  mount: async (repoUrl: string, archiveName: string | null, mountPoint: string, onLog: (text: string) => void, overrides?: { repoId?: string, disableHostCheck?: boolean, remotePath?: string }) => {
     const mountId = `mount-${Date.now()}`;
     const config = getBorgConfig();
     const logListener = (_: any, msg: { id: string, text: string }) => {
@@ -787,7 +792,8 @@ export const borgService = {
             });
         }
         
-        const args = ['mount', '--foreground', '-o', 'allow_other', `${repoUrl}::${archiveName}`, mountPoint];
+        const mountTarget = archiveName ? `${repoUrl}::${archiveName}` : repoUrl;
+        const args = ['mount', '--foreground', '-o', 'allow_other', mountTarget, mountPoint];
         const result = await getIpc().invoke('borg-mount', { 
             args, 
             mountId, 

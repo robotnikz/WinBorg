@@ -17,6 +17,7 @@ import { borgService } from './services/borgService';
 import { formatDate, truncateActivityOutput } from './utils/formatters';
 import { ToastContainer } from './components/ToastContainer';
 import { toast } from './utils/eventBus';
+import { ALL_ARCHIVES_LABEL } from './utils/mountPaths';
 import { Loader2 } from 'lucide-react';
 import OnboardingModal from './components/OnboardingModal';
 import UpdateModal from './components/UpdateModal';
@@ -728,15 +729,20 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMount = async (repoId: string, archiveName: string, path: string) => {
+  // archiveName === null mounts the whole repository (all archives).
+  const handleMount = async (repoId: string, archiveName: string | null, path: string) => {
     const repo = repos.find(r => r.id === repoId);
     if (!repo) return;
 
-    setTerminalTitle(`Mounting ${archiveName}`);
-    setTerminalLogs([`Requesting mount of ${repo.url}::${archiveName} to ${path}...`]);
+    const allArchives = archiveName === null;
+    const mountLabel = allArchives ? ALL_ARCHIVES_LABEL : archiveName;
+    const mountSource = allArchives ? `all archives of ${repo.url}` : `${repo.url}::${archiveName}`;
+
+    setTerminalTitle(`Mounting ${mountLabel}`);
+    setTerminalLogs([`Requesting mount of ${mountSource} to ${path}...`]);
     setIsProcessing(true);
     
-    addActivity('Mount Requested', `Mounting ${archiveName} to ${path}`, 'info');
+    addActivity('Mount Requested', `Mounting ${allArchives ? `all archives of ${repo.name}` : archiveName} to ${path}`, 'info');
 
     const result = await borgService.mount(
         repo.url, 
@@ -756,14 +762,19 @@ const App: React.FC = () => {
     setTimeout(() => checkRepoLock(repo), 1000);
 
     if (result.success) {
-        addActivity('Mount Successful', `Archive ${archiveName} mounted at ${path}`, 'success');
-        toast.success(`Mounted ${archiveName}`);
+        addActivity(
+          'Mount Successful',
+          allArchives ? `All archives of ${repo.name} mounted at ${path}` : `Archive ${archiveName} mounted at ${path}`,
+          'success'
+        );
+        toast.success(allArchives ? `Mounted all archives of ${repo.name}` : `Mounted ${archiveName}`);
         
         setTerminalLogs(prev => [...prev, "Mount process started successfully."]);
         const newMount: MountPoint = {
           id: result.mountId || Date.now().toString(),
           repoId,
-          archiveName,
+          archiveName: mountLabel,
+          ...(allArchives ? { allArchives: true } : {}),
           localPath: path,
           status: 'mounted',
         };
@@ -776,7 +787,7 @@ const App: React.FC = () => {
         } catch(e) { console.error("Could not auto-open explorer"); }
         
     } else {
-        addActivity('Mount Failed', `Failed to mount ${archiveName}: ${result.error || 'Unknown error'}`, 'error');
+        addActivity('Mount Failed', `Failed to mount ${allArchives ? `all archives of ${repo.name}` : archiveName}: ${result.error || 'Unknown error'}`, 'error');
         toast.error(`Mount failed. See activity logs.`);
         setIsTerminalOpen(true);
 
