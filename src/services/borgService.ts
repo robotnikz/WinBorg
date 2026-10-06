@@ -433,7 +433,12 @@ export const borgService = {
 
                     # Try to auto-install dependencies (best-effort). This is safe to re-run.
                     /usr/bin/apt-get update --allow-releaseinfo-change || true;
-                    /usr/bin/apt-get install -y --no-install-recommends --fix-missing fuse3 libfuse2 python3 python3-llfuse python3-pyfuse3 || true;
+                    # Install one binding at a time: Ubuntu 26.04 no longer ships python3-llfuse, and a single
+                    # apt-get call with an unknown package would install nothing at all.
+                    /usr/bin/apt-get install -y --no-install-recommends --fix-missing fuse3 libfuse2 python3 || true;
+                    /usr/bin/apt-get install -y --no-install-recommends --fix-missing python3-llfuse \
+                        || /usr/bin/apt-get install -y --no-install-recommends --fix-missing python3-pyfuse3 \
+                        || true;
 
                     # Re-check after install attempt
                     if command -v python3 >/dev/null 2>&1; then
@@ -445,7 +450,7 @@ export const borgService = {
 
                     if [ "$have_bindings" != "1" ]; then
                         echo "Missing Python FUSE bindings for borg mount (llfuse/pyfuse3).";
-                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y";
+                        echo "Install in WSL: sudo apt update && sudo apt install fuse3 libfuse2 python3-pyfuse3 -y";
                         exit 22;
                     fi;
                 fi;

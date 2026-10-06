@@ -509,6 +509,36 @@ describe('borgService', () => {
         });
     });
 
+    describe('ensureFuseConfig', () => {
+        it('installs the FUSE bindings one package at a time (Ubuntu 26.04 has no python3-llfuse)', async () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+            mockInvoke.mockResolvedValue({ success: true });
+
+            await borgService.ensureFuseConfig(vi.fn());
+
+            const call = mockInvoke.mock.calls.find(([channel, payload]) => channel === 'borg-spawn' && payload?.commandId === 'fuse-setup');
+            expect(call).toBeDefined();
+            const script: string = call![1].args[1];
+
+            // No single apt-get call may combine both bindings: apt installs nothing if one package is unknown.
+            const installCommands = script.split(/;|\|\|/).filter((part) => part.includes('apt-get install'));
+            expect(installCommands.length).toBeGreaterThanOrEqual(3);
+            for (const command of installCommands) {
+                expect(command.includes('python3-llfuse') && command.includes('python3-pyfuse3')).toBe(false);
+            }
+            expect(script).toMatch(/install[^;]*python3-llfuse\s*\|\|\s*\/usr\/bin\/apt-get install[^;]*python3-pyfuse3\s*\|\|\s*true;/);
+            expect(script).not.toContain('python3-llfuse python3-pyfuse3');
+
+            // The script must stay valid bash.
+            const { spawnSync } = await import('node:child_process');
+            const check = spawnSync('bash', ['-n'], { input: script, encoding: 'utf8' });
+            expect(check.status).toBe(0);
+        });
+    });
+
     describe('mount', () => {
         const enableWsl = () => {
             (window.localStorage.getItem as any).mockImplementation((key: string) => {

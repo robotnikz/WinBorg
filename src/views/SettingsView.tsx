@@ -625,8 +625,8 @@ const SettingsView: React.FC = () => {
                                     <div className="space-y-3">
                                         <p className="text-xs text-blue-800 dark:text-blue-300">Requires <code>borgbackup</code> and <code>fuse3</code> installed in your default distro:</p>
                                         <div className="bg-slate-900 rounded p-3 font-mono text-xs shadow-inner">
-                                            <code className="block text-green-400 select-all cursor-pointer" onClick={() => navigator.clipboard.writeText('sudo apt update && sudo apt install borgbackup fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y')}>
-                                                sudo apt update && sudo apt install borgbackup fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y
+                                            <code className="block text-green-400 select-all cursor-pointer" onClick={() => navigator.clipboard.writeText('sudo apt update && sudo apt install borgbackup fuse3 libfuse2 python3-pyfuse3 -y')}>
+                                                sudo apt update && sudo apt install borgbackup fuse3 libfuse2 python3-pyfuse3 -y
                                             </code>
                                         </div>
                                     </div>
