@@ -37,7 +37,7 @@ const FuseSetupModal: React.FC<FuseSetupModalProps> = ({ isOpen, onClose, showRe
   // This one-liner does two things:
   // 1. Installs dependencies
   // 2. Uncomments/Adds 'user_allow_other' in /etc/fuse.conf to allow Windows Explorer access
-  const command = "sudo apt update && sudo apt install fuse3 libfuse2 python3-llfuse python3-pyfuse3 -y && echo 'user_allow_other' | sudo tee -a /etc/fuse.conf && sudo chmod 666 /dev/fuse";
+  const command = "sudo apt update && sudo apt install fuse3 libfuse2 python3-pyfuse3 -y && echo 'user_allow_other' | sudo tee -a /etc/fuse.conf && sudo chmod 666 /dev/fuse";
 
   return (
         <div
