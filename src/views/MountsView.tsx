@@ -3,6 +3,10 @@ import { Archive, MountPoint, Repository } from '../types';
 import Button from '../components/Button';
 import { CheckCircle2, ChevronUp, FolderOpen, HardDrive, Info, Loader2, Plus, Terminal, XCircle } from 'lucide-react';
 import { getIpcRendererOrNull } from '../services/electron';
+import { ALL_ARCHIVES_LABEL, getArchiveMountPath, getRepositoryMountPath } from '../utils/mountPaths';
+
+// Select value for "mount the whole repository"; never a real archive name in practice.
+export const ALL_ARCHIVES_VALUE = '__winborg_all_archives__';
 
 interface MountsViewProps {
   mounts: MountPoint[];
@@ -10,7 +14,8 @@ interface MountsViewProps {
   archives: Archive[];
   archivesRepoId?: string | null;
   onUnmount: (id: string) => void;
-  onMount: (repoId: string, archiveName: string, path: string) => void;
+  /** archiveName is null when the whole repository (all archives) should be mounted */
+  onMount: (repoId: string, archiveName: string | null, path: string) => void;
   preselectedRepoId?: string | null;
 }
 
@@ -36,6 +41,7 @@ const MountsView: React.FC<MountsViewProps> = ({
   const canUseArchivesForSelectedRepo =
     currentRepoStatus === 'connected' && String(archivesRepoId || '') === String(selectedRepo || '');
   const availableArchives = canUseArchivesForSelectedRepo ? archives : [];
+  const mountAll = selectedArchive === ALL_ARCHIVES_VALUE;
 
   useEffect(() => {
     const storedWsl = localStorage.getItem('winborg_use_wsl');
@@ -53,7 +59,11 @@ const MountsView: React.FC<MountsViewProps> = ({
 
     if (!selectedArchive && availableArchives.length > 0) {
       setSelectedArchive(availableArchives[0].name);
-    } else if (availableArchives.length > 0 && !availableArchives.find((a) => a.name === selectedArchive)) {
+    } else if (
+      availableArchives.length > 0
+      && selectedArchive !== ALL_ARCHIVES_VALUE
+      && !availableArchives.find((a) => a.name === selectedArchive)
+    ) {
       setSelectedArchive(availableArchives[0].name);
     } else if (availableArchives.length === 0 && selectedArchive) {
       setSelectedArchive('');
@@ -70,19 +80,25 @@ const MountsView: React.FC<MountsViewProps> = ({
       return;
     }
 
-    const archiveNameClean = selectedArchive.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const internalPath = `/mnt/wsl/winborg/${archiveNameClean}`;
-    const cmd = `borg mount -o allow_other ${repo.url}::${selectedArchive} ${internalPath}`;
+    const cmd = mountAll
+      ? `borg mount -o allow_other ${repo.url} ${getRepositoryMountPath(repo)}`
+      : `borg mount -o allow_other ${repo.url}::${selectedArchive} ${getArchiveMountPath(selectedArchive)}`;
     setCommandPreview(cmd);
-  }, [isCreating, selectedRepo, selectedArchive, repoById]);
+  }, [isCreating, selectedRepo, selectedArchive, mountAll, repoById]);
+
+  const selectedRepoEntry = repoById.get(selectedRepo);
+  const plannedMountPath = !selectedArchive
+    ? ''
+    : !useWsl
+      ? 'Z:'
+      : mountAll
+        ? (selectedRepoEntry ? getRepositoryMountPath(selectedRepoEntry) : '')
+        : getArchiveMountPath(selectedArchive);
+  const isAlreadyMounted = !!plannedMountPath && mounts.some((m) => m.localPath === plannedMountPath);
 
   const handleMount = () => {
-    let finalPath = 'Z:';
-    if (useWsl) {
-      const archiveNameClean = selectedArchive.replace(/[^a-zA-Z0-9._-]/g, '_');
-      finalPath = `/mnt/wsl/winborg/${archiveNameClean}`;
-    }
-    onMount(selectedRepo, selectedArchive, finalPath);
+    if (!plannedMountPath || isAlreadyMounted) return;
+    onMount(selectedRepo, mountAll ? null : selectedArchive, plannedMountPath);
     setIsCreating(false);
   };
 
@@ -109,7 +125,7 @@ const MountsView: React.FC<MountsViewProps> = ({
     ipcRenderer.send('open-path', pathToSend);
   };
 
-  const internalPath = useWsl ? `/mnt/wsl/winborg/${selectedArchive || '...'}` : 'Z:';
+  const internalPath = useWsl ? (plannedMountPath || '/mnt/wsl/winborg/...') : 'Z:';
   const explorerPathHint = useWsl ? `\\\\wsl.localhost\\Ubuntu${internalPath.replace(/\//g, '\\')}` : internalPath;
 
   return (
@@ -176,15 +192,33 @@ const MountsView: React.FC<MountsViewProps> = ({
                 {availableArchives.length === 0 ? (
                   <option>No archives found (Connect repository first)</option>
                 ) : (
-                  availableArchives.map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.name} ({a.time})
+                  <>
+                    <option value={ALL_ARCHIVES_VALUE}>
+                      {ALL_ARCHIVES_LABEL} ({availableArchives.length}), one folder per archive
                     </option>
-                  ))
+                    {availableArchives.map((a) => (
+                      <option key={a.id} value={a.name}>
+                        {a.name} ({a.time})
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
             </div>
           </div>
+
+          {mountAll && (
+            <div
+              role="note"
+              className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg text-xs text-blue-800 dark:text-blue-200 flex gap-2"
+            >
+              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>
+                Every archive appears as its own folder. Borg loads an archive when you open its folder, so opening
+                folders can take a moment with many archives or a remote repository.
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex-1 p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-300">
@@ -214,10 +248,21 @@ const MountsView: React.FC<MountsViewProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-end pt-2 border-t border-gray-100 dark:border-slate-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
+            {isAlreadyMounted && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Already mounted at {plannedMountPath}. Unmount it first to mount it again.
+              </p>
+            )}
             <Button
               onClick={handleMount}
-              disabled={!selectedArchive || currentRepoStatus !== 'connected' || availableArchives.length === 0}
+              disabled={
+                !selectedArchive
+                || currentRepoStatus !== 'connected'
+                || availableArchives.length === 0
+                || !plannedMountPath
+                || isAlreadyMounted
+              }
               className="w-full sm:w-auto"
             >
               {currentRepoStatus === 'connecting' ? (
@@ -226,7 +271,7 @@ const MountsView: React.FC<MountsViewProps> = ({
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mount Archive
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> {mountAll ? 'Mount All Archives' : 'Mount Archive'}
                 </>
               )}
             </Button>

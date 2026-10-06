@@ -134,7 +134,8 @@ export interface Archive {
 export interface MountPoint {
   id: string;
   repoId: string;
-  archiveName: string;
+  archiveName: string; // display name; "All archives" for a repository mount
+  allArchives?: boolean; // true when the whole repository is mounted
   localPath: string; // e.g., "Z:\" or "C:\Mounts\Borg"
   status: 'mounted' | 'unmounting' | 'error';
   processId?: number;

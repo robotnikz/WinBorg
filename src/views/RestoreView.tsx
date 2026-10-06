@@ -22,7 +22,7 @@ interface RestoreViewProps {
   // Mounts
   mounts: MountPoint[];
   onUnmount: (id: string) => void;
-  onMount: (repoId: string, archiveName: string, path: string) => void;
+  onMount: (repoId: string, archiveName: string | null, path: string) => void;
   preselectedRepoId?: string | null;
 }
 

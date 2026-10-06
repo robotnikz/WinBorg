@@ -510,6 +510,82 @@ describe('borgService', () => {
     });
 
     describe('mount', () => {
+        const enableWsl = () => {
+            (window.localStorage.getItem as any).mockImplementation((key: string) => {
+                if (key === 'winborg_use_wsl') return 'true';
+                return null;
+            });
+        };
+
+        const mockSuccessfulMount = () => {
+            mockInvoke.mockImplementation(async (channel: string) => {
+                if (channel === 'borg-mount') return { success: true };
+                return { success: true };
+            });
+        };
+
+        const mountCall = () => mockInvoke.mock.calls.find(([channel]) => channel === 'borg-mount')?.[1];
+
+        it('mounts a single archive as repo::archive with the mount point as last argument', async () => {
+            enableWsl();
+            mockSuccessfulMount();
+
+            const res = await borgService.mount(
+                'ssh://user@host:22/./repo', 'daily-2026-01-03', '/mnt/wsl/winborg/daily-2026-01-03', vi.fn(), { repoId: 'r1' }
+            );
+
+            expect(res).toMatchObject({ success: true });
+            expect(res.mountId).toMatch(/^mount-\d+$/);
+            expect(mountCall()).toMatchObject({
+                args: ['mount', '--foreground', '-o', 'allow_other', 'ssh://user@host:22/./repo::daily-2026-01-03', '/mnt/wsl/winborg/daily-2026-01-03'],
+                useWsl: true,
+                repoId: 'r1',
+            });
+        });
+
+        it('mounts the whole repository when no archive is given', async () => {
+            enableWsl();
+            mockSuccessfulMount();
+
+            const res = await borgService.mount(
+                'ssh://user@host:22/./repo', null, '/mnt/wsl/winborg/all-archives-My_Repo', vi.fn(), { repoId: 'r1' }
+            );
+
+            expect(res).toMatchObject({ success: true });
+            const call = mountCall();
+            expect(call.args).toEqual(['mount', '--foreground', '-o', 'allow_other', 'ssh://user@host:22/./repo', '/mnt/wsl/winborg/all-archives-My_Repo']);
+            expect(call.args.join(' ')).not.toContain('::');
+            // The main process prepares the last argument as the WSL mount point.
+            expect(call.args[call.args.length - 1]).toBe('/mnt/wsl/winborg/all-archives-My_Repo');
+            expect(call.repoId).toBe('r1');
+        });
+
+        it('creates the mount point in WSL before a whole-repository mount', async () => {
+            enableWsl();
+            mockSuccessfulMount();
+
+            await borgService.mount('ssh://host/./repo', null, '/mnt/wsl/winborg/all-archives-R', vi.fn(), { repoId: 'r1' });
+
+            const mkdirIndex = mockInvoke.mock.calls.findIndex(([channel, payload]) =>
+                channel === 'borg-spawn' && payload?.forceBinary === 'mkdir');
+            const mountIndex = mockInvoke.mock.calls.findIndex(([channel]) => channel === 'borg-mount');
+            expect(mkdirIndex).toBeGreaterThanOrEqual(0);
+            expect(mockInvoke.mock.calls[mkdirIndex][1]).toMatchObject({ args: ['-p', '/mnt/wsl/winborg/all-archives-R'] });
+            expect(mkdirIndex).toBeLessThan(mountIndex);
+        });
+
+        it('returns the error from the main process for a failed whole-repository mount', async () => {
+            enableWsl();
+            mockInvoke.mockImplementation(async (channel: string) => {
+                if (channel === 'borg-mount') return { success: false, error: 'Exited with code 2. Log: Repository does not exist.' };
+                return { success: true };
+            });
+
+            const res = await borgService.mount('ssh://host/./missing', null, '/mnt/wsl/winborg/all-archives-R', vi.fn());
+
+            expect(res).toEqual({ success: false, mountId: undefined, error: 'Exited with code 2. Log: Repository does not exist.' });
+        });
+
         it('returns FUSE_MISSING when ensureFuseConfig fails (WSL enabled)', async () => {
             (window.localStorage.getItem as any).mockImplementation((key: string) => {
                 if (key === 'winborg_use_wsl') return 'true';

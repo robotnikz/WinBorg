@@ -78,6 +78,19 @@ Symptoms:
 Fix:
 - Follow the instructions in-app (WSL configuration / required packages) and re-try.
 
+### Mounting all archives is slow
+
+Symptoms:
+- With "All archives" selected, the mount works, but opening archive folders takes a while.
+
+Explanation:
+- A repository mount shows every archive as a folder, and Borg loads an archive when its folder is opened.
+  Windows Explorer may open folders on its own (previews, sizes), which loads more archives.
+  This is slower with many archives or a remote repository.
+
+Fix:
+- Mount a single archive when you know which backup you need.
+
 ## Diagnostics bundle
 
 When reporting issues, collect:
