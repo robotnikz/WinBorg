@@ -88,7 +88,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
-    "electron": "^43.7.7",
+    "electron": "^43.8.1",
     "electron-builder": "^26.15.3",
     "jsdom": "^30.0.1",
     "lucide-react": "^1.35.0",
